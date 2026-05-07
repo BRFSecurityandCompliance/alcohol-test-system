@@ -94,7 +94,8 @@
 
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+__dbReady.then(() => {
+if (!requireAdmin()) return;
   document.getElementById('chrome').innerHTML = renderTopbar('devices');
 
   // Populate location select
@@ -202,7 +203,7 @@ if (!requireAdmin()) {} else {
 
   Object.assign(window, { openModal, closeModal, save, del });
   render();
-}
+});
 </script>
 </body>
 </html>

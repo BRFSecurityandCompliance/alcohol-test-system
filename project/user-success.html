@@ -27,6 +27,7 @@
 
 <script src="data.js"></script>
 <script>
+__dbReady.then(() => {
 const params = new URLSearchParams(location.search);
 const code = params.get('location');
 const isZero = params.get('zero') === 'true';
@@ -68,6 +69,7 @@ if (loc) {
   summary.innerHTML = '<div class="muted">ไม่พบข้อมูลสถานที่</div>';
   again.style.display = 'none';
 }
+});
 </script>
 </body>
 </html>

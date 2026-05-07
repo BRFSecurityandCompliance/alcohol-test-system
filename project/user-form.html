@@ -32,6 +32,7 @@
 
 <script src="data.js"></script>
 <script>
+__dbReady.then(() => {
 const params = new URLSearchParams(location.search);
 const locationCode = params.get('location');
 const loc = locationCode ? DB.findLocation(locationCode) : null;
@@ -379,7 +380,7 @@ function renderForm() {
     }
     location.href = `user-success.html?location=${loc.code}&zero=${isZero}${savedOffline ? '&offline=1' : ''}`;
   });
-}
+});
 </script>
 </body>
 </html>

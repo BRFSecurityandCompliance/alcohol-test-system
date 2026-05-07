@@ -316,6 +316,14 @@ const DB = {
   addAudit(entry) { const db = loadDB(); db.audit.unshift({ id: 'a' + Date.now(), created_at: new Date().toISOString(), ...entry }); saveDB(db); },
   watchlist() { return loadDB().watchlist || []; },
   removeFromWatchlist(id) { const db = loadDB(); db.watchlist = (db.watchlist || []).filter(w => w.id !== id); saveDB(db); },
+  upsertPerson(p) {
+    const db = loadDB();
+    const i = p.id ? db.persons.findIndex(x => x.id === p.id) : -1;
+    if (i >= 0) db.persons[i] = { ...db.persons[i], ...p };
+    else db.persons.push({ ...p, id: 'p' + Date.now() });
+    saveDB(db);
+  },
+  deletePerson(id) { const db = loadDB(); db.persons = db.persons.filter(p => p.id !== id); saveDB(db); },
 
   // Person history
   testsByPerson(name) { return loadDB().tests.filter(t => t.full_name === name); },
@@ -459,3 +467,278 @@ function confirmDialog(title, msg) {
     wrap.querySelector('[data-yes]').onclick = () => { wrap.remove(); resolve(true); };
   });
 }
+
+// ===== Supabase Integration =====
+const _SB_URL = 'https://qgkevfikehdoufjcubcm.supabase.co';
+const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFna2V2ZmlrZWhkb3VmamN1YmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzI1MjYsImV4cCI6MjA5MzcwODUyNn0.HL4K4ut2oIYVrbc6FschFqJqIKnQQMVYzJA3ti5EgXM';
+
+function _sbH() {
+  return { 'apikey': _SB_KEY, 'Authorization': 'Bearer ' + _SB_KEY, 'Content-Type': 'application/json' };
+}
+async function _sbGet(table, qs) {
+  try {
+    const r = await fetch(_SB_URL + '/rest/v1/' + table + (qs ? '?' + qs : ''), { headers: _sbH() });
+    return r.ok ? r.json() : [];
+  } catch { return []; }
+}
+async function _sbPost(table, body) {
+  try {
+    const r = await fetch(_SB_URL + '/rest/v1/' + table, {
+      method: 'POST', headers: { ..._sbH(), 'Prefer': 'return=representation' }, body: JSON.stringify(body)
+    });
+    if (!r.ok) return null;
+    const j = await r.json(); return Array.isArray(j) ? j[0] : j;
+  } catch { return null; }
+}
+async function _sbPatch(table, val, body, col) {
+  try {
+    await fetch(_SB_URL + '/rest/v1/' + table + '?' + (col || 'id') + '=eq.' + encodeURIComponent(val), {
+      method: 'PATCH', headers: { ..._sbH(), 'Prefer': 'return=minimal' }, body: JSON.stringify(body)
+    });
+  } catch {}
+}
+async function _sbDel(table, val, col) {
+  try {
+    await fetch(_SB_URL + '/rest/v1/' + table + '?' + (col || 'id') + '=eq.' + encodeURIComponent(val), {
+      method: 'DELETE', headers: _sbH()
+    });
+  } catch {}
+}
+
+// Fetch all tables from Supabase and merge into localStorage cache
+DB.init = async function() {
+  try {
+    const [locs, cos, tests, devs, users, persons, channels, audit, watchlist, settings] = await Promise.all([
+      _sbGet('locations', 'order=code'),
+      _sbGet('companies', 'order=name'),
+      _sbGet('tests', 'order=created_at.desc&limit=500'),
+      _sbGet('devices', 'order=serial'),
+      _sbGet('admin_users', 'order=username'),
+      _sbGet('persons', 'order=full_name'),
+      _sbGet('alert_channels', 'order=created_at'),
+      _sbGet('audit_log', 'order=created_at.desc&limit=200'),
+      _sbGet('watchlist', 'order=added_at.desc'),
+      _sbGet('settings', 'id=eq.1')
+    ]);
+    const db = loadDB();
+    if (locs.length)     db.locations = locs;
+    if (cos.length)      db.companies = cos;
+    if (tests.length)    db.tests = tests;
+    if (devs.length)     db.devices = devs;
+    if (users.length)    db.users = users;
+    if (persons.length)  db.persons = persons;
+    if (channels.length) db.channels = channels;
+    if (audit.length)    db.audit = audit;
+    if (watchlist.length) db.watchlist = watchlist;
+    if (settings.length) {
+      const s = settings[0];
+      db.settings = { ...db.settings, retest_minutes: s.retest_minutes, watchlist_threshold: s.watchlist_threshold, watchlist_window_days: s.watchlist_window_days, language: s.language };
+    }
+    saveDB(db);
+  } catch (e) {
+    console.warn('Supabase sync failed, using local cache:', e.message);
+  }
+};
+
+// Patch write methods to also persist to Supabase in the background
+(function _patchForSupabase() {
+  function _isLocal(id, prefix) { return !id || (typeof id === 'string' && id.startsWith(prefix)); }
+
+  // addTest — POST new test, then update localStorage entry with real UUID
+  const _addTest = DB.addTest.bind(DB);
+  DB.addTest = function(t) {
+    const e = _addTest(t);
+    const rec = {
+      employee_id: e.employee_id || '', full_name: e.full_name, department: e.department,
+      plate_number: e.plate_number || '', company: e.company, alcohol_value: e.alcohol_value,
+      is_zero: e.is_zero, level: e.level, location_code: e.location_code, location_name: e.location_name,
+      photo_url: e.photo_url || '', shift_id: e.shift_id, device_serial: e.device_serial || '',
+      signature_employee: e.signature_employee || '', retest_status: e.retest_status || null,
+      action_taken: e.action_taken || null, action_note: e.action_note || '',
+      operator_id: e.operator_id && !_isLocal(e.operator_id, 'u') ? e.operator_id : null,
+      created_at: e.created_at
+    };
+    _sbPost('tests', rec).then(row => {
+      if (row?.id) {
+        const db = loadDB(); const i = db.tests.findIndex(x => x.id === e.id);
+        if (i >= 0) { db.tests[i].id = row.id; saveDB(db); }
+      }
+    });
+    // Push any newly auto-added watchlist entry to Supabase
+    const wl = (loadDB().watchlist || []).filter(w => w.full_name === e.full_name && _isLocal(w.id, 'w'));
+    wl.forEach(w => {
+      _sbPost('watchlist', { full_name: w.full_name, employee_id: w.employee_id || '', reason: w.reason }).then(row => {
+        if (row?.id) {
+          const db = loadDB(); const i = (db.watchlist || []).findIndex(x => x.id === w.id);
+          if (i >= 0) { db.watchlist[i].id = row.id; saveDB(db); }
+        }
+      });
+    });
+    return e;
+  };
+
+  // deleteTest — DELETE from Supabase + log to audit_log
+  const _delTest = DB.deleteTest.bind(DB);
+  DB.deleteTest = function(id, actor) {
+    const test = loadDB().tests.find(x => x.id === id);
+    _delTest(id, actor);
+    if (!_isLocal(id, 't')) {
+      _sbDel('tests', id);
+      _sbPost('audit_log', { actor_name: actor?.name || 'Admin', action: 'delete_test', target: id, detail: 'ลบผลตรวจของ ' + (test?.full_name || '') });
+    }
+  };
+
+  // updateTest — PATCH in Supabase + log to audit_log
+  const _updTest = DB.updateTest.bind(DB);
+  DB.updateTest = function(id, patch, actor) {
+    _updTest(id, patch, actor);
+    if (!_isLocal(id, 't')) {
+      const allowed = ['action_taken','action_note','action_by','retest_status','retest_of','is_zero','alcohol_value','level','photo_url'];
+      const sbPatch = {};
+      for (const k of allowed) { if (k in patch) sbPatch[k] = patch[k]; }
+      if (Object.keys(sbPatch).length) _sbPatch('tests', id, sbPatch);
+      _sbPost('audit_log', { actor_name: actor?.name || 'Admin', action: 'update_test', target: id, detail: 'แก้ไข: ' + Object.keys(patch).join(', ') });
+    }
+  };
+
+  // upsertLocation — upsert on code (text PK, always safe to send)
+  const _upsLoc = DB.upsertLocation.bind(DB);
+  DB.upsertLocation = function(loc) {
+    _upsLoc(loc);
+    fetch(_SB_URL + '/rest/v1/locations?on_conflict=code', {
+      method: 'POST', headers: { ..._sbH(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(loc)
+    }).catch(() => {});
+  };
+
+  const _delLoc = DB.deleteLocation.bind(DB);
+  DB.deleteLocation = function(code) { _delLoc(code); _sbDel('locations', code, 'code'); };
+
+  // upsertCompany — POST new (get UUID back) or PATCH existing (has real UUID)
+  const _upsCo = DB.upsertCompany.bind(DB);
+  DB.upsertCompany = function(c) {
+    const prev = DB.companies().find(x => x.id === c.id);
+    _upsCo(c);
+    if (prev && !_isLocal(prev.id, 'c')) {
+      _sbPatch('companies', prev.id, { name: c.name });
+    } else {
+      _sbPost('companies', { name: c.name }).then(row => {
+        if (row?.id) {
+          const db = loadDB(); const i = db.companies.findIndex(x => x.name === c.name && _isLocal(x.id, 'c'));
+          if (i >= 0) { db.companies[i].id = row.id; saveDB(db); }
+        }
+      });
+    }
+  };
+
+  const _delCo = DB.deleteCompany.bind(DB);
+  DB.deleteCompany = function(id) { _delCo(id); if (!_isLocal(id, 'c')) _sbDel('companies', id); };
+
+  // upsertDevice
+  const _upsDev = DB.upsertDevice.bind(DB);
+  DB.upsertDevice = function(d) {
+    const prev = DB.devices().find(x => x.id === d.id);
+    _upsDev(d);
+    const rec = { serial: d.serial, model: d.model, location_code: d.location_code || null, last_calibrated: d.last_calibrated || null, next_calibration: d.next_calibration || null };
+    if (prev && !_isLocal(prev.id, 'd')) {
+      _sbPatch('devices', prev.id, rec);
+    } else {
+      _sbPost('devices', rec).then(row => {
+        if (row?.id) {
+          const db = loadDB(); const i = db.devices.findIndex(x => x.serial === d.serial && _isLocal(x.id, 'd'));
+          if (i >= 0) { db.devices[i].id = row.id; saveDB(db); }
+        }
+      });
+    }
+  };
+
+  const _delDev = DB.deleteDevice.bind(DB);
+  DB.deleteDevice = function(id) { _delDev(id); if (!_isLocal(id, 'd')) _sbDel('devices', id); };
+
+  // upsertUser (admin_users table)
+  const _upsUsr = DB.upsertUser.bind(DB);
+  DB.upsertUser = function(u) {
+    const prev = DB.users().find(x => x.id === u.id);
+    _upsUsr(u);
+    const rec = { username: u.username, name: u.name, email: u.email || '', role: u.role, sites: u.sites };
+    if (prev && !_isLocal(prev.id, 'u')) {
+      _sbPatch('admin_users', prev.id, rec);
+    } else {
+      _sbPost('admin_users', rec).then(row => {
+        if (row?.id) {
+          const db = loadDB(); const i = db.users.findIndex(x => x.username === u.username && _isLocal(x.id, 'u'));
+          if (i >= 0) { db.users[i].id = row.id; saveDB(db); }
+        }
+      });
+    }
+  };
+
+  const _delUsr = DB.deleteUser.bind(DB);
+  DB.deleteUser = function(id) { _delUsr(id); if (!_isLocal(id, 'u')) _sbDel('admin_users', id); };
+
+  // upsertChannel (alert_channels table)
+  const _upsCh = DB.upsertChannel.bind(DB);
+  DB.upsertChannel = function(c) {
+    const prev = DB.channels().find(x => x.id === c.id);
+    _upsCh(c);
+    const rec = { kind: c.kind, label: c.label, target: c.target, enabled: !!c.enabled };
+    if (prev && !_isLocal(prev.id, 'ch')) {
+      _sbPatch('alert_channels', prev.id, rec);
+    } else {
+      _sbPost('alert_channels', rec).then(row => {
+        if (row?.id) {
+          const db = loadDB(); const i = db.channels.findIndex(x => x.label === c.label && _isLocal(x.id, 'ch'));
+          if (i >= 0) { db.channels[i].id = row.id; saveDB(db); }
+        }
+      });
+    }
+  };
+
+  const _delCh = DB.deleteChannel.bind(DB);
+  DB.deleteChannel = function(id) { _delCh(id); if (!_isLocal(id, 'ch')) _sbDel('alert_channels', id); };
+
+  // setSettings — PATCH the single settings row (id=1)
+  const _setSettings = DB.setSettings.bind(DB);
+  DB.setSettings = function(s) {
+    _setSettings(s);
+    const allowed = ['retest_minutes', 'watchlist_threshold', 'watchlist_window_days', 'language'];
+    const sbS = {};
+    allowed.forEach(k => { if (k in s) sbS[k] = s[k]; });
+    if (Object.keys(sbS).length) _sbPatch('settings', 1, sbS);
+  };
+
+  // addAudit — also insert into audit_log
+  const _addAudit = DB.addAudit.bind(DB);
+  DB.addAudit = function(entry) {
+    _addAudit(entry);
+    _sbPost('audit_log', { actor_name: entry.actor_name || 'Admin', action: entry.action || '', target: entry.target || '', detail: entry.detail || '' });
+  };
+
+  // removeFromWatchlist — DELETE from watchlist
+  const _rmWatch = DB.removeFromWatchlist.bind(DB);
+  DB.removeFromWatchlist = function(id) { _rmWatch(id); if (!_isLocal(id, 'w')) _sbDel('watchlist', id); };
+
+  // upsertPerson / deletePerson (persons table)
+  const _upsPer = DB.upsertPerson.bind(DB);
+  DB.upsertPerson = function(p) {
+    const prev = p.id ? DB.persons().find(x => x.id === p.id) : null;
+    _upsPer(p);
+    const rec = { employee_id: p.employee_id || '', full_name: p.full_name, department: p.department || '', company: p.company || '', plate_number: p.plate_number || '', phone: p.phone || '' };
+    if (prev && !_isLocal(prev.id, 'p')) {
+      _sbPatch('persons', prev.id, rec);
+    } else {
+      _sbPost('persons', rec).then(row => {
+        if (row?.id) {
+          const db = loadDB(); const i = db.persons.findIndex(x => x.employee_id === p.employee_id && _isLocal(x.id, 'p'));
+          if (i >= 0) { db.persons[i].id = row.id; saveDB(db); }
+        }
+      });
+    }
+  };
+
+  const _delPer = DB.deletePerson.bind(DB);
+  DB.deletePerson = function(id) { _delPer(id); if (!_isLocal(id, 'p')) _sbDel('persons', id); };
+})();
+
+// Auto-init on every page load — all pages await this promise before rendering
+window.__dbReady = DB.init();

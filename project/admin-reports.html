@@ -71,7 +71,8 @@
 
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+__dbReady.then(() => {
+if (!requireAdmin()) return;
   document.getElementById('chrome').innerHTML = renderTopbar('reports');
   const fLoc = document.getElementById('f-location');
   const fDept = document.getElementById('f-department');
@@ -134,7 +135,7 @@ if (!requireAdmin()) {} else {
   }
   window.apply = apply; window.reset = reset; window.exportCSV = exportCSV;
   render();
-}
+});
 </script>
 </body>
 </html>

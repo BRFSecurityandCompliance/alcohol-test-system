@@ -42,7 +42,8 @@
 
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+__dbReady.then(() => {
+if (!requireAdmin()) return;
   document.getElementById('chrome').innerHTML = renderTopbar('tests');
   const search = document.getElementById('search');
   function render() {
@@ -113,7 +114,7 @@ if (!requireAdmin()) {} else {
     const t = DB.tests().find(x => x.id === openId);
     if (t) { search.value = t.full_name; render(); viewDetail(openId); }
   }
-}
+});
 </script>
 </body>
 </html>

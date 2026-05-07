@@ -103,7 +103,8 @@
 
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+__dbReady.then(() => {
+if (!requireAdmin()) return;
   document.getElementById('chrome').innerHTML = renderTopbar('companies');
   let selected = new Set();
 
@@ -255,7 +256,7 @@ if (!requireAdmin()) {} else {
 
   Object.assign(window, { openModal, closeModal, save, del, toggleOne, toggleAll, clearSel, delSelected, downloadTemplate, importCSV });
   render();
-}
+});
 </script>
 </body>
 </html>

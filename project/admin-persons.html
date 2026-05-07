@@ -107,7 +107,8 @@
 
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+__dbReady.then(() => {
+if (!requireAdmin()) return;
   document.getElementById('chrome').innerHTML = renderTopbar('persons');
 
   // Populate department select
@@ -278,20 +279,16 @@ if (!requireAdmin()) {} else {
   function save(e) {
     e.preventDefault();
     const f = e.target;
-    const db = loadDB();
     const p = { employee_id: f.employee_id.value.trim(), full_name: f.full_name.value.trim(), department: f.department.value, company: f.company.value.trim(), plate_number: f.plate_number.value.trim(), phone: f.phone.value.trim() };
     if (f.id.value) p.id = f.id.value;
-    const idx = f.id.value ? db.persons.findIndex(x => x.id === f.id.value) : -1;
-    if (idx >= 0) db.persons[idx] = { ...db.persons[idx], ...p };
-    else db.persons.push({ ...p, id: 'p' + Date.now() });
-    saveDB(db);
+    DB.upsertPerson(p);
     showToast('บันทึกเรียบร้อย');
     closeModal();
     renderPersons();
   }
   function del(id) {
     if (!confirm('ยืนยันการลบพนักงาน?')) return;
-    const db = loadDB(); db.persons = db.persons.filter(p => p.id !== id); saveDB(db);
+    DB.deletePerson(id);
     showToast('ลบเรียบร้อย');
     renderPersons();
   }
@@ -299,7 +296,7 @@ if (!requireAdmin()) {} else {
   Object.assign(window, { switchTab, openModal, closeModal, save, del, viewHistory, removeWL, renderPersons });
   renderPersons();
   renderWatchlist();
-}
+});
 </script>
 </body>
 </html>

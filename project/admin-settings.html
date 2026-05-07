@@ -95,7 +95,8 @@
 
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+__dbReady.then(() => {
+if (!requireAdmin()) return;
   document.getElementById('chrome').innerHTML = renderTopbar('settings');
 
   // Populate sites select
@@ -383,7 +384,7 @@ if (!requireAdmin()) {} else {
   renderThresholds();
   renderShifts();
   renderDanger();
-}
+});
 </script>
 </body>
 </html>

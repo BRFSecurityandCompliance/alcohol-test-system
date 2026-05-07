@@ -34,6 +34,7 @@
 
 <script src="data.js"></script>
 <script>
+__dbReady.then(() => {
 document.getElementById('form').addEventListener('submit', e => {
   e.preventDefault();
   const pw = e.target.password.value;
@@ -44,6 +45,7 @@ document.getElementById('form').addEventListener('submit', e => {
     document.getElementById('err').style.display = 'block';
     e.target.password.value = '';
   }
+});
 });
 </script>
 </body>

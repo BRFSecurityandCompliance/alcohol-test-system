@@ -118,7 +118,8 @@
 
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+__dbReady.then(() => {
+if (!requireAdmin()) return;
   document.getElementById('chrome').innerHTML = renderTopbar('alerts');
   let activeTab = 'pending';
   let actionTestId = null;
@@ -324,7 +325,7 @@ if (!requireAdmin()) {} else {
 
   Object.assign(window, { switchTab, openActionModal, closeActionModal, saveAction, viewTestDetail, openChModal, saveCh, toggleChannel, delChannel });
   renderAll();
-}
+});
 </script>
 </body>
 </html>

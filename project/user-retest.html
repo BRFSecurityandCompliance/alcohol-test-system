@@ -27,6 +27,7 @@
 
 <script src="data.js"></script>
 <script>
+__dbReady.then(() => {
 const params = new URLSearchParams(location.search);
 const testId = params.get('test_id');
 const test = testId ? DB.tests().find(t => t.id === testId) : null;
@@ -124,7 +125,7 @@ if (!test) {
     updateTimer();
     if (Date.now() >= retestStart) clearInterval(interval);
   }, 1000);
-}
+});
 </script>
 </body>
 </html>
