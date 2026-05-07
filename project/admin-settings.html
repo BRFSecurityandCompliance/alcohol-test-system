@@ -317,10 +317,26 @@ if (!requireAdmin()) {} else {
 
   // ===== SHIFTS TAB =====
   function renderShifts() {
+    const s = DB.settings();
+    const enabled = s.shifts_enabled !== false;
     document.getElementById('tab-shifts').innerHTML = `
-      <div class="card">
-        <h2 style="margin-bottom:4px">กะทำงาน</h2>
-        <div class="muted small" style="margin-bottom:20px">ระบบจะกำหนดกะอัตโนมัติตามเวลาที่ทำการตรวจ</div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="setting-row">
+          <div class="setting-label">
+            <div class="name">เปิดใช้ระบบกะทำงาน</div>
+            <div class="desc">เมื่อปิด ระบบจะไม่บันทึกและแสดงข้อมูลกะในฟอร์มและรายงาน</div>
+          </div>
+          <div class="setting-ctrl">
+            <label class="switch">
+              <input type="checkbox" id="shifts-toggle" ${enabled ? 'checked' : ''} onchange="toggleShifts(this.checked)" />
+              <span class="slide"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="card" id="shifts-detail" style="${enabled ? '' : 'opacity:.4; pointer-events:none'}">
+        <h2 style="margin-bottom:4px">รายละเอียดกะ</h2>
+        <div class="muted small" style="margin-bottom:20px">ระบบกำหนดกะอัตโนมัติตามเวลาที่ทำการตรวจ</div>
         ${SHIFTS.map(s => `
           <div class="setting-row">
             <div class="setting-label">
@@ -331,11 +347,12 @@ if (!requireAdmin()) {} else {
           </div>
         `).join('')}
       </div>
-      <div class="banner banner-info" style="margin-top:16px">
-        <span class="banner-icon">ℹ️</span>
-        <div class="small">กะทำงานกำหนดไว้ใน data.js ผ่านค่า SHIFTS — แก้ไขค่าเพื่อปรับเวลากะ</div>
-      </div>
     `;
+  }
+  function toggleShifts(enabled) {
+    DB.setSettings({ shifts_enabled: enabled });
+    showToast(enabled ? 'เปิดระบบกะทำงานแล้ว' : 'ปิดระบบกะทำงานแล้ว');
+    document.getElementById('shifts-detail').style.cssText = enabled ? '' : 'opacity:.4; pointer-events:none';
   }
 
   // ===== DANGER TAB =====
@@ -380,7 +397,7 @@ if (!requireAdmin()) {} else {
     showToast('Export เรียบร้อย');
   }
 
-  Object.assign(window, { switchTab, saveSystem, openUserModal, closeUserModal, saveUser, delUser, doReset, exportAll });
+  Object.assign(window, { switchTab, saveSystem, openUserModal, closeUserModal, saveUser, delUser, doReset, exportAll, toggleShifts });
   renderSystem();
   renderUsers();
   renderThresholds();

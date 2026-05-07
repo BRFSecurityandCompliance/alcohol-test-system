@@ -194,7 +194,7 @@ function renderForm() {
 
           <div class="divider"></div>
           <button type="submit" class="btn btn-primary btn-lg btn-block" disabled id="submit-btn">${T('submit')}</button>
-          <div class="tiny muted" style="text-align:center">บันทึกพร้อมตำแหน่ง <b>${loc.name}</b> · กะ <b>${getShiftFromDate(new Date().toISOString()).label}</b></div>
+          <div class="tiny muted" style="text-align:center">บันทึกพร้อมตำแหน่ง <b>${loc.name}</b>${DB.settings().shifts_enabled !== false ? ` · กะ <b>${getShiftFromDate(new Date().toISOString()).label}</b>` : ''}</div>
         </form>
       </div>
     </div>`;

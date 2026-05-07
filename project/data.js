@@ -236,7 +236,8 @@ function loadDB() {
       watchlist_threshold: 2,
       watchlist_window_days: 30,
       thresholds: THRESHOLDS,
-      language: 'th'
+      language: 'th',
+      shifts_enabled: true
     }
   };
   saveDB(fresh);
@@ -522,8 +523,9 @@ DB.init = async function() {
         watchlist_threshold: sett.watchlist_threshold,
         watchlist_window_days: sett.watchlist_window_days,
         language: sett.language,
-        thresholds: THRESHOLDS
-      } : { retest_minutes: 5, watchlist_threshold: 2, watchlist_window_days: 30, language: 'th', thresholds: THRESHOLDS }
+        thresholds: THRESHOLDS,
+        shifts_enabled: sett.shifts_enabled !== false
+      } : { retest_minutes: 5, watchlist_threshold: 2, watchlist_window_days: 30, language: 'th', thresholds: THRESHOLDS, shifts_enabled: true }
     };
     saveDB(db);
   } catch (err) {
@@ -716,6 +718,7 @@ DB.setSettings = function(s) {
     if (s.watchlist_threshold !== undefined) row.watchlist_threshold = s.watchlist_threshold;
     if (s.watchlist_window_days !== undefined) row.watchlist_window_days = s.watchlist_window_days;
     if (s.language !== undefined) row.language = s.language;
+    if (s.shifts_enabled !== undefined) row.shifts_enabled = s.shifts_enabled;
     if (Object.keys(row).length) {
       _sb.from('settings').update(row).eq('id', 1)
         .then(({ error }) => { if (error) console.warn('[DB.setSettings]', error.message); });

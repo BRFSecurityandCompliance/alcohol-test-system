@@ -81,7 +81,7 @@ if (!requireAdmin()) {} else {
         <div class="row between"><span class="muted small">ทะเบียนรถ</span><span>${t.plate_number || '—'}</span></div>
         <div class="row between"><span class="muted small">สถานที่</span><span>${t.location_name} (${t.location_code})</span></div>
         <div class="row between"><span class="muted small">เวลา</span><span>${formatDate(t.created_at)}</span></div>
-        ${shift ? `<div class="row between"><span class="muted small">กะ</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
+        ${shift && DB.settings().shifts_enabled !== false ? `<div class="row between"><span class="muted small">กะ</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
         ${t.device_serial ? `<div class="row between"><span class="muted small">เครื่องตรวจ</span><span style="font-family:var(--font-mono);font-size:13px">${t.device_serial}</span></div>` : ''}
         <div class="row between"><span class="muted small">ผลตรวจ</span>${thresholdBadge(t)}</div>
         ${!t.is_zero && t.action_taken ? `<div class="row between"><span class="muted small">การดำเนินการ</span><span class="action-chip action-${t.action_taken}">${actionMap[t.action_taken] || t.action_taken}</span></div>` : ''}
