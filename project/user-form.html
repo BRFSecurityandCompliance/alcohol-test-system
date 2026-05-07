@@ -195,6 +195,9 @@ function renderForm() {
           <div class="divider"></div>
           <button type="submit" class="btn btn-primary btn-lg btn-block" disabled id="submit-btn">${T('submit')}</button>
           <div class="tiny muted" style="text-align:center">บันทึกพร้อมตำแหน่ง <b>${loc.name}</b>${DB.settings().shifts_enabled !== false ? ` · กะ <b>${getShiftFromDate(new Date().toISOString()).label}</b>` : ''}</div>
+          <div style="text-align:center; margin-top:8px">
+            <a href="https://bevchain.co.th/pdpa-policy/" target="_blank" rel="noopener noreferrer" class="tiny" style="color:var(--text-muted); text-decoration:underline; text-underline-offset:2px">🔐 นโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA)</a>
+          </div>
         </form>
       </div>
     </div>`;
