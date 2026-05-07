@@ -288,22 +288,49 @@ function renderForm() {
   form.alcohol_value.addEventListener('input', updateThresholdPreview);
 
   // Photo with stamp
-  function stampPhoto(dataUrl) {
+  async function stampPhoto(dataUrl) {
+    // Ensure fonts are loaded before drawing to canvas
+    await Promise.allSettled([
+      document.fonts.load('bold 28px Sarabun'),
+      document.fonts.load('500 22px Sarabun')
+    ]);
     return new Promise(resolve => {
       const img = new Image();
       img.onload = () => {
         const maxW = 1280, scale = Math.min(1, maxW / img.width);
-        const w = Math.round(img.width*scale), h = Math.round(img.height*scale);
-        const c = document.createElement('canvas'); c.width=w; c.height=h;
-        const ctx = c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
-        const g = ctx.createLinearGradient(0,h-130,0,h); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.75)');
-        ctx.fillStyle = g; ctx.fillRect(0,h-130,w,130);
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // Dark gradient bar at bottom
+        const barH = Math.max(130, Math.round(h * 0.14));
+        const g = ctx.createLinearGradient(0, h - barH, 0, h);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, 'rgba(0,0,0,0.80)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, h - barH, w, barH);
+
+        // Scale font size relative to image width so stamp is readable on any resolution
+        const fs1 = Math.max(20, Math.round(w * 0.022));
+        const fs2 = Math.max(16, Math.round(w * 0.017));
+        const pad = Math.round(w * 0.016);
         const now = new Date();
-        ctx.fillStyle='#fff'; ctx.font='bold 28px Sarabun'; ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=4;
-        ctx.fillText(now.toLocaleString('th-TH',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}), 20, h-60);
-        ctx.font='500 22px Sarabun'; ctx.fillText(`📍 ${loc.name} (${loc.code})`, 20, h-28);
-        ctx.shadowBlur=0;
-        resolve(c.toDataURL('image/jpeg', 0.85));
+        const dateStr = now.toLocaleString('th-TH', {
+          day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = Math.round(w * 0.004);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${fs1}px Sarabun, Arial, sans-serif`;
+        ctx.fillText(dateStr, pad, h - Math.round(barH * 0.45));
+        ctx.font = `${fs2}px Sarabun, Arial, sans-serif`;
+        ctx.fillText(`📍 ${loc.name} (${loc.code})`, pad, h - Math.round(barH * 0.12));
+        ctx.shadowBlur = 0;
+
+        resolve(c.toDataURL('image/jpeg', 0.88));
       };
       img.src = dataUrl;
     });
