@@ -367,12 +367,11 @@ const I18N = {
 function t(key, lang) { return (I18N[lang || localStorage.getItem('lang') || 'th'] || I18N.th)[key] || I18N.th[key] || key; }
 
 // ===== Auth =====
-const ADMIN_PASSWORD = 'admin1234';
-function isAdminAuthed() { return sessionStorage.getItem('admin_auth') === '1'; }
+function isAdminAuthed() { return !!(sessionStorage.getItem('admin_auth') === '1' && sessionStorage.getItem('sb_token')); }
 function setAdminAuth(v, userId) {
   sessionStorage.setItem('admin_auth', v ? '1' : '0');
   if (v && userId) sessionStorage.setItem('admin_user', userId);
-  if (!v) sessionStorage.removeItem('admin_user');
+  if (!v) { sessionStorage.removeItem('admin_user'); sessionStorage.removeItem('sb_token'); }
 }
 function currentUser() {
   const id = sessionStorage.getItem('admin_user') || 'u1';
@@ -473,7 +472,8 @@ const _SB_URL = 'https://qgkevfikehdoufjcubcm.supabase.co';
 const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFna2V2ZmlrZWhkb3VmamN1YmNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzI1MjYsImV4cCI6MjA5MzcwODUyNn0.HL4K4ut2oIYVrbc6FschFqJqIKnQQMVYzJA3ti5EgXM';
 
 function _sbH() {
-  return { 'apikey': _SB_KEY, 'Authorization': 'Bearer ' + _SB_KEY, 'Content-Type': 'application/json' };
+  const token = sessionStorage.getItem('sb_token') || _SB_KEY;
+  return { 'apikey': _SB_KEY, 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
 async function _sbGet(table, qs) {
   try {
@@ -503,6 +503,17 @@ async function _sbDel(table, val, col) {
       method: 'DELETE', headers: _sbH()
     });
   } catch {}
+}
+async function _sbUploadPhoto(filename, blob) {
+  try {
+    const r = await fetch(_SB_URL + '/storage/v1/object/photos/' + filename, {
+      method: 'POST',
+      headers: { 'apikey': _SB_KEY, 'Authorization': 'Bearer ' + _SB_KEY, 'Content-Type': 'image/jpeg', 'x-upsert': 'true' },
+      body: blob
+    });
+    if (!r.ok) return null;
+    return _SB_URL + '/storage/v1/object/public/photos/' + filename;
+  } catch { return null; }
 }
 
 // Fetch all tables from Supabase and merge into localStorage cache

@@ -310,11 +310,18 @@ function renderForm() {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
     r.onload = async ev => {
-      photoData = await stampPhoto(ev.target.result);
+      const stamped = await stampPhoto(ev.target.result);
       photoSlot.querySelector('.placeholder')?.remove();
       photoSlot.querySelector('img')?.remove();
-      const img = document.createElement('img'); img.src = photoData; photoSlot.appendChild(img);
+      const img = document.createElement('img'); img.src = stamped; photoSlot.appendChild(img);
+      // Upload to Supabase Storage; keep base64 as fallback until upload resolves
+      photoData = stamped;
       validate();
+      // Convert base64 → blob and upload in background
+      const blob = await (await fetch(stamped)).blob();
+      const filename = `${loc.code}_${Date.now()}.jpg`;
+      const uploaded = await _sbUploadPhoto(filename, blob);
+      if (uploaded) photoData = uploaded; // replace with public URL
     };
     r.readAsDataURL(f);
   });

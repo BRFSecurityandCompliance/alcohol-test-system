@@ -20,12 +20,15 @@
 
   <form id="form" class="col gap-md">
     <div class="field">
-      <label>รหัสผ่าน</label>
-      <input class="input" type="password" name="password" required autofocus />
-      <div class="hint">รหัสตัวอย่าง: <code style="font-family:var(--font-mono)">admin1234</code></div>
+      <label>อีเมล</label>
+      <input class="input" type="email" name="email" required autofocus value="admin@alcohol-test.local" />
     </div>
-    <div id="err" class="small" style="color:var(--danger); display:none">รหัสผ่านไม่ถูกต้อง</div>
-    <button type="submit" class="btn btn-primary btn-lg btn-block">เข้าสู่ระบบ</button>
+    <div class="field">
+      <label>รหัสผ่าน</label>
+      <input class="input" type="password" name="password" required />
+    </div>
+    <div id="err" class="small" style="color:var(--danger); display:none">อีเมลหรือรหัสผ่านไม่ถูกต้อง</div>
+    <button type="submit" class="btn btn-primary btn-lg btn-block" id="submit-btn">เข้าสู่ระบบ</button>
   </form>
 
   <div class="divider"></div>
@@ -35,15 +38,28 @@
 <script src="data.js"></script>
 <script>
 __dbReady.then(() => {
-document.getElementById('form').addEventListener('submit', e => {
+const form = document.getElementById('form');
+const errEl = document.getElementById('err');
+const btn = document.getElementById('submit-btn');
+form.addEventListener('submit', async e => {
   e.preventDefault();
-  const pw = e.target.password.value;
-  if (pw === ADMIN_PASSWORD) {
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'กำลังเข้าสู่ระบบ...';
+  try {
+    const r = await fetch(_SB_URL + '/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      headers: { 'apikey': _SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.email.value.trim(), password: form.password.value })
+    });
+    if (!r.ok) throw new Error('invalid');
+    const { access_token } = await r.json();
+    sessionStorage.setItem('sb_token', access_token);
     setAdminAuth(true);
     location.href = 'admin-dashboard.html';
-  } else {
-    document.getElementById('err').style.display = 'block';
-    e.target.password.value = '';
+  } catch {
+    errEl.style.display = 'block';
+    form.password.value = '';
+    btn.disabled = false; btn.textContent = 'เข้าสู่ระบบ';
   }
 });
 });

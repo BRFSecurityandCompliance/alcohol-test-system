@@ -1,0 +1,3 @@
+# Cloudflare Pages redirects
+/admin  /admin-dashboard.html  302
+/form   /user-form.html        302
