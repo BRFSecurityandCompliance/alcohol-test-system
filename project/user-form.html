@@ -118,9 +118,9 @@ function renderForm() {
           </div>
           <div class="row gap-sm">
             <input class="input" id="emp-id" placeholder="${T('employee_id')} (เช่น EMP001)" style="flex:1" value="${retestSource?.employee_id || ''}" />
-            <button class="btn btn-primary" id="emp-lookup">ค้นหา</button>
+            <button class="btn btn-primary" id="emp-lookup">${T('search')}</button>
           </div>
-          <div class="tiny muted" style="margin-top:6px">เคยลงทะเบียน → ระบบเติมข้อมูลให้อัตโนมัติ</div>
+          <div class="tiny muted" style="margin-top:6px">${T('quick_hint')}</div>
         </div>
 
         <form id="form" class="col gap-md">
@@ -145,7 +145,7 @@ function renderForm() {
           <div class="field">
             <label>${T('company')} <span style="color:var(--danger)">*</span></label>
             <div class="combo" id="company-combo" style="position:relative">
-              <input class="input" name="company" id="company-input" autocomplete="off" placeholder="พิมพ์ชื่อบริษัท..." required value="${retestSource?.company || ''}" />
+              <input class="input" name="company" id="company-input" autocomplete="off" placeholder="${T('company_placeholder')}" required value="${retestSource?.company || ''}" />
               <div id="company-list" class="combo-list" style="display:none"></div>
             </div>
           </div>
@@ -171,12 +171,12 @@ function renderForm() {
           </div>
 
           <div class="field">
-            <label>ภาพถ่ายเครื่องตรวจ <span style="color:var(--danger)">*</span></label>
+            <label>${T('photo_label')} <span style="color:var(--danger)">*</span></label>
             <div class="photo-slot" id="photo-slot">
               <div class="placeholder">
                 <span class="icon">📷</span>
                 <div>${T('take_photo')}</div>
-                <div class="tiny" style="margin-top:4px">ใช้กล้องเท่านั้น</div>
+                <div class="tiny" style="margin-top:4px">${T('camera_only')}</div>
               </div>
               <input type="file" name="photo" accept="image/*" capture="environment" style="position:absolute; inset:0; opacity:0; cursor:pointer" />
             </div>
@@ -184,12 +184,12 @@ function renderForm() {
 
           <!-- Signature -->
           <div class="field">
-            <label>ลายเซ็นพนักงาน (ยืนยันผลตรวจ) <span style="color:var(--danger)">*</span></label>
+            <label>${T('sig_label')} <span style="color:var(--danger)">*</span></label>
             <div class="sig-wrap">
               <canvas class="sig-pad" id="sig-pad" width="600" height="140"></canvas>
-              <button type="button" class="btn btn-sm sig-clear" id="sig-clear">ล้าง</button>
+              <button type="button" class="btn btn-sm sig-clear" id="sig-clear">${T('clear')}</button>
             </div>
-            <div class="tiny muted">ใช้นิ้วเซ็นบนกล่อง</div>
+            <div class="tiny muted">${T('sig_hint')}</div>
           </div>
 
           <div class="divider"></div>
@@ -358,7 +358,7 @@ function renderForm() {
     const f = q ? all.filter(n => n.toLowerCase().includes(q.toLowerCase())) : all;
     let html = f.map(n => `<div class="combo-item" data-val="${n.replace(/"/g,'&quot;')}">${n}</div>`).join('');
     if (q && !all.some(n => n.toLowerCase()===q.toLowerCase())) html += `<div class="combo-item" data-val="${q.replace(/"/g,'&quot;')}">ใช้ "${q}"<span class="new-label">ใหม่</span></div>`;
-    if (!html) html = '<div class="combo-empty">ไม่พบ — พิมพ์เพื่อเพิ่มใหม่</div>';
+    if (!html) html = `<div class="combo-empty">${T('company_new')}</div>`;
     cl.innerHTML = html; cl.style.display='block';
     cl.querySelectorAll('.combo-item').forEach(el => el.addEventListener('mousedown', () => { ci.value = el.dataset.val; cl.style.display='none'; validate(); }));
   }
