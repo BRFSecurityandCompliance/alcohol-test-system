@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>พนักงาน — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .tabs-page { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+  .tabs-page button { background:transparent; border:none; padding:10px 18px; font-family:inherit; font-size:14px; font-weight:600; color:var(--text-muted); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .tabs-page button.active { color:var(--brand); border-bottom-color:var(--brand); }
+  .person-row { display:flex; gap:12px; align-items:center; padding:14px; border-bottom:1px solid var(--border); transition:background .1s; cursor:pointer; }
+  .person-row:hover { background:var(--surface-2); }
+  .person-row:last-child { border-bottom:none; }
+  .av { width:40px; height:40px; border-radius:50%; background:var(--brand-soft); color:var(--brand); display:grid; place-items:center; font-weight:700; font-size:15px; flex-shrink:0; }
+  .av.red { background:var(--danger-soft); color:var(--danger); }
+  .watchlist-card { background:var(--danger-soft); border:1px solid #fca5a5; border-radius:var(--r-md); padding:14px 18px; display:flex; gap:12px; align-items:center; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page">
+  <div class="row between" style="margin-bottom:24px">
+    <div>
+      <h1>พนักงาน</h1>
+      <div class="muted small">รายชื่อพนักงาน ประวัติการตรวจ และรายการเฝ้าระวัง</div>
+    </div>
+    <div class="row gap-sm">
+      <input class="input" id="search" placeholder="ค้นหาชื่อ / รหัส" style="max-width:280px" oninput="renderPersons()" />
+      <button class="btn btn-primary" onclick="openModal()">+ เพิ่มพนักงาน</button>
+    </div>
+  </div>
+
+  <div class="tabs-page">
+    <button class="active" data-tab="persons" onclick="switchTab('persons')">ทะเบียนพนักงาน</button>
+    <button data-tab="watchlist" onclick="switchTab('watchlist')">Watchlist <span id="wl-count"></span></button>
+  </div>
+
+  <div id="tab-persons"></div>
+  <div id="tab-watchlist" style="display:none"></div>
+</div>
+
+<!-- Person modal (add/edit) -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">เพิ่มพนักงาน</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <form id="form" onsubmit="save(event)">
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <div class="grid-2">
+          <div class="field">
+            <label>รหัสพนักงาน <span style="color:var(--danger)">*</span></label>
+            <input class="input" name="employee_id" required placeholder="EMP001" />
+          </div>
+          <div class="field">
+            <label>ชื่อ-นามสกุล <span style="color:var(--danger)">*</span></label>
+            <input class="input" name="full_name" required />
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label>แผนก</label>
+          <select class="select" name="department">
+            <option value="">-- เลือก --</option>
+          </select>
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label>บริษัท</label>
+          <input class="input" name="company" />
+        </div>
+        <div class="grid-2" style="margin-top:12px">
+          <div class="field">
+            <label>ทะเบียนรถ</label>
+            <input class="input" name="plate_number" placeholder="70-1234" />
+          </div>
+          <div class="field">
+            <label>โทรศัพท์</label>
+            <input class="input" name="phone" placeholder="081-xxx-xxxx" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- History modal -->
+<div class="modal-backdrop" id="history-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h2 id="history-title">ประวัติการตรวจ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('history-modal').classList.remove('show')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="history-stats" style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px"></div>
+      <div class="divider"></div>
+      <div id="history-timeline"></div>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('persons');
+
+  // Populate department select
+  DEPARTMENTS.forEach(d => {
+    document.querySelector('[name=department]').insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`);
+  });
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tabs-page button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.getElementById('tab-persons').style.display = tab === 'persons' ? 'block' : 'none';
+    document.getElementById('tab-watchlist').style.display = tab === 'watchlist' ? 'block' : 'none';
+    if (tab === 'persons') renderPersons();
+    if (tab === 'watchlist') renderWatchlist();
+  }
+
+  function renderPersons() {
+    const q = document.getElementById('search').value.toLowerCase();
+    const persons = DB.persons().filter(p => !q || (p.full_name + p.employee_id + p.company).toLowerCase().includes(q));
+    const el = document.getElementById('tab-persons');
+    if (!persons.length) {
+      el.innerHTML = '<div class="empty"><div class="icon">👤</div>ไม่พบข้อมูลพนักงาน</div>';
+      return;
+    }
+    const wl = new Set((DB.all.watchlist || []).map(w => w.full_name));
+    el.innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>รหัส</th><th>ชื่อ</th><th>แผนก</th><th>บริษัท</th><th>ทะเบียน</th><th>ประวัติ</th><th></th></tr>
+          </thead>
+          <tbody>
+            ${persons.map(p => {
+              const tests = DB.testsByEmployee(p.employee_id);
+              const fails = tests.filter(t => !t.is_zero).length;
+              const inWl = wl.has(p.full_name);
+              return `
+                <tr>
+                  <td class="small" style="font-family:var(--font-mono)">${p.employee_id}</td>
+                  <td>
+                    <div style="font-weight:600">${p.full_name}
+                      ${inWl ? '<span class="badge badge-danger" style="margin-left:6px; font-size:10px">⚠ Watchlist</span>' : ''}
+                    </div>
+                    ${p.phone ? `<div class="tiny muted">${p.phone}</div>` : ''}
+                  </td>
+                  <td class="small">${p.department || '—'}</td>
+                  <td class="small">${p.company || '—'}</td>
+                  <td class="small" style="font-family:var(--font-mono)">${p.plate_number || '—'}</td>
+                  <td>
+                    <span class="small">${tests.length} ครั้ง</span>
+                    ${fails > 0 ? `<span class="badge badge-danger" style="margin-left:4px">${fails} ไม่ผ่าน</span>` : ''}
+                  </td>
+                  <td style="text-align:right">
+                    <button class="btn btn-sm" onclick="viewHistory('${p.employee_id}')">ประวัติ</button>
+                    <button class="btn btn-sm" onclick='openModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>แก้ไข</button>
+                    <button class="btn btn-sm btn-danger" onclick="del('${p.id}')">ลบ</button>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderWatchlist() {
+    const wl = DB.all.watchlist || [];
+    const el = document.getElementById('tab-watchlist');
+    const wlCount = document.getElementById('wl-count');
+    if (wlCount) wlCount.innerHTML = wl.length ? `<span class="pill-dot" style="margin-left:4px">${wl.length}</span>` : '';
+    if (!wl.length) {
+      el.innerHTML = `
+        <div class="banner banner-success"><span class="banner-icon">✅</span><div>ไม่มีพนักงานในรายการเฝ้าระวัง</div></div>
+        <div class="empty"><div class="icon">👁</div>ระบบจะเพิ่มพนักงานอัตโนมัติเมื่อตรวจไม่ผ่าน ${DB.settings().watchlist_threshold || 2} ครั้ง ใน ${DB.settings().watchlist_window_days || 30} วัน</div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div class="banner banner-warn" style="margin-bottom:16px">
+        <span class="banner-icon">⚠️</span>
+        <div class="small">พนักงานในรายการนี้ตรวจพบแอลกอฮอล์ ${DB.settings().watchlist_threshold || 2}+ ครั้ง ใน ${DB.settings().watchlist_window_days || 30} วัน — ต้องเฝ้าระวังพิเศษ</div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>ชื่อ</th><th>รหัสพนักงาน</th><th>เหตุผล</th><th>วันที่เพิ่ม</th><th></th></tr></thead>
+          <tbody>
+            ${wl.map(w => `
+              <tr>
+                <td>
+                  <div class="row gap-sm">
+                    <div class="av red">${w.full_name.charAt(0)}</div>
+                    <span style="font-weight:600">${w.full_name}</span>
+                  </div>
+                </td>
+                <td class="small" style="font-family:var(--font-mono)">${w.employee_id || '—'}</td>
+                <td class="small muted">${w.reason}</td>
+                <td class="small">${formatDateShort(w.added_at)}</td>
+                <td style="text-align:right">
+                  <button class="btn btn-sm" onclick="viewHistory(null, '${w.full_name}')">ดูประวัติ</button>
+                  <button class="btn btn-sm" onclick="removeWL('${w.id}')">นำออก</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function viewHistory(empId, name) {
+    let tests;
+    if (empId) tests = DB.testsByEmployee(empId);
+    else tests = DB.testsByPerson(name);
+    const person = empId ? DB.persons().find(p => p.employee_id === empId) : null;
+    const displayName = person?.full_name || name || empId;
+    const total = tests.length;
+    const fails = tests.filter(t => !t.is_zero).length;
+    const passRate = total ? Math.round((total - fails) / total * 100) : 100;
+    document.getElementById('history-title').textContent = 'ประวัติ: ' + displayName;
+    document.getElementById('history-stats').innerHTML = `
+      <div class="stat"><div class="label">ตรวจทั้งหมด</div><div class="value" style="font-size:24px">${total}</div></div>
+      <div class="stat accent-green"><div class="label">ผ่าน</div><div class="value" style="font-size:24px">${total - fails}</div></div>
+      <div class="stat accent-red"><div class="label">ไม่ผ่าน</div><div class="value" style="font-size:24px">${fails}</div></div>
+    `;
+    if (!tests.length) {
+      document.getElementById('history-timeline').innerHTML = '<div class="empty" style="padding:32px 0"><div class="icon">📋</div>ยังไม่มีประวัติการตรวจ</div>';
+    } else {
+      document.getElementById('history-timeline').innerHTML = `
+        <div class="timeline" style="margin-top:16px">
+          ${tests.map(t => `
+            <div class="timeline-item${!t.is_zero ? ' danger' : ''}">
+              <div class="row between">
+                <div>
+                  <span style="font-weight:600">${t.location_name}</span>
+                  <span class="muted small" style="margin-left:8px">${t.department}</span>
+                </div>
+                ${thresholdBadge(t)}
+              </div>
+              <div class="tiny muted" style="margin-top:4px">${formatDate(t.created_at)} · ${t.company}</div>
+              ${t.action_taken && t.action_taken !== 'pending' ? `<div class="tiny" style="margin-top:4px">การดำเนินการ: ${{'sent-home':'ส่งกลับบ้าน','suspended':'พักงาน','allowed':'อนุญาต'}[t.action_taken] || t.action_taken}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>`;
+    }
+    document.getElementById('history-modal').classList.add('show');
+  }
+
+  function removeWL(id) {
+    if (!confirm('นำพนักงานออกจาก Watchlist?')) return;
+    DB.removeFromWatchlist(id);
+    showToast('นำออกจาก Watchlist แล้ว');
+    renderWatchlist();
+  }
+
+  function openModal(p) {
+    document.getElementById('modal-title').textContent = p ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงาน';
+    const f = document.getElementById('form');
+    f.reset();
+    if (p) {
+      f.id.value = p.id || '';
+      f.employee_id.value = p.employee_id || '';
+      f.full_name.value = p.full_name || '';
+      f.department.value = p.department || '';
+      f.company.value = p.company || '';
+      f.plate_number.value = p.plate_number || '';
+      f.phone.value = p.phone || '';
+    }
+    document.getElementById('modal').classList.add('show');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('show'); }
+  function save(e) {
+    e.preventDefault();
+    const f = e.target;
+    const db = loadDB();
+    const p = { employee_id: f.employee_id.value.trim(), full_name: f.full_name.value.trim(), department: f.department.value, company: f.company.value.trim(), plate_number: f.plate_number.value.trim(), phone: f.phone.value.trim() };
+    if (f.id.value) p.id = f.id.value;
+    const idx = f.id.value ? db.persons.findIndex(x => x.id === f.id.value) : -1;
+    if (idx >= 0) db.persons[idx] = { ...db.persons[idx], ...p };
+    else db.persons.push({ ...p, id: 'p' + Date.now() });
+    saveDB(db);
+    showToast('บันทึกเรียบร้อย');
+    closeModal();
+    renderPersons();
+  }
+  function del(id) {
+    if (!confirm('ยืนยันการลบพนักงาน?')) return;
+    const db = loadDB(); db.persons = db.persons.filter(p => p.id !== id); saveDB(db);
+    showToast('ลบเรียบร้อย');
+    renderPersons();
+  }
+
+  Object.assign(window, { switchTab, openModal, closeModal, save, del, viewHistory, removeWL, renderPersons });
+  renderPersons();
+  renderWatchlist();
+}
+</script>
+</body>
+</html>

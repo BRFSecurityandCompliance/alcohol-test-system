@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Audit Log — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .action-tag { display:inline-flex; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; font-family:var(--font-mono); letter-spacing:.03em; }
+  .act-delete { background:#fee2e2; color:#7f1d1d; }
+  .act-update { background:#dbeafe; color:#1e3a8a; }
+  .act-add { background:#dcfce7; color:#14532d; }
+  .act-login { background:#f3e8ff; color:#4c1d95; }
+  .act-other { background:var(--surface-2); color:var(--text-muted); }
+</style>
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page">
+  <div class="row between" style="margin-bottom:24px">
+    <div>
+      <h1>Audit Log</h1>
+      <div class="muted small">บันทึกการดำเนินการทั้งหมดในระบบ (อ่านอย่างเดียว)</div>
+    </div>
+    <button class="btn" onclick="exportAudit()">📥 Export CSV</button>
+  </div>
+
+  <div class="banner banner-info" style="margin-bottom:20px">
+    <span class="banner-icon">🔒</span>
+    <div class="small">Audit log บันทึกทุกการแก้ไขที่สำคัญ — ไม่สามารถแก้ไขหรือลบได้ ใช้เพื่อตรวจสอบความถูกต้องและ compliance</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
+      <div class="field">
+        <label>ค้นหา</label>
+        <input class="input" id="search" placeholder="ชื่อ / action / รายละเอียด" oninput="render()" />
+      </div>
+      <div class="field">
+        <label>ประเภท Action</label>
+        <select class="select" id="f-action" onchange="render()">
+          <option value="">ทั้งหมด</option>
+          <option value="delete">ลบ (delete)</option>
+          <option value="update">แก้ไข (update)</option>
+          <option value="add">เพิ่ม (add)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>วันที่เริ่ม</label>
+        <input class="input" type="date" id="f-from" onchange="render()" />
+      </div>
+      <div class="field">
+        <label>วันที่สิ้นสุด</label>
+        <input class="input" type="date" id="f-to" onchange="render()" />
+      </div>
+    </div>
+  </div>
+
+  <div class="row between" style="margin-bottom:12px">
+    <span class="muted small" id="count"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>เวลา</th>
+          <th>ผู้ดำเนินการ</th>
+          <th>Action</th>
+          <th>เป้าหมาย</th>
+          <th>รายละเอียด</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('audit');
+
+  function actionTag(action) {
+    const cls = action.startsWith('delete') ? 'act-delete' :
+                action.startsWith('update') ? 'act-update' :
+                action.startsWith('add') || action.startsWith('create') ? 'act-add' :
+                action.includes('login') ? 'act-login' : 'act-other';
+    return `<span class="action-tag ${cls}">${action}</span>`;
+  }
+
+  function filtered() {
+    const q = document.getElementById('search').value.toLowerCase();
+    const fa = document.getElementById('f-action').value;
+    const from = document.getElementById('f-from').value;
+    const to = document.getElementById('f-to').value;
+    return DB.audit().filter(a => {
+      if (q && !(a.actor_name + a.action + a.detail + a.target).toLowerCase().includes(q)) return false;
+      if (fa && !a.action.includes(fa)) return false;
+      const d = new Date(a.created_at);
+      if (from && d < new Date(from)) return false;
+      if (to) { const e = new Date(to); e.setHours(23,59,59); if (d > e) return false; }
+      return true;
+    });
+  }
+
+  function render() {
+    const entries = filtered();
+    document.getElementById('count').textContent = `${entries.length} รายการ`;
+    document.getElementById('rows').innerHTML = entries.length ? entries.map(a => `
+      <tr>
+        <td class="small" style="font-family:var(--font-mono); white-space:nowrap">${formatDate(a.created_at)}</td>
+        <td>
+          <div class="row gap-sm">
+            <div class="avatar-sm">${(a.actor_name||'?').charAt(0)}</div>
+            <div>
+              <div style="font-weight:600; font-size:14px">${a.actor_name || a.actor_id || '?'}</div>
+            </div>
+          </div>
+        </td>
+        <td>${actionTag(a.action)}</td>
+        <td class="small" style="font-family:var(--font-mono); color:var(--text-muted)">${a.target || '—'}</td>
+        <td class="small">${a.detail || '—'}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="5"><div class="empty"><div class="icon">📋</div>ไม่พบข้อมูล</div></td></tr>';
+  }
+
+  function exportAudit() {
+    const entries = filtered();
+    const headers = ['เวลา','ผู้ดำเนินการ','Action','เป้าหมาย','รายละเอียด'];
+    const rows = entries.map(a => [formatDate(a.created_at), a.actor_name || a.actor_id, a.action, a.target || '', a.detail || '']);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `audit-log-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    showToast('Export CSV เรียบร้อย');
+  }
+
+  window.render = render;
+  window.exportAudit = exportAudit;
+  render();
+}
+</script>
+</body>
+</html>

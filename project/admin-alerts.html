@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ศูนย์แจ้งเตือน — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .alert-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; margin-bottom: 12px; display: flex; gap: 16px; align-items: flex-start; transition: box-shadow .15s; }
+  .alert-row:hover { box-shadow: var(--shadow-md); }
+  .alert-row.pending { border-left: 4px solid var(--danger); }
+  .alert-row.resolved { border-left: 4px solid var(--success); opacity: .7; }
+  .alert-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--danger-soft); color: var(--danger); display: grid; place-items: center; font-weight: 700; font-size: 16px; flex-shrink: 0; }
+  .alert-avatar.ok { background: var(--success-soft); color: var(--success); }
+  .action-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .action-note { margin-top: 8px; display: none; }
+  .action-note.show { display: block; }
+  .channel-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .channel-row:last-child { border-bottom: none; }
+  .channel-icon { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; font-size: 18px; }
+  .tabs-page { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  .tabs-page button { background: transparent; border: none; padding: 10px 18px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs-page button.active { color: var(--brand); border-bottom-color: var(--brand); }
+</style>
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page">
+  <div class="row between" style="margin-bottom:24px">
+    <div>
+      <h1>ศูนย์แจ้งเตือน</h1>
+      <div class="muted small">ผลตรวจที่ไม่ผ่านและต้องดำเนินการ</div>
+    </div>
+    <div id="hdr-badges"></div>
+  </div>
+
+  <div class="stats" style="margin-bottom:24px" id="stats"></div>
+
+  <div class="tabs-page" id="tabs">
+    <button class="active" data-tab="pending" onclick="switchTab('pending')">รอดำเนินการ <span id="pending-count-tab"></span></button>
+    <button data-tab="resolved" onclick="switchTab('resolved')">ดำเนินการแล้ว</button>
+    <button data-tab="channels" onclick="switchTab('channels')">ช่องทางแจ้งเตือน</button>
+  </div>
+
+  <div id="tab-pending"></div>
+  <div id="tab-resolved" style="display:none"></div>
+  <div id="tab-channels" style="display:none"></div>
+</div>
+
+<!-- Action modal -->
+<div class="modal-backdrop" id="action-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>บันทึกการดำเนินการ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeActionModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="action-test-info" style="margin-bottom:16px"></div>
+      <div class="field" style="margin-bottom:14px">
+        <label>การดำเนินการ</label>
+        <select class="select" id="action-select">
+          <option value="sent-home">ส่งกลับบ้าน (Sent Home)</option>
+          <option value="suspended">พักงาน (Suspended)</option>
+          <option value="allowed">อนุญาตให้ทำงาน (Allowed)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>หมายเหตุ</label>
+        <textarea class="textarea" id="action-note-input" placeholder="เหตุผลหรือรายละเอียดเพิ่มเติม..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeActionModal()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveAction()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Channel modal -->
+<div class="modal-backdrop" id="ch-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="ch-modal-title">ช่องทางแจ้งเตือน</h2>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ch-modal').classList.remove('show')">✕</button>
+    </div>
+    <form id="ch-form" onsubmit="saveCh(event)">
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <div class="field" style="margin-bottom:12px">
+          <label>ประเภท</label>
+          <select class="select" name="kind">
+            <option value="line">LINE Notify</option>
+            <option value="email">Email</option>
+            <option value="webhook">Webhook (Slack/Teams)</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>ชื่อ / คำอธิบาย</label>
+          <input class="input" name="label" required placeholder="เช่น LINE — ทีมความปลอดภัย" />
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Target (Token/Email/URL)</label>
+          <input class="input" name="target" required placeholder="LINE token / email address / webhook URL" />
+        </div>
+        <div class="row gap-md">
+          <label class="switch"><input type="checkbox" name="enabled" checked /><span class="slide"></span></label>
+          <span class="small">เปิดใช้งาน</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="document.getElementById('ch-modal').classList.remove('show')">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('alerts');
+  let activeTab = 'pending';
+  let actionTestId = null;
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.tabs-page button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    ['pending','resolved','channels'].forEach(t => {
+      document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
+    });
+  }
+
+  function renderStats() {
+    const tests = DB.tests().filter(t => !t.is_zero);
+    const pending = tests.filter(t => t.action_taken === 'pending');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const todayResolved = tests.filter(t => t.action_taken && t.action_taken !== 'pending' && new Date(t.created_at) >= today);
+    const todayFails = tests.filter(t => new Date(t.created_at) >= today);
+    document.getElementById('stats').innerHTML = `
+      <div class="stat accent-red"><div class="label">รอดำเนินการ</div><div class="value">${pending.length}</div><div class="delta">ยังไม่ได้ตรวจสอบ</div></div>
+      <div class="stat"><div class="label">แก้ไขแล้ววันนี้</div><div class="value">${todayResolved.length}</div><div class="delta">${new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short'})}</div></div>
+      <div class="stat accent-red"><div class="label">พบแอลกอฮอล์วันนี้</div><div class="value">${todayFails.length}</div><div class="delta">ทุกสถานที่</div></div>
+      <div class="stat accent-blue"><div class="label">ช่องทางแจ้งเตือน</div><div class="value">${DB.channels().filter(c=>c.enabled).length}</div><div class="delta">ใช้งานอยู่</div></div>
+    `;
+    const pc = document.getElementById('pending-count-tab');
+    if (pc) pc.innerHTML = pending.length ? `<span class="pill-dot" style="margin-left:4px">${pending.length}</span>` : '';
+  }
+
+  function renderPending() {
+    const tests = DB.tests().filter(t => !t.is_zero && t.action_taken === 'pending');
+    const el = document.getElementById('tab-pending');
+    if (!tests.length) {
+      el.innerHTML = '<div class="empty"><div class="icon">✅</div>ไม่มีรายการรอดำเนินการ</div>';
+      return;
+    }
+    el.innerHTML = tests.map(t => `
+      <div class="alert-row pending" id="ar-${t.id}">
+        <div class="alert-avatar">${t.full_name.charAt(0)}</div>
+        <div style="flex:1">
+          <div class="row between">
+            <div>
+              <span style="font-weight:700">${t.full_name}</span>
+              <span class="muted small" style="margin-left:8px">${t.department}</span>
+            </div>
+            <span class="tiny muted">${timeAgo(t.created_at)}</span>
+          </div>
+          <div class="tiny muted" style="margin:4px 0">${t.location_name} (${t.location_code}) · ${t.company}</div>
+          <div style="margin:8px 0">${thresholdBadge(t)}</div>
+          <div class="action-row">
+            <button class="btn btn-sm" onclick="openActionModal('${t.id}')">✍ บันทึกการดำเนินการ</button>
+            ${!t.retest_of ? `<a href="user-retest.html?test_id=${t.id}" class="btn btn-sm">🔁 ส่งตรวจซ้ำ</a>` : '<span class="action-chip action-pending">ตรวจซ้ำแล้ว</span>'}
+            <button class="btn btn-sm" onclick="viewTestDetail('${t.id}')">ดูรายละเอียด</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderResolved() {
+    const tests = DB.tests().filter(t => !t.is_zero && t.action_taken && t.action_taken !== 'pending');
+    const el = document.getElementById('tab-resolved');
+    if (!tests.length) {
+      el.innerHTML = '<div class="empty"><div class="icon">📋</div>ยังไม่มีรายการที่ดำเนินการแล้ว</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>วันที่</th><th>ชื่อ</th><th>ผลตรวจ</th><th>การดำเนินการ</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>
+            ${tests.map(t => `
+              <tr>
+                <td class="small">${formatDateShort(t.created_at)}</td>
+                <td>
+                  <div style="font-weight:600">${t.full_name}</div>
+                  <div class="tiny muted">${t.location_name}</div>
+                </td>
+                <td>${thresholdBadge(t)}</td>
+                <td><span class="action-chip action-${t.action_taken}">${actionLabel(t.action_taken)}</span></td>
+                <td class="small muted">${t.action_note || '—'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderChannels() {
+    const el = document.getElementById('tab-channels');
+    const channels = DB.channels();
+    el.innerHTML = `
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-header">
+          <div>
+            <h2>ช่องทางแจ้งเตือน</h2>
+            <div class="muted small">เมื่อพบผลตรวจไม่ผ่าน ระบบจะส่งแจ้งเตือนผ่านช่องทางที่เปิดใช้งาน</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openChModal()">+ เพิ่มช่องทาง</button>
+        </div>
+        ${channels.length ? channels.map(c => `
+          <div class="channel-row">
+            <div class="row gap-md">
+              <div class="channel-icon" style="background:${chColor(c.kind)}">${chIcon(c.kind)}</div>
+              <div>
+                <div style="font-weight:600">${c.label}</div>
+                <div class="tiny muted" style="font-family:var(--font-mono)">${c.target}</div>
+              </div>
+            </div>
+            <div class="row gap-sm">
+              <label class="switch" title="${c.enabled ? 'เปิดอยู่' : 'ปิดอยู่'}">
+                <input type="checkbox" ${c.enabled ? 'checked' : ''} onchange="toggleChannel('${c.id}', this.checked)" />
+                <span class="slide"></span>
+              </label>
+              <button class="btn btn-sm" onclick="openChModal(${JSON.stringify(c).replace(/"/g,'&quot;')})">แก้ไข</button>
+              <button class="btn btn-sm btn-danger" onclick="delChannel('${c.id}')">ลบ</button>
+            </div>
+          </div>
+        `).join('') : '<div class="empty" style="padding:40px"><div class="icon">📣</div>ยังไม่มีช่องทางแจ้งเตือน</div>'}
+      </div>
+      <div class="banner banner-info">
+        <span class="banner-icon">ℹ️</span>
+        <div class="small">ใน production ให้เชื่อม LINE Notify Token หรือ Email SMTP จริง — ต้องทำผ่าน backend (Supabase Edge Function หรือ server) เนื่องจาก CORS restrictions</div>
+      </div>
+    `;
+  }
+
+  function chColor(kind) {
+    return kind === 'line' ? '#07b53b22' : kind === 'email' ? '#e0f2fe' : '#f3e8ff';
+  }
+  function chIcon(kind) {
+    return kind === 'line' ? '💬' : kind === 'email' ? '📧' : '🔔';
+  }
+  function actionLabel(a) {
+    return { 'sent-home': 'ส่งกลับบ้าน', 'suspended': 'พักงาน', 'allowed': 'อนุญาต', 'pending': 'รอดำเนินการ' }[a] || a;
+  }
+
+  function openActionModal(id) {
+    actionTestId = id;
+    const t = DB.tests().find(x => x.id === id);
+    document.getElementById('action-test-info').innerHTML = `
+      <div style="background:var(--surface-2); padding:12px; border-radius:var(--r-md)">
+        <div style="font-weight:600; margin-bottom:4px">${t.full_name}</div>
+        <div class="small muted">${t.department} · ${t.location_name}</div>
+        <div style="margin-top:8px">${thresholdBadge(t)}</div>
+      </div>`;
+    document.getElementById('action-select').value = t.action_taken || 'sent-home';
+    document.getElementById('action-note-input').value = t.action_note || '';
+    document.getElementById('action-modal').classList.add('show');
+  }
+  function closeActionModal() { document.getElementById('action-modal').classList.remove('show'); }
+  function saveAction() {
+    const action = document.getElementById('action-select').value;
+    const note = document.getElementById('action-note-input').value.trim();
+    DB.updateTest(actionTestId, { action_taken: action, action_note: note, action_by: currentUser()?.id }, currentUser());
+    showToast('บันทึกการดำเนินการเรียบร้อย');
+    closeActionModal();
+    renderAll();
+  }
+
+  function viewTestDetail(id) {
+    location.href = `admin-tests.html?open=${id}`;
+  }
+
+  function openChModal(c) {
+    const f = document.getElementById('ch-form');
+    f.reset();
+    document.getElementById('ch-modal-title').textContent = c ? 'แก้ไขช่องทาง' : 'เพิ่มช่องทาง';
+    if (c) {
+      f.id.value = c.id;
+      f.kind.value = c.kind;
+      f.label.value = c.label;
+      f.target.value = c.target;
+      f.enabled.checked = c.enabled;
+    }
+    document.getElementById('ch-modal').classList.add('show');
+  }
+  function saveCh(e) {
+    e.preventDefault();
+    const f = e.target;
+    DB.upsertChannel({ id: f.id.value || undefined, kind: f.kind.value, label: f.label.value.trim(), target: f.target.value.trim(), enabled: f.enabled.checked });
+    showToast('บันทึกเรียบร้อย');
+    document.getElementById('ch-modal').classList.remove('show');
+    renderChannels();
+  }
+  function toggleChannel(id, enabled) {
+    const ch = DB.channels().find(c => c.id === id);
+    if (ch) DB.upsertChannel({ ...ch, enabled });
+    showToast(enabled ? 'เปิดช่องทางแจ้งเตือน' : 'ปิดช่องทางแจ้งเตือน');
+  }
+  function delChannel(id) {
+    if (!confirm('ยืนยันการลบช่องทางแจ้งเตือนนี้?')) return;
+    DB.deleteChannel(id);
+    showToast('ลบเรียบร้อย');
+    renderChannels();
+  }
+
+  function renderAll() {
+    renderStats();
+    renderPending();
+    renderResolved();
+    renderChannels();
+  }
+
+  Object.assign(window, { switchTab, openActionModal, closeActionModal, saveAction, viewTestDetail, openChModal, saveCh, toggleChannel, delChannel });
+  renderAll();
+}
+</script>
+</body>
+</html>

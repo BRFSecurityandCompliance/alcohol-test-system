@@ -275,6 +275,7 @@ const DB = {
     db.tests.unshift(enriched);
     // Auto-watchlist check
     if (!enriched.is_zero) {
+      if (!db.watchlist) db.watchlist = [];
       const cutoff = Date.now() - db.settings.watchlist_window_days * 86400000;
       const recent = db.tests.filter(x => x.full_name === enriched.full_name && !x.is_zero && new Date(x.created_at).getTime() >= cutoff);
       if (recent.length >= db.settings.watchlist_threshold && !db.watchlist.find(w => w.full_name === enriched.full_name)) {
@@ -435,7 +436,7 @@ function requireAdmin() {
 function thresholdBadge(t) {
   if (t.is_zero) return '<span class="lvl lvl-pass"><span class="lvl-dot"></span>ผ่าน · 0%</span>';
   const lvl = getThresholdLevel(t.alcohol_value, t.department);
-  const cls = 'lvl-' + lvl.color.replace('-strong','-illegal');
+  const cls = 'lvl-' + (lvl.color === 'danger-strong' ? 'illegal' : lvl.color);
   return `<span class="lvl ${cls}"><span class="lvl-dot"></span>${lvl.label} · ${t.alcohol_value} mg%</span>`;
 }
 

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>เครื่องตรวจแอลกอฮอล์ — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .device-status { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .status-active { background:var(--success-soft); color:var(--success); }
+  .status-due-soon { background:var(--warn-soft); color:var(--warn); }
+  .status-overdue { background:var(--danger-soft); color:var(--danger); }
+  .status-dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+</style>
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page">
+  <div class="row between" style="margin-bottom:24px">
+    <div>
+      <h1>เครื่องตรวจแอลกอฮอล์</h1>
+      <div class="muted small" id="meta"></div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal()">+ เพิ่มเครื่องตรวจ</button>
+  </div>
+
+  <div id="banners"></div>
+
+  <div class="stats" style="margin-bottom:24px" id="stats"></div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Serial No.</th>
+          <th>รุ่น</th>
+          <th>สถานที่</th>
+          <th>สอบเทียบล่าสุด</th>
+          <th>สอบเทียบครั้งต่อไป</th>
+          <th>สถานะ</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">เพิ่มเครื่องตรวจ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <form id="form" onsubmit="save(event)">
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <div class="grid-2">
+          <div class="field">
+            <label>Serial No. <span style="color:var(--danger)">*</span></label>
+            <input class="input" name="serial" required placeholder="BT-AL7-0001" />
+          </div>
+          <div class="field">
+            <label>รุ่น / ยี่ห้อ <span style="color:var(--danger)">*</span></label>
+            <input class="input" name="model" required placeholder="AlcoSense AL7000" />
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label>สถานที่ประจำ</label>
+          <select class="select" name="location_code">
+            <option value="">-- ไม่ระบุ --</option>
+          </select>
+        </div>
+        <div class="grid-2" style="margin-top:12px">
+          <div class="field">
+            <label>วันที่สอบเทียบล่าสุด</label>
+            <input class="input" type="date" name="last_calibrated" />
+          </div>
+          <div class="field">
+            <label>วันที่สอบเทียบครั้งต่อไป</label>
+            <input class="input" type="date" name="next_calibration" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('devices');
+
+  // Populate location select
+  DB.locations().forEach(l => {
+    document.querySelector('[name=location_code]').insertAdjacentHTML('beforeend',
+      `<option value="${l.code}">${l.name} (${l.code})</option>`);
+  });
+
+  function statusBadge(status) {
+    const map = {
+      active: ['status-active', '● ปกติ'],
+      'due-soon': ['status-due-soon', '⚠ ใกล้หมด'],
+      overdue: ['status-overdue', '✕ เกินกำหนด']
+    };
+    const [cls, label] = map[status] || map.active;
+    return `<span class="device-status ${cls}"><span class="status-dot"></span>${label}</span>`;
+  }
+
+  function daysUntil(dateStr) {
+    const d = (new Date(dateStr) - Date.now()) / 86400000;
+    return Math.round(d);
+  }
+
+  function render() {
+    const devices = DB.devices();
+    const overdue = devices.filter(d => getDeviceStatus(d.next_calibration) === 'overdue');
+    const dueSoon = devices.filter(d => getDeviceStatus(d.next_calibration) === 'due-soon');
+
+    document.getElementById('meta').textContent = `${devices.length} เครื่อง`;
+    document.getElementById('stats').innerHTML = `
+      <div class="stat accent-blue"><div class="label">ทั้งหมด</div><div class="value">${devices.length}</div><div class="delta">ลงทะเบียนในระบบ</div></div>
+      <div class="stat accent-green"><div class="label">ปกติ</div><div class="value">${devices.filter(d=>getDeviceStatus(d.next_calibration)==='active').length}</div></div>
+      <div class="stat" style="border-color:#fcd34d"><div class="label" style="color:var(--warn)">ใกล้หมดอายุ</div><div class="value" style="color:var(--warn)">${dueSoon.length}</div><div class="delta">ภายใน 30 วัน</div></div>
+      <div class="stat accent-red"><div class="label">เกินกำหนด</div><div class="value">${overdue.length}</div><div class="delta">ต้องสอบเทียบด่วน</div></div>
+    `;
+
+    const banners = document.getElementById('banners');
+    let b = '';
+    if (overdue.length) b += `<div class="banner banner-danger" style="margin-bottom:12px"><span class="banner-icon">🚨</span><div><b>เครื่องตรวจ ${overdue.length} เครื่องเกินกำหนดสอบเทียบ</b><br><span class="small">${overdue.map(d => d.serial).join(', ')} — ต้องส่งสอบเทียบทันที ห้ามใช้งาน</span></div></div>`;
+    if (dueSoon.length) b += `<div class="banner banner-warn" style="margin-bottom:12px"><span class="banner-icon">⚠️</span><div><b>เครื่องตรวจ ${dueSoon.length} เครื่องใกล้หมดอายุสอบเทียบ</b><br><span class="small">${dueSoon.map(d => `${d.serial} (อีก ${daysUntil(d.next_calibration)} วัน)`).join(', ')}</span></div></div>`;
+    banners.innerHTML = b;
+
+    const locs = DB.locations().reduce((m, l) => { m[l.code] = l.name; return m; }, {});
+    document.getElementById('rows').innerHTML = devices.length ? devices.map(d => {
+      const st = getDeviceStatus(d.next_calibration);
+      const daysLeft = daysUntil(d.next_calibration);
+      return `
+        <tr>
+          <td style="font-family:var(--font-mono); font-size:13px; font-weight:600">${d.serial}</td>
+          <td class="small">${d.model}</td>
+          <td class="small">${d.location_code ? `<span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${d.location_code}</span> ${locs[d.location_code] || ''}` : '<span class="muted">—</span>'}</td>
+          <td class="small">${d.last_calibrated || '—'}</td>
+          <td class="small">
+            ${d.next_calibration || '—'}
+            ${d.next_calibration ? `<div class="tiny ${daysLeft < 0 ? 'muted' : daysLeft < 30 ? '' : 'muted'}" style="color:${daysLeft < 0 ? 'var(--danger)' : daysLeft < 30 ? 'var(--warn)' : 'var(--text-muted)'}">${daysLeft < 0 ? `เกิน ${Math.abs(daysLeft)} วัน` : `อีก ${daysLeft} วัน`}</div>` : ''}
+          </td>
+          <td>${statusBadge(st)}</td>
+          <td style="text-align:right">
+            <button class="btn btn-sm" onclick='openModal(${JSON.stringify(d).replace(/"/g,"&quot;")})'>แก้ไข</button>
+            <button class="btn btn-sm btn-danger" onclick="del('${d.id}')">ลบ</button>
+          </td>
+        </tr>
+      `;
+    }).join('') : '<tr><td colspan="7"><div class="empty"><div class="icon">🔬</div>ยังไม่มีเครื่องตรวจ</div></td></tr>';
+  }
+
+  function openModal(d) {
+    document.getElementById('modal-title').textContent = d ? 'แก้ไขเครื่องตรวจ' : 'เพิ่มเครื่องตรวจ';
+    const f = document.getElementById('form');
+    f.reset();
+    if (d) {
+      f.id.value = d.id;
+      f.serial.value = d.serial;
+      f.model.value = d.model;
+      f.location_code.value = d.location_code || '';
+      f.last_calibrated.value = d.last_calibrated || '';
+      f.next_calibration.value = d.next_calibration || '';
+    }
+    document.getElementById('modal').classList.add('show');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('show'); }
+  function save(e) {
+    e.preventDefault();
+    const f = e.target;
+    const d = {
+      serial: f.serial.value.trim(),
+      model: f.model.value.trim(),
+      location_code: f.location_code.value || '',
+      last_calibrated: f.last_calibrated.value || '',
+      next_calibration: f.next_calibration.value || '',
+      status: f.next_calibration.value ? getDeviceStatus(f.next_calibration.value) : 'active'
+    };
+    if (f.id.value) d.id = f.id.value;
+    DB.upsertDevice(d);
+    showToast(f.id.value ? 'แก้ไขเรียบร้อย' : 'เพิ่มเรียบร้อย');
+    closeModal();
+    render();
+  }
+  function del(id) {
+    if (!confirm('ยืนยันการลบเครื่องตรวจ?')) return;
+    DB.deleteDevice(id);
+    showToast('ลบเรียบร้อย');
+    render();
+  }
+
+  Object.assign(window, { openModal, closeModal, save, del });
+  render();
+}
+</script>
+</body>
+</html>

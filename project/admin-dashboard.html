@@ -7,14 +7,41 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css" />
 <style>
-  .chart { display: flex; align-items: flex-end; gap: 8px; height: 200px; padding: 16px 0; }
-  .bar { flex: 1; background: linear-gradient(180deg, var(--brand-2), var(--brand)); border-radius: 6px 6px 0 0; min-height: 4px; position: relative; cursor: pointer; transition: opacity .15s; }
-  .bar:hover { opacity: .8; }
-  .bar .lbl { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--text-muted); white-space: nowrap; }
-  .bar .val { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: 600; }
-  .latest-row { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
-  .latest-row:last-child { border-bottom: none; }
-  .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-weight: 700; flex-shrink: 0; }
+  .chart { display:flex; align-items:flex-end; gap:8px; height:180px; padding:16px 0 0; }
+  .bar { flex:1; background:linear-gradient(180deg, var(--brand-2), var(--brand)); border-radius:6px 6px 0 0; min-height:4px; position:relative; cursor:pointer; transition:opacity .15s; }
+  .bar.fail { background:linear-gradient(180deg, #f87171, var(--danger)); }
+  .bar:hover { opacity:.8; }
+  .bar .lbl { position:absolute; bottom:-22px; left:50%; transform:translateX(-50%); font-size:11px; color:var(--text-muted); white-space:nowrap; }
+  .bar .val { position:absolute; top:-20px; left:50%; transform:translateX(-50%); font-size:11px; font-weight:600; }
+  .chart-legend { display:flex; gap:16px; margin-top:32px; font-size:12px; color:var(--text-muted); }
+  .chart-legend span { display:flex; align-items:center; gap:6px; }
+  .legend-dot { width:10px; height:10px; border-radius:2px; }
+  .latest-row { display:flex; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid var(--border); }
+  .latest-row:last-child { border-bottom:none; }
+  .avatar { width:36px; height:36px; border-radius:50%; background:var(--brand-soft); color:var(--brand); display:grid; place-items:center; font-weight:700; flex-shrink:0; }
+  .avatar.red { background:var(--danger-soft); color:var(--danger); }
+  /* Heatmap */
+  .hm-grid { display:grid; gap:3px; overflow-x:auto; }
+  .hm-row { display:grid; gap:3px; align-items:center; }
+  .hm-cell { width:22px; height:22px; border-radius:3px; background:var(--surface-2); cursor:default; position:relative; }
+  .hm-cell[data-tip]:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:var(--text); color:#fff; padding:4px 8px; border-radius:4px; font-size:11px; white-space:nowrap; z-index:10; pointer-events:none; }
+  .hm-cell[data-v="0"] { background:var(--surface-2); }
+  .hm-cell[data-v="1"] { background:oklch(0.88 0.08 25); }
+  .hm-cell[data-v="2"] { background:oklch(0.78 0.13 25); }
+  .hm-cell[data-v="3"] { background:oklch(0.68 0.18 25); }
+  .hm-cell[data-v="4"] { background:oklch(0.52 0.20 25); }
+  .hm-day-label { font-size:10px; color:var(--text-muted); text-align:right; padding-right:4px; white-space:nowrap; }
+  .rank-bar-wrap { margin-bottom:10px; }
+  .rank-bar-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .rank-name { width:160px; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rank-bar-bg { flex:1; height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden; }
+  .rank-bar-fill { height:100%; border-radius:99px; background:var(--danger); transition:width .4s ease; }
+  .rank-bar-fill.ok { background:var(--success); }
+  .rank-num { font-size:12px; font-weight:600; min-width:36px; text-align:right; }
+  .delta-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:99px; font-size:12px; font-weight:600; }
+  .delta-up { background:#dcfce7; color:#166534; }
+  .delta-down { background:#fee2e2; color:#7f1d1d; }
+  .delta-same { background:var(--surface-2); color:var(--text-muted); }
 </style>
 </head>
 <body>
@@ -30,11 +57,15 @@
 
   <div class="stats" style="margin-bottom:24px" id="stats"></div>
 
-  <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px; margin-bottom:24px">
+  <!-- Row 1: 7-day chart + ratio -->
+  <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px">
     <div class="card">
       <div class="card-header">
         <h2>ผลตรวจ 7 วันล่าสุด</h2>
-        <span class="badge badge-brand">รายวัน</span>
+        <div class="row gap-sm">
+          <span class="legend-dot" style="background:var(--brand); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted">ผ่าน</span>
+          <span class="legend-dot" style="background:var(--danger); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted">ไม่ผ่าน</span>
+        </div>
       </div>
       <div class="chart" id="chart"></div>
       <div style="margin-top:32px"></div>
@@ -45,12 +76,65 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-header">
-      <h2>ผลตรวจล่าสุด</h2>
-      <a href="admin-tests.html" class="btn btn-sm">ดูทั้งหมด →</a>
+  <!-- Row 2: Top sites + Top depts -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px">
+    <div class="card">
+      <div class="card-header">
+        <h2>Top 5 สถานที่ (% ไม่ผ่าน)</h2>
+        <a href="admin-reports.html" class="btn btn-sm btn-ghost">รายงาน →</a>
+      </div>
+      <div id="top-sites"></div>
     </div>
-    <div id="latest"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Top 5 แผนก (% ไม่ผ่าน)</h2>
+      </div>
+      <div id="top-depts"></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Heatmap -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header">
+      <h2>Heatmap — ช่วงเวลาที่พบแอลกอฮอล์</h2>
+      <span class="muted small">7 วันล่าสุด × 24 ชั่วโมง</span>
+    </div>
+    <div id="heatmap" style="overflow-x:auto; padding-bottom:4px"></div>
+    <div class="row gap-md" style="margin-top:12px; font-size:11px; color:var(--text-muted); justify-content:flex-end">
+      <span>น้อย</span>
+      <span style="display:flex;gap:3px">
+        <span style="width:16px;height:16px;border-radius:2px;background:var(--surface-2);display:inline-block"></span>
+        <span style="width:16px;height:16px;border-radius:2px;background:oklch(0.88 0.08 25);display:inline-block"></span>
+        <span style="width:16px;height:16px;border-radius:2px;background:oklch(0.78 0.13 25);display:inline-block"></span>
+        <span style="width:16px;height:16px;border-radius:2px;background:oklch(0.68 0.18 25);display:inline-block"></span>
+        <span style="width:16px;height:16px;border-radius:2px;background:oklch(0.52 0.20 25);display:inline-block"></span>
+      </span>
+      <span>มาก</span>
+    </div>
+  </div>
+
+  <!-- Row 4: Month comparison + Latest tests + Alerts -->
+  <div style="display:grid; grid-template-columns:1fr 2fr; gap:16px; margin-bottom:16px">
+    <div class="card">
+      <div class="card-header"><h2>เดือนนี้ vs เดือนที่แล้ว</h2></div>
+      <div id="month-compare"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h2>ผลตรวจล่าสุด</h2>
+        <a href="admin-tests.html" class="btn btn-sm">ดูทั้งหมด →</a>
+      </div>
+      <div id="latest"></div>
+    </div>
+  </div>
+
+  <!-- Row 5: Pending alerts -->
+  <div class="card" id="alert-card" style="margin-bottom:16px; display:none">
+    <div class="card-header">
+      <h2 style="color:var(--danger)">⚠ รอดำเนินการ</h2>
+      <a href="admin-alerts.html" class="btn btn-sm btn-danger">ดูทั้งหมด →</a>
+    </div>
+    <div id="pending-alerts"></div>
   </div>
 </div>
 
@@ -62,64 +146,199 @@ if (!requireAdmin()) {} else {
 
   const tests = DB.tests();
   const today = new Date(); today.setHours(0,0,0,0);
-  const todayCount = tests.filter(t => new Date(t.created_at) >= today).length;
+  const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
+  const lastMonth = new Date(thisMonth); lastMonth.setMonth(lastMonth.getMonth() - 1);
+  const endLastMonth = new Date(thisMonth);
+
+  const todayTests = tests.filter(t => new Date(t.created_at) >= today);
   const zero = tests.filter(t => t.is_zero).length;
   const positive = tests.filter(t => !t.is_zero).length;
+  const pending = tests.filter(t => !t.is_zero && t.action_taken === 'pending').length;
 
+  // Stats row
   document.getElementById('stats').innerHTML = `
     <div class="stat accent-blue"><div class="label">ทั้งหมด</div><div class="value">${tests.length}</div><div class="delta">รวมทุกสถานที่</div></div>
     <div class="stat accent-green"><div class="label">ผลเป็น 0%</div><div class="value">${zero}</div><div class="delta">${tests.length ? Math.round(zero/tests.length*100) : 0}% ของทั้งหมด</div></div>
     <div class="stat accent-red"><div class="label">ตรวจพบแอลกอฮอล์</div><div class="value">${positive}</div><div class="delta">${tests.length ? Math.round(positive/tests.length*100) : 0}% ของทั้งหมด</div></div>
-    <div class="stat"><div class="label">วันนี้</div><div class="value">${todayCount}</div><div class="delta">${new Date().toLocaleDateString('th-TH')}</div></div>
+    <div class="stat"><div class="label">วันนี้</div><div class="value">${todayTests.length}</div><div class="delta">${new Date().toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</div></div>
+    ${pending ? `<div class="stat accent-red"><div class="label">รอดำเนินการ</div><div class="value">${pending}</div><div class="delta"><a href="admin-alerts.html" style="color:var(--danger)">ดู Alert →</a></div></div>` : ''}
   `;
 
   // 7-day chart
-  const days = [];
+  const days7 = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
     const next = new Date(d); next.setDate(next.getDate() + 1);
-    days.push({
-      label: d.toLocaleDateString('th-TH', {weekday:'short'}),
-      count: tests.filter(t => { const td = new Date(t.created_at); return td >= d && td < next; }).length
-    });
+    const dayTests = tests.filter(t => { const td = new Date(t.created_at); return td >= d && td < next; });
+    days7.push({ label: d.toLocaleDateString('th-TH', {weekday:'short'}), pass: dayTests.filter(t=>t.is_zero).length, fail: dayTests.filter(t=>!t.is_zero).length });
   }
-  const max = Math.max(...days.map(d => d.count), 1);
-  document.getElementById('chart').innerHTML = days.map(d => `
-    <div class="bar" style="height:${(d.count/max)*100}%">
-      <span class="val">${d.count}</span>
-      <span class="lbl">${d.label}</span>
-    </div>
-  `).join('');
+  const maxBar = Math.max(...days7.map(d => d.pass + d.fail), 1);
+  document.getElementById('chart').innerHTML = days7.map(d => {
+    const total = d.pass + d.fail;
+    const h = total / maxBar * 100;
+    const failH = total ? (d.fail / total * h) : 0;
+    const passH = h - failH;
+    return `
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:0; position:relative; height:100%; justify-content:flex-end">
+        <span style="position:absolute; top:-20px; font-size:11px; font-weight:600">${total || ''}</span>
+        <div style="width:100%; display:flex; flex-direction:column; justify-content:flex-end; height:100%">
+          <div style="height:${failH}%; background:linear-gradient(180deg,#f87171,var(--danger)); border-radius:${passH<0.5?'4px 4px':'0 0'} 0 0; min-height:${d.fail?4:0}px"></div>
+          <div style="height:${passH}%; background:linear-gradient(180deg,var(--brand-2),var(--brand)); border-radius:4px 4px 0 0; min-height:${d.pass?4:0}px"></div>
+        </div>
+        <span style="position:absolute; bottom:-22px; font-size:11px; color:var(--text-muted)">${d.label}</span>
+      </div>`;
+  }).join('');
 
   // Ratio
   const total = tests.length || 1;
   document.getElementById('ratio').innerHTML = `
     <div style="margin-bottom:16px">
       <div class="row between" style="margin-bottom:6px"><span class="small">ไม่พบแอลกอฮอล์</span><span class="small" style="font-weight:600;color:var(--success)">${zero}</span></div>
-      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${zero/total*100}%; background:var(--success)"></div></div>
+      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${zero/total*100}%; background:var(--success); transition:width .4s ease"></div></div>
     </div>
     <div>
       <div class="row between" style="margin-bottom:6px"><span class="small">ตรวจพบแอลกอฮอล์</span><span class="small" style="font-weight:600;color:var(--danger)">${positive}</span></div>
-      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${positive/total*100}%; background:var(--danger)"></div></div>
+      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${positive/total*100}%; background:var(--danger); transition:width .4s ease"></div></div>
     </div>
     <div class="divider"></div>
-    <div class="small muted">การตรวจที่พบแอลกอฮอล์ควรได้รับการตรวจสอบเพิ่มเติม และดำเนินการตามขั้นตอนความปลอดภัย</div>
+    <div style="font-size:13px; font-weight:700; text-align:center; color:var(--success)">${Math.round(zero/total*100)}%<span class="muted" style="font-weight:400; font-size:12px; margin-left:4px">อัตราผ่าน</span></div>
   `;
 
-  // Latest 6
+  // Top 5 sites by fail rate
+  function topBy(groupKey, label) {
+    const grouped = {};
+    tests.forEach(t => {
+      const k = t[groupKey] || '?';
+      if (!grouped[k]) grouped[k] = { total: 0, fail: 0, label: label ? t[label] || k : k };
+      grouped[k].total++;
+      if (!t.is_zero) grouped[k].fail++;
+    });
+    return Object.entries(grouped).filter(([,v]) => v.total >= 3).map(([k,v]) => ({ key: k, label: v.label, total: v.total, fail: v.fail, rate: Math.round(v.fail/v.total*100) })).sort((a,b) => b.rate - a.rate).slice(0, 5);
+  }
+  function renderRanking(containerId, items, maxRate) {
+    if (!items.length) { document.getElementById(containerId).innerHTML = '<div class="muted small" style="padding:12px 0">ข้อมูลไม่เพียงพอ (ต้องมีอย่างน้อย 3 ผลต่อกลุ่ม)</div>'; return; }
+    document.getElementById(containerId).innerHTML = items.map((item, i) => `
+      <div class="rank-bar-row">
+        <div class="rank-name" title="${item.label}"><span class="muted small" style="margin-right:4px">${i+1}.</span>${item.label}</div>
+        <div class="rank-bar-bg">
+          <div class="rank-bar-fill" style="width:${maxRate ? item.rate/maxRate*100 : item.rate}%"></div>
+        </div>
+        <div class="rank-num" style="color:var(--danger)">${item.rate}%</div>
+      </div>
+    `).join('');
+  }
+  const topSites = topBy('location_code', 'location_name');
+  const topDepts = topBy('department');
+  const maxSite = topSites[0]?.rate || 1;
+  const maxDept = topDepts[0]?.rate || 1;
+  renderRanking('top-sites', topSites, maxSite);
+  renderRanking('top-depts', topDepts, maxDept);
+
+  // Heatmap: 7 days × 24 hours (fail tests only)
+  const days = ['วันนี้','เมื่อวาน','2 วันก่อน','3 วันก่อน','4 วันก่อน','5 วันก่อน','6 วันก่อน'];
+  const hmData = [];
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(); date.setDate(date.getDate() - d); date.setHours(0,0,0,0);
+    const next = new Date(date); next.setDate(next.getDate() + 1);
+    const row = [];
+    for (let h = 0; h < 24; h++) {
+      const count = tests.filter(t => {
+        if (t.is_zero) return false;
+        const td = new Date(t.created_at);
+        return td >= date && td < next && td.getHours() === h;
+      }).length;
+      row.push(count);
+    }
+    hmData.push(row);
+  }
+  const maxHm = Math.max(...hmData.flat(), 1);
+  function hmLevel(v) { if (!v) return 0; const r = v/maxHm; return r < .25 ? 1 : r < .5 ? 2 : r < .75 ? 3 : 4; }
+
+  const hourLabels = Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+  let hmHtml = `<div style="display:grid; grid-template-columns:70px repeat(24,22px); gap:3px; min-width:fit-content">`;
+  hmHtml += `<div></div>${hourLabels.map(h=>`<div style="font-size:10px;color:var(--text-muted);text-align:center;padding:2px 0">${h}</div>`).join('')}`;
+  for (let d = 0; d < 7; d++) {
+    hmHtml += `<div class="hm-day-label">${days[d]}</div>`;
+    for (let h = 0; h < 24; h++) {
+      const v = hmData[d][h];
+      const lv = hmLevel(v);
+      hmHtml += `<div class="hm-cell" data-v="${lv}"${v ? ` data-tip="${v} ไม่ผ่าน ${h}:00"` : ''}></div>`;
+    }
+  }
+  hmHtml += '</div>';
+  document.getElementById('heatmap').innerHTML = hmHtml;
+
+  // Month comparison
+  const thisMonthTests = tests.filter(t => new Date(t.created_at) >= thisMonth);
+  const lastMonthTests = tests.filter(t => { const d = new Date(t.created_at); return d >= lastMonth && d < endLastMonth; });
+  const tmPass = thisMonthTests.filter(t=>t.is_zero).length;
+  const lmPass = lastMonthTests.filter(t=>t.is_zero).length;
+  const tmTotal = thisMonthTests.length;
+  const lmTotal = lastMonthTests.length;
+  const tmRate = tmTotal ? Math.round(tmPass/tmTotal*100) : 0;
+  const lmRate = lmTotal ? Math.round(lmPass/lmTotal*100) : 0;
+  const rateDiff = tmRate - lmRate;
+  const countDiff = tmTotal - lmTotal;
+  document.getElementById('month-compare').innerHTML = `
+    <div style="text-align:center; margin-bottom:20px">
+      <div class="muted small" style="margin-bottom:4px">เดือนนี้</div>
+      <div style="font-size:40px; font-weight:700; color:var(--brand)">${tmRate}%</div>
+      <div class="muted small">อัตราผ่าน (${tmTotal} ผลตรวจ)</div>
+      <div style="margin-top:10px">
+        <span class="delta-chip ${rateDiff > 0 ? 'delta-up' : rateDiff < 0 ? 'delta-down' : 'delta-same'}">
+          ${rateDiff > 0 ? '▲' : rateDiff < 0 ? '▼' : '—'} ${Math.abs(rateDiff)}%
+        </span>
+        <span class="muted small" style="margin-left:6px">vs เดือนที่แล้ว</span>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px">
+      <div style="text-align:center">
+        <div class="muted small">เดือนที่แล้ว</div>
+        <div style="font-size:24px; font-weight:700; color:var(--text-muted)">${lmRate}%</div>
+        <div class="tiny muted">${lmTotal} ผลตรวจ</div>
+      </div>
+      <div style="text-align:center">
+        <div class="muted small">ผลตรวจรวม</div>
+        <div style="font-size:24px; font-weight:700">
+          <span class="delta-chip ${countDiff > 0 ? 'delta-down' : 'delta-up'}" style="font-size:14px">
+            ${countDiff > 0 ? '+' : ''}${countDiff}
+          </span>
+        </div>
+        <div class="tiny muted">เทียบเดือนที่แล้ว</div>
+      </div>
+    </div>
+  `;
+
+  // Latest 6 tests
   const latest = tests.slice(0, 6);
   document.getElementById('latest').innerHTML = latest.length ? latest.map(t => `
     <div class="latest-row">
-      <div class="avatar">${t.full_name.charAt(0)}</div>
-      <div class="grow">
+      <div class="avatar ${!t.is_zero ? 'red' : ''}">${t.full_name.charAt(0)}</div>
+      <div style="flex:1">
         <div style="font-weight:600">${t.full_name}</div>
         <div class="tiny muted">${t.department} · ${t.location_name} · ${formatDate(t.created_at)}</div>
       </div>
-      ${t.is_zero
-        ? '<span class="badge badge-success"><span class="badge-dot"></span>0%</span>'
-        : `<span class="badge badge-danger"><span class="badge-dot"></span>${t.alcohol_value} mg%</span>`}
+      ${thresholdBadge(t)}
     </div>
   `).join('') : '<div class="empty"><div class="icon">📋</div>ยังไม่มีข้อมูล</div>';
+
+  // Pending alerts preview
+  const pendingTests = tests.filter(t => !t.is_zero && t.action_taken === 'pending').slice(0, 4);
+  if (pendingTests.length) {
+    document.getElementById('alert-card').style.display = 'block';
+    document.getElementById('pending-alerts').innerHTML = pendingTests.map(t => `
+      <div class="latest-row">
+        <div class="avatar red">${t.full_name.charAt(0)}</div>
+        <div style="flex:1">
+          <div style="font-weight:600">${t.full_name}</div>
+          <div class="tiny muted">${t.location_name} · ${timeAgo(t.created_at)}</div>
+        </div>
+        ${thresholdBadge(t)}
+        <a href="admin-alerts.html" class="btn btn-sm btn-danger">ดำเนินการ</a>
+      </div>
+    `).join('');
+  }
 }
 </script>
 </body>

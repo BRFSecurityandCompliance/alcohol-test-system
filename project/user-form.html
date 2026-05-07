@@ -359,9 +359,10 @@ function renderForm() {
       signature_employee: signatureData,
       retest_of: retestOf
     };
+    let savedOffline = false;
     if (!navigator.onLine) {
       pushOfflineQueue(payload);
-      showToast('บันทึกแบบออฟไลน์แล้ว');
+      savedOffline = true;
     } else {
       const t = DB.addTest(payload);
       // Mark original as completed if this was a retest
@@ -376,7 +377,7 @@ function renderForm() {
         }
       }
     }
-    location.href = `user-success.html?location=${loc.code}&zero=${isZero}`;
+    location.href = `user-success.html?location=${loc.code}&zero=${isZero}${savedOffline ? '&offline=1' : ''}`;
   });
 }
 </script>

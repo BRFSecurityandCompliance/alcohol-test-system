@@ -30,6 +30,7 @@
 const params = new URLSearchParams(location.search);
 const code = params.get('location');
 const isZero = params.get('zero') === 'true';
+const isOffline = params.get('offline') === '1';
 const loc = code ? DB.findLocation(code) : null;
 const summary = document.getElementById('summary');
 const again = document.getElementById('again');
@@ -55,6 +56,13 @@ if (loc) {
         : '<span class="badge badge-danger"><span class="badge-dot"></span>ตรวจพบแอลกอฮอล์</span>'}
     </div>
   `;
+  if (isOffline) {
+    const banner = document.createElement('div');
+    banner.className = 'card';
+    banner.style.cssText = 'background:#fef3c7; border-color:#f59e0b; margin-bottom:16px; display:flex; gap:10px; align-items:center; text-align:left';
+    banner.innerHTML = '<span style="font-size:20px">⚡</span><div class="small" style="color:#92400e"><b>บันทึกแบบออฟไลน์</b> — ข้อมูลจะถูกส่งไปยังระบบเมื่อกลับมาออนไลน์</div>';
+    summary.parentNode.insertBefore(banner, summary);
+  }
   again.href = `user-form.html?location=${code}`;
 } else {
   summary.innerHTML = '<div class="muted">ไม่พบข้อมูลสถานที่</div>';

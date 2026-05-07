@@ -67,20 +67,33 @@ if (!requireAdmin()) {} else {
   function viewDetail(id) {
     const t = DB.tests().find(x => x.id === id);
     if (!t) return;
+    const shift = SHIFTS.find(s => s.id === t.shift_id);
+    const actionMap = { 'sent-home': 'ส่งกลับบ้าน', 'suspended': 'พักงาน', 'allowed': 'อนุญาต', 'pending': 'รอดำเนินการ' };
     document.getElementById('detail').innerHTML = `
       <div class="col gap-md">
         <div class="row between"><span class="muted small">ชื่อ</span><span style="font-weight:600">${t.full_name}</span></div>
+        <div class="row between"><span class="muted small">รหัสพนักงาน</span><span style="font-family:var(--font-mono);font-size:13px">${t.employee_id || '—'}</span></div>
         <div class="row between"><span class="muted small">แผนก</span><span>${t.department}</span></div>
         <div class="row between"><span class="muted small">บริษัท</span><span>${t.company}</span></div>
         <div class="row between"><span class="muted small">ทะเบียนรถ</span><span>${t.plate_number || '—'}</span></div>
         <div class="row between"><span class="muted small">สถานที่</span><span>${t.location_name} (${t.location_code})</span></div>
         <div class="row between"><span class="muted small">เวลา</span><span>${formatDate(t.created_at)}</span></div>
-        <div class="row between"><span class="muted small">ผลตรวจ</span>${t.is_zero ? '<span class="badge badge-success">ไม่พบแอลกอฮอล์</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</div>
+        ${shift ? `<div class="row between"><span class="muted small">กะ</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
+        ${t.device_serial ? `<div class="row between"><span class="muted small">เครื่องตรวจ</span><span style="font-family:var(--font-mono);font-size:13px">${t.device_serial}</span></div>` : ''}
+        <div class="row between"><span class="muted small">ผลตรวจ</span>${thresholdBadge(t)}</div>
+        ${!t.is_zero && t.action_taken ? `<div class="row between"><span class="muted small">การดำเนินการ</span><span class="action-chip action-${t.action_taken}">${actionMap[t.action_taken] || t.action_taken}</span></div>` : ''}
+        ${t.action_note ? `<div class="row between"><span class="muted small">หมายเหตุ</span><span class="small">${t.action_note}</span></div>` : ''}
+        ${t.retest_of ? `<div class="row between"><span class="muted small">ประเภท</span><span class="badge badge-warn">ตรวจซ้ำ</span></div>` : ''}
         <div class="divider"></div>
         <div class="muted small">ภาพถ่ายเครื่องตรวจ</div>
         <div style="background:var(--surface-2); border-radius:var(--r-md); aspect-ratio:4/3; display:grid; place-items:center; overflow:hidden">
           ${t.photo_url ? `<img src="${t.photo_url}" style="width:100%; height:100%; object-fit:cover">` : '<div class="muted small">— ไม่มีรูปภาพ —</div>'}
         </div>
+        ${t.signature_employee ? `
+          <div>
+            <div class="muted small" style="margin-bottom:6px">ลายเซ็นพนักงาน</div>
+            <img src="${t.signature_employee}" style="border:1px solid var(--border); border-radius:var(--r-sm); max-width:100%; background:#fff">
+          </div>` : ''}
       </div>
     `;
     document.getElementById('modal').classList.add('show');
@@ -94,6 +107,12 @@ if (!requireAdmin()) {} else {
   search.addEventListener('input', render);
   window.viewDetail = viewDetail; window.del = del;
   render();
+  // Auto-open a specific test if URL contains ?open=id
+  const openId = new URLSearchParams(location.search).get('open');
+  if (openId) {
+    const t = DB.tests().find(x => x.id === openId);
+    if (t) { search.value = t.full_name; render(); viewDetail(openId); }
+  }
 }
 </script>
 </body>

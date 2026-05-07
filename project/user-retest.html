@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>รอตรวจซ้ำ</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  body { background: var(--surface-2); }
+  .shell { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--surface); border-left: 1px solid var(--border); border-right: 1px solid var(--border); padding: 32px 20px; }
+  .fail-icon { width: 80px; height: 80px; border-radius: 50%; background: var(--danger-soft); color: var(--danger); display: grid; place-items: center; font-size: 40px; margin: 0 auto 20px; }
+  .result-box { background: var(--danger-soft); border: 1px solid #fca5a5; border-radius: var(--r-lg); padding: 16px 20px; margin-bottom: 24px; }
+  .timer-wrap { background: linear-gradient(135deg, #fef3c7, #fde68a); border: 2px solid #f59e0b; border-radius: var(--r-lg); padding: 28px; text-align: center; margin-bottom: 24px; }
+  .timer-label { font-size: 13px; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  .retest-timer { font-family: var(--font-mono); font-size: 56px; font-weight: 700; color: #92400e; letter-spacing: .08em; line-height: 1; }
+  .timer-sub { font-size: 13px; color: #b45309; margin-top: 8px; }
+  .ready-wrap { background: var(--success-soft); border: 2px solid #86efac; border-radius: var(--r-lg); padding: 28px; text-align: center; margin-bottom: 24px; }
+  .info-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(185,28,28,.15); }
+  .info-row:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div id="app"></div>
+</div>
+
+<script src="data.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const testId = params.get('test_id');
+const test = testId ? DB.tests().find(t => t.id === testId) : null;
+const settings = DB.settings();
+const RETEST_SECONDS = (settings.retest_minutes || 5) * 60;
+const app = document.getElementById('app');
+
+if (!test) {
+  app.innerHTML = `
+    <div style="text-align:center; padding:40px 0">
+      <div style="font-size:48px; margin-bottom:16px; opacity:.3">⚠️</div>
+      <h2 style="margin-bottom:8px">ไม่พบข้อมูลการตรวจ</h2>
+      <p class="muted">กรุณาสแกน QR Code ใหม่อีกครั้ง</p>
+      <a href="index.html" class="btn btn-primary" style="margin-top:16px">กลับหน้าหลัก</a>
+    </div>`;
+} else {
+  const lvl = getThresholdLevel(test.alcohol_value, test.department);
+  const loc = DB.findLocation(test.location_code);
+
+  app.innerHTML = `
+    <div class="fail-icon">⚠</div>
+    <h1 style="text-align:center; margin-bottom:6px; color:var(--danger)">ผลตรวจไม่ผ่าน</h1>
+    <p class="muted small" style="text-align:center; margin:0 0 20px">ต้องตรวจซ้ำหลังจากรอครบ ${settings.retest_minutes || 5} นาที</p>
+
+    <div class="result-box">
+      <div class="info-row">
+        <span class="muted small">ชื่อ</span>
+        <span style="font-weight:600">${test.full_name}</span>
+      </div>
+      <div class="info-row">
+        <span class="muted small">แผนก</span>
+        <span class="small">${test.department}</span>
+      </div>
+      <div class="info-row">
+        <span class="muted small">สถานที่</span>
+        <span class="small">${test.location_name}</span>
+      </div>
+      <div class="info-row">
+        <span class="muted small">ผลครั้งแรก</span>
+        <span style="font-weight:700; color:var(--danger)">${test.alcohol_value} mg%</span>
+      </div>
+      <div class="info-row">
+        <span class="muted small">ระดับ</span>
+        ${thresholdBadge(test)}
+      </div>
+      <div class="info-row">
+        <span class="muted small">เวลาตรวจ</span>
+        <span class="small" style="font-family:var(--font-mono)">${formatTime(test.created_at)}</span>
+      </div>
+    </div>
+
+    <div id="timer-section"></div>
+
+    <div class="banner banner-warn" style="margin-bottom:16px">
+      <span class="banner-icon">📋</span>
+      <div class="small">ห้ามออกจากบริเวณตรวจ — รอจนนับเวลาครบก่อนตรวจซ้ำ หากตรวจซ้ำยังไม่ผ่านจะถูกบันทึกและแจ้งหัวหน้างาน</div>
+    </div>
+
+    <a href="index.html" class="btn btn-ghost btn-block">กลับหน้าหลัก</a>
+  `;
+
+  const createdAt = new Date(test.created_at).getTime();
+  const retestStart = createdAt + RETEST_SECONDS * 1000;
+
+  function updateTimer() {
+    const now = Date.now();
+    const remaining = Math.max(0, retestStart - now);
+    const sec = Math.floor(remaining / 1000);
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    const section = document.getElementById('timer-section');
+
+    if (remaining > 0) {
+      section.innerHTML = `
+        <div class="timer-wrap">
+          <div class="timer-label">เวลาที่ต้องรอ</div>
+          <div class="retest-timer">${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</div>
+          <div class="timer-sub">กรุณารอจนนับถอยหลังครบ</div>
+        </div>`;
+    } else {
+      section.innerHTML = `
+        <div class="ready-wrap">
+          <div style="font-size:48px; margin-bottom:12px">✅</div>
+          <div style="font-size:18px; font-weight:700; color:var(--success); margin-bottom:8px">พร้อมตรวจซ้ำแล้ว!</div>
+          <div class="small muted" style="margin-bottom:16px">ครบ ${settings.retest_minutes || 5} นาทีแล้ว กดปุ่มด้านล่างเพื่อทำการตรวจซ้ำ</div>
+          <a href="user-form.html?location=${test.location_code}&retest_of=${test.id}" class="btn btn-primary btn-lg btn-block">
+            🔁 ตรวจซ้ำเลย
+          </a>
+        </div>`;
+    }
+  }
+
+  updateTimer();
+  const interval = setInterval(() => {
+    updateTimer();
+    if (Date.now() >= retestStart) clearInterval(interval);
+  }, 1000);
+}
+</script>
+</body>
+</html>
