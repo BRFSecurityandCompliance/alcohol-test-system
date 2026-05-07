@@ -116,8 +116,11 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('alerts');
   let activeTab = 'pending';
@@ -325,6 +328,7 @@ if (!requireAdmin()) {} else {
   Object.assign(window, { switchTab, openActionModal, closeActionModal, saveAction, viewTestDetail, openChModal, saveCh, toggleChannel, delChannel });
   renderAll();
 }
+}); // DB.init
 </script>
 </body>
 </html>

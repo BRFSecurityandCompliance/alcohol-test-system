@@ -42,7 +42,7 @@
     <div class="meta">
       <div><div class="k">Stack</div><div class="v">HTML + Supabase + GitHub</div></div>
       <div><div class="k">Sites</div><div class="v">12 สถานที่</div></div>
-      <div><div class="k">Storage</div><div class="v">localStorage (mock)</div></div>
+      <div><div class="k">Storage</div><div class="v">Supabase (PostgreSQL)</div></div>
       <div><div class="k">Admin</div><div class="v">รหัส: admin1234</div></div>
     </div>
   </div>
@@ -51,7 +51,7 @@
 <div class="section">
   <div class="alert">
     <div>
-      <b>โปรเจกต์ Demo:</b> นี่คือ working prototype ใช้ <code>localStorage</code> เป็น mock database. การเชื่อม Supabase จริง: แทนที่ <code>data.js</code> ด้วย Supabase client (มี SQL schema และ logic เตรียมไว้ในเอกสาร spec). กดลิงก์ด้านล่างเพื่อทดลองใช้งาน.
+      <b>ระบบนี้เชื่อมต่อ Supabase แล้ว</b> — ข้อมูลจะถูกบันทึกใน PostgreSQL จริง. ใช้ <code>localStorage</code> เป็น cache เพื่อ performance และ offline support. กดลิงก์ด้านล่างเพื่อใช้งาน.
     </div>
   </div>
 
@@ -183,6 +183,8 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 </body>
 </html>

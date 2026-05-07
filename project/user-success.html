@@ -25,8 +25,11 @@
   <a href="index.html" class="btn btn-ghost btn-block" style="margin-top:8px">กลับหน้าหลัก</a>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 const params = new URLSearchParams(location.search);
 const code = params.get('location');
 const isZero = params.get('zero') === 'true';
@@ -68,6 +71,7 @@ if (loc) {
   summary.innerHTML = '<div class="muted">ไม่พบข้อมูลสถานที่</div>';
   again.style.display = 'none';
 }
+}); // DB.init
 </script>
 </body>
 </html>

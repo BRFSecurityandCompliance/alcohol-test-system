@@ -93,8 +93,11 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('settings');
 
@@ -384,6 +387,7 @@ if (!requireAdmin()) {} else {
   renderShifts();
   renderDanger();
 }
+}); // DB.init
 </script>
 </body>
 </html>

@@ -101,8 +101,11 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('companies');
   let selected = new Set();
@@ -256,6 +259,7 @@ if (!requireAdmin()) {} else {
   Object.assign(window, { openModal, closeModal, save, del, toggleOne, toggleAll, clearSel, delSelected, downloadTemplate, importCSV });
   render();
 }
+}); // DB.init
 </script>
 </body>
 </html>

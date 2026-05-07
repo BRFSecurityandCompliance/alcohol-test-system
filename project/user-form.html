@@ -30,8 +30,11 @@
 <div id="net-status"></div>
 <div id="app"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 const params = new URLSearchParams(location.search);
 const locationCode = params.get('location');
 const loc = locationCode ? DB.findLocation(locationCode) : null;
@@ -380,6 +383,7 @@ function renderForm() {
     location.href = `user-success.html?location=${loc.code}&zero=${isZero}${savedOffline ? '&offline=1' : ''}`;
   });
 }
+}); // DB.init
 </script>
 </body>
 </html>

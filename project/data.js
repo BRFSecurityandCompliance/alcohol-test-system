@@ -459,3 +459,288 @@ function confirmDialog(title, msg) {
     wrap.querySelector('[data-yes]').onclick = () => { wrap.remove(); resolve(true); };
   });
 }
+
+// ===== Supabase Integration =====
+
+function _genUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+function _isUUID(id) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''));
+}
+
+DB._initialized = false;
+
+DB.init = async function() {
+  if (DB._initialized) return;
+  if (typeof _sb === 'undefined') { DB._initialized = true; return; }
+  try {
+    const [
+      { data: locs },  { data: comps },   { data: tests },
+      { data: devs },  { data: users },   { data: persons },
+      { data: channels }, { data: audit }, { data: watchl },
+      { data: sett }
+    ] = await Promise.all([
+      _sb.from('locations').select('*').order('code'),
+      _sb.from('companies').select('*').order('name'),
+      _sb.from('tests').select('*').order('created_at', { ascending: false }),
+      _sb.from('devices').select('*'),
+      _sb.from('admin_users').select('*'),
+      _sb.from('persons').select('*'),
+      _sb.from('alert_channels').select('*'),
+      _sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500),
+      _sb.from('watchlist').select('*'),
+      _sb.from('settings').select('*').single()
+    ]);
+    const db = {
+      locations: locs || [],
+      companies: (comps || []).map(c => ({ id: c.id, name: c.name })),
+      tests: (tests || []).map(t => ({
+        ...t,
+        level: t.level || getThresholdLevel(t.alcohol_value, t.department).level,
+        shift_id: t.shift_id || getShiftFromDate(t.created_at).id,
+        action_taken: t.action_taken || null
+      })),
+      devices: (devs || []).map(d => ({ ...d, status: getDeviceStatus(d.next_calibration) })),
+      users: (users || []).map(u => ({
+        id: u.id, username: u.username, name: u.name,
+        email: u.email, role: u.role, sites: u.sites
+      })),
+      persons: persons || [],
+      channels: channels || [],
+      audit: (audit || []).map(a => ({
+        id: a.id, actor_id: a.actor_id || '', actor_name: a.actor_name,
+        action: a.action, target: a.target || '', detail: a.detail || '',
+        created_at: a.created_at
+      })),
+      watchlist: watchl || [],
+      settings: sett ? {
+        retest_minutes: sett.retest_minutes,
+        watchlist_threshold: sett.watchlist_threshold,
+        watchlist_window_days: sett.watchlist_window_days,
+        language: sett.language,
+        thresholds: THRESHOLDS
+      } : { retest_minutes: 5, watchlist_threshold: 2, watchlist_window_days: 30, language: 'th', thresholds: THRESHOLDS }
+    };
+    saveDB(db);
+  } catch (err) {
+    console.warn('[DB.init] Supabase unavailable, using localStorage:', err.message);
+  }
+  DB._initialized = true;
+};
+
+// Replace addTest to use UUID ids and fire-and-forget to Supabase
+const _rawAddTest = DB.addTest.bind(DB);
+DB.addTest = function(t) {
+  const enriched = _rawAddTest({ ...t, id: _genUUID() });
+  if (typeof _sb !== 'undefined') {
+    _sb.from('tests').insert({
+      id: enriched.id,
+      employee_id: enriched.employee_id || '',
+      full_name: enriched.full_name,
+      department: enriched.department,
+      plate_number: enriched.plate_number || '',
+      company: enriched.company,
+      alcohol_value: enriched.alcohol_value,
+      is_zero: enriched.is_zero,
+      level: enriched.level,
+      location_code: enriched.location_code,
+      location_name: enriched.location_name,
+      photo_url: enriched.photo_url || '',
+      shift_id: enriched.shift_id,
+      device_serial: enriched.device_serial || '',
+      signature_employee: enriched.signature_employee || '',
+      retest_of: enriched.retest_of || null,
+      retest_status: enriched.retest_status || null,
+      action_taken: enriched.action_taken || null,
+      action_note: enriched.action_note || '',
+      created_at: enriched.created_at
+    }).then(({ error }) => { if (error) console.warn('[DB.addTest]', error.message); });
+  }
+  return enriched;
+};
+
+const _rawDeleteTest = DB.deleteTest.bind(DB);
+DB.deleteTest = function(id, actor) {
+  _rawDeleteTest(id, actor);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _sb.from('tests').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteTest]', error.message); });
+  }
+};
+
+const _rawUpdateTest = DB.updateTest.bind(DB);
+DB.updateTest = function(id, patch, actor) {
+  _rawUpdateTest(id, patch, actor);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    const cols = ['alcohol_value','is_zero','level','retest_status','action_taken','action_note','action_by','signature_employee','operator_id'];
+    const row = {};
+    cols.forEach(k => { if (patch[k] !== undefined) row[k] = patch[k]; });
+    if (Object.keys(row).length) {
+      _sb.from('tests').update(row).eq('id', id)
+        .then(({ error }) => { if (error) console.warn('[DB.updateTest]', error.message); });
+    }
+    if (actor) {
+      _sb.from('audit_log').insert({
+        id: _genUUID(), actor_id: _isUUID(actor.id) ? actor.id : null,
+        actor_name: actor.name || 'Admin', action: 'update_test',
+        target: id, detail: `แก้ไข: ${Object.keys(patch).join(', ')}`
+      }).then(({ error }) => { if (error) console.warn('[audit updateTest]', error.message); });
+    }
+  }
+};
+
+DB.upsertLocation = function(loc) {
+  const db = loadDB();
+  const i = db.locations.findIndex(l => l.code === loc.code);
+  if (i >= 0) db.locations[i] = loc; else db.locations.push(loc);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _sb.from('locations').upsert(loc, { onConflict: 'code' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertLocation]', error.message); });
+  }
+};
+
+DB.deleteLocation = function(code) {
+  const db = loadDB();
+  db.locations = db.locations.filter(l => l.code !== code);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _sb.from('locations').delete().eq('code', code)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteLocation]', error.message); });
+  }
+};
+
+DB.upsertCompany = function(c) {
+  const id = _isUUID(c.id) ? c.id : _genUUID();
+  const db = loadDB();
+  const i = db.companies.findIndex(x => x.id === c.id);
+  if (i >= 0) db.companies[i] = { id, name: c.name };
+  else db.companies.push({ id, name: c.name });
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _sb.from('companies').upsert({ id, name: c.name }, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertCompany]', error.message); });
+  }
+};
+
+DB.deleteCompany = function(id) {
+  const db = loadDB();
+  db.companies = db.companies.filter(c => c.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _sb.from('companies').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteCompany]', error.message); });
+  }
+};
+
+DB.upsertDevice = function(d) {
+  const id = _isUUID(d.id) ? d.id : _genUUID();
+  const db = loadDB();
+  const i = db.devices.findIndex(x => x.id === d.id || x.serial === d.serial);
+  const row = { id, serial: d.serial, model: d.model, location_code: d.location_code, last_calibrated: d.last_calibrated, next_calibration: d.next_calibration, status: getDeviceStatus(d.next_calibration) };
+  if (i >= 0) db.devices[i] = row; else db.devices.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    const { status, ...sbRow } = row;
+    _sb.from('devices').upsert(sbRow, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertDevice]', error.message); });
+  }
+};
+
+DB.deleteDevice = function(id) {
+  const db = loadDB();
+  db.devices = db.devices.filter(d => d.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _sb.from('devices').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteDevice]', error.message); });
+  }
+};
+
+DB.upsertUser = function(u) {
+  const id = _isUUID(u.id) ? u.id : _genUUID();
+  const db = loadDB();
+  const i = db.users.findIndex(x => x.id === u.id || x.username === u.username);
+  const row = { id, username: u.username, name: u.name, email: u.email || '', role: u.role, sites: u.sites };
+  if (i >= 0) db.users[i] = row; else db.users.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _sb.from('admin_users').upsert(row, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertUser]', error.message); });
+  }
+};
+
+DB.deleteUser = function(id) {
+  const db = loadDB();
+  db.users = db.users.filter(u => u.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _sb.from('admin_users').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteUser]', error.message); });
+  }
+};
+
+DB.upsertChannel = function(c) {
+  const id = _isUUID(c.id) ? c.id : _genUUID();
+  const db = loadDB();
+  const i = db.channels.findIndex(x => x.id === c.id);
+  const row = { id, kind: c.kind, label: c.label, target: c.target, enabled: c.enabled };
+  if (i >= 0) db.channels[i] = row; else db.channels.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _sb.from('alert_channels').upsert(row, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertChannel]', error.message); });
+  }
+};
+
+DB.deleteChannel = function(id) {
+  const db = loadDB();
+  db.channels = db.channels.filter(c => c.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _sb.from('alert_channels').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteChannel]', error.message); });
+  }
+};
+
+const _rawSetSettings = DB.setSettings.bind(DB);
+DB.setSettings = function(s) {
+  _rawSetSettings(s);
+  if (typeof _sb !== 'undefined') {
+    const row = {};
+    if (s.retest_minutes !== undefined) row.retest_minutes = s.retest_minutes;
+    if (s.watchlist_threshold !== undefined) row.watchlist_threshold = s.watchlist_threshold;
+    if (s.watchlist_window_days !== undefined) row.watchlist_window_days = s.watchlist_window_days;
+    if (s.language !== undefined) row.language = s.language;
+    if (Object.keys(row).length) {
+      _sb.from('settings').update(row).eq('id', 1)
+        .then(({ error }) => { if (error) console.warn('[DB.setSettings]', error.message); });
+    }
+  }
+};
+
+const _rawAddAudit = DB.addAudit.bind(DB);
+DB.addAudit = function(entry) {
+  _rawAddAudit(entry);
+  if (typeof _sb !== 'undefined') {
+    _sb.from('audit_log').insert({
+      id: _genUUID(),
+      actor_id: _isUUID(entry.actor_id) ? entry.actor_id : null,
+      actor_name: entry.actor_name || 'System',
+      action: entry.action, target: entry.target || '', detail: entry.detail || ''
+    }).then(({ error }) => { if (error) console.warn('[DB.addAudit]', error.message); });
+  }
+};
+
+const _rawRemoveFromWatchlist = DB.removeFromWatchlist.bind(DB);
+DB.removeFromWatchlist = function(id) {
+  _rawRemoveFromWatchlist(id);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _sb.from('watchlist').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.removeFromWatchlist]', error.message); });
+  }
+};

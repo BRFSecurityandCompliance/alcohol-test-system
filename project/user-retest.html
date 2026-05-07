@@ -25,8 +25,11 @@
   <div id="app"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 const params = new URLSearchParams(location.search);
 const testId = params.get('test_id');
 const test = testId ? DB.tests().find(t => t.id === testId) : null;
@@ -125,6 +128,7 @@ if (!test) {
     if (Date.now() >= retestStart) clearInterval(interval);
   }, 1000);
 }
+}); // DB.init
 </script>
 </body>
 </html>
