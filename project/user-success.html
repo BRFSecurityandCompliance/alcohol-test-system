@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ส่งข้อมูลสำเร็จ</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  body { background: var(--surface-2); }
+  .check { width: 96px; height: 96px; border-radius: 50%; background: var(--success-soft); color: var(--success); display: grid; place-items: center; font-size: 48px; margin: 0 auto 24px; animation: pop .4s ease-out; }
+  @keyframes pop { 0% { transform: scale(.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .container { max-width: 480px; margin: 0 auto; padding: 60px 20px 24px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="check">✓</div>
+  <h1 style="margin-bottom:8px">ส่งข้อมูลเรียบร้อย</h1>
+  <p class="muted" style="margin:0 0 28px">ข้อมูลผลตรวจของคุณถูกบันทึกในระบบแล้ว ขอบคุณที่ให้ความร่วมมือ</p>
+
+  <div class="card" style="text-align:left; margin-bottom:16px" id="summary"></div>
+
+  <a href="#" id="again" class="btn btn-primary btn-block btn-lg">บันทึกผลถัดไป</a>
+  <a href="index.html" class="btn btn-ghost btn-block" style="margin-top:8px">กลับหน้าหลัก</a>
+</div>
+
+<script src="data.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const code = params.get('location');
+const isZero = params.get('zero') === 'true';
+const loc = code ? DB.findLocation(code) : null;
+const summary = document.getElementById('summary');
+const again = document.getElementById('again');
+
+if (loc) {
+  summary.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <span class="muted small">สถานที่</span>
+      <span style="font-weight:600">${loc.name}</span>
+    </div>
+    <div class="row between" style="margin-bottom:12px">
+      <span class="muted small">รหัส</span>
+      <span style="font-family:var(--font-mono); font-size:13px">${loc.code}</span>
+    </div>
+    <div class="row between" style="margin-bottom:12px">
+      <span class="muted small">เวลา</span>
+      <span>${new Date().toLocaleString('th-TH', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short', year:'numeric'})}</span>
+    </div>
+    <div class="row between">
+      <span class="muted small">ผล</span>
+      ${isZero
+        ? '<span class="badge badge-success"><span class="badge-dot"></span>ไม่พบแอลกอฮอล์</span>'
+        : '<span class="badge badge-danger"><span class="badge-dot"></span>ตรวจพบแอลกอฮอล์</span>'}
+    </div>
+  `;
+  again.href = `user-form.html?location=${code}`;
+} else {
+  summary.innerHTML = '<div class="muted">ไม่พบข้อมูลสถานที่</div>';
+  again.style.display = 'none';
+}
+</script>
+</body>
+</html>

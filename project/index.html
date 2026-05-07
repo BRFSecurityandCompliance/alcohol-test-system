@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ระบบตรวจแอลกอฮอล์ — ภาพรวมโปรเจกต์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .hero { background: linear-gradient(135deg, #1f3a8a 0%, #2851d6 100%); color: #fff; padding: 56px 28px; }
+  .hero-inner { max-width: 1100px; margin: 0 auto; }
+  .hero h1 { color: #fff; font-size: 38px; margin-bottom: 12px; }
+  .hero p { color: rgba(255,255,255,.85); font-size: 17px; max-width: 720px; margin: 0; }
+  .hero .meta { display: flex; gap: 24px; margin-top: 24px; flex-wrap: wrap; }
+  .hero .meta div { display: flex; flex-direction: column; }
+  .hero .meta .k { font-size: 12px; color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing: .06em; }
+  .hero .meta .v { font-size: 16px; font-weight: 600; color: #fff; }
+  .section { max-width: 1100px; margin: 0 auto; padding: 40px 28px; }
+  .section h2 { margin-bottom: 6px; }
+  .section .sub { color: var(--text-muted); margin-bottom: 24px; }
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .nav-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 22px; text-decoration: none; color: inherit; transition: all .15s ease; display: flex; flex-direction: column; gap: 8px; box-shadow: var(--shadow-sm); }
+  .nav-card:hover { border-color: var(--brand-2); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .nav-card .tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--brand); }
+  .nav-card .title { font-size: 17px; font-weight: 600; color: var(--text); }
+  .nav-card .desc { font-size: 13px; color: var(--text-muted); }
+  .nav-card .url { font-family: var(--font-mono); font-size: 11px; color: var(--text-soft); margin-top: auto; padding-top: 12px; border-top: 1px dashed var(--border); }
+  .qr-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .alert { background: var(--brand-soft); border: 1px solid #c7d2fe; color: var(--brand); padding: 14px 18px; border-radius: var(--r-md); font-size: 14px; margin-bottom: 24px; display: flex; gap: 10px; align-items: flex-start; }
+  .alert b { font-weight: 700; }
+  .alert code { font-family: var(--font-mono); background: rgba(31,58,138,.1); padding: 2px 6px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="hero-inner">
+    <div style="font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.7); margin-bottom:12px">Alcohol Testing System</div>
+    <h1>ระบบตรวจวัดปริมาณแอลกอฮอล์ผ่าน QR Code</h1>
+    <p>ระบบฟอร์มกรอกผลตรวจสำหรับหน้างาน + แดชบอร์ดแอดมินสำหรับจัดการข้อมูล. ผู้ใช้สแกน QR เพื่อระบุสถานที่อัตโนมัติ ไม่ต้อง login.</p>
+    <div class="meta">
+      <div><div class="k">Stack</div><div class="v">HTML + Supabase + GitHub</div></div>
+      <div><div class="k">Sites</div><div class="v">12 สถานที่</div></div>
+      <div><div class="k">Storage</div><div class="v">localStorage (mock)</div></div>
+      <div><div class="k">Admin</div><div class="v">รหัส: admin1234</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="alert">
+    <div>
+      <b>โปรเจกต์ Demo:</b> นี่คือ working prototype ใช้ <code>localStorage</code> เป็น mock database. การเชื่อม Supabase จริง: แทนที่ <code>data.js</code> ด้วย Supabase client (มี SQL schema และ logic เตรียมไว้ในเอกสาร spec). กดลิงก์ด้านล่างเพื่อทดลองใช้งาน.
+    </div>
+  </div>
+
+  <h2>👤 ผู้ใช้งานหน้างาน (User)</h2>
+  <div class="sub">User flow: สแกน QR → กรอกฟอร์ม → ส่งข้อมูล</div>
+  <div class="grid-cards">
+    <a class="nav-card" href="user-form.html?location=QR001">
+      <span class="tag">User</span>
+      <div class="title">หน้าฟอร์มกรอกผล (QR001 ปทุมธานี)</div>
+      <div class="desc">จำลองการสแกน QR ของไซต์ปทุมธานี — location ถูก lock อัตโนมัติ</div>
+      <div class="url">user-form.html?location=QR001</div>
+    </a>
+    <a class="nav-card" href="user-form.html?location=QR007">
+      <span class="tag">User</span>
+      <div class="title">หน้าฟอร์มกรอกผล (QR007 อยุธยา)</div>
+      <div class="desc">ทดสอบกับ site อื่น เพื่อดูว่าระบบดึงชื่อ site ถูก</div>
+      <div class="url">user-form.html?location=QR007</div>
+    </a>
+    <a class="nav-card" href="user-form.html">
+      <span class="tag">User · Error</span>
+      <div class="title">เข้าผ่าน URL ที่ไม่มี location</div>
+      <div class="desc">ระบบควร block และแสดง invalid access screen</div>
+      <div class="url">user-form.html (no params)</div>
+    </a>
+    <a class="nav-card" href="user-success.html?location=QR001">
+      <span class="tag">User · Success</span>
+      <div class="title">หน้าส่งข้อมูลสำเร็จ</div>
+      <div class="desc">หน้าที่แสดงหลังจาก submit ฟอร์มเสร็จ</div>
+      <div class="url">user-success.html</div>
+    </a>
+  </div>
+</div>
+
+<div class="section">
+  <h2>🔐 แอดมิน (Admin)</h2>
+  <div class="sub">Admin flow: Login → Dashboard → จัดการข้อมูล (รหัสผ่าน: <code style="font-family:var(--font-mono)">admin1234</code>)</div>
+  <div class="grid-cards">
+    <a class="nav-card" href="admin-login.html">
+      <span class="tag">Admin</span>
+      <div class="title">เข้าสู่ระบบแอดมิน</div>
+      <div class="desc">Password gate (รหัส: admin1234)</div>
+      <div class="url">admin-login.html</div>
+    </a>
+    <a class="nav-card" href="admin-dashboard.html">
+      <span class="tag">Admin</span>
+      <div class="title">แดชบอร์ด</div>
+      <div class="desc">สถิติรวม: ทั้งหมด / 0% / ผลบวก / วันนี้ + กราฟ + รายการล่าสุด</div>
+      <div class="url">admin-dashboard.html</div>
+    </a>
+    <a class="nav-card" href="admin-reports.html">
+      <span class="tag">Admin</span>
+      <div class="title">รายงาน + Filter</div>
+      <div class="desc">ค้นหาตาม location / department / company / date range + export CSV</div>
+      <div class="url">admin-reports.html</div>
+    </a>
+    <a class="nav-card" href="admin-tests.html">
+      <span class="tag">Admin · CRUD</span>
+      <div class="title">ผลตรวจทั้งหมด</div>
+      <div class="desc">ดู / ลบ records ทั้งหมดในระบบ</div>
+      <div class="url">admin-tests.html</div>
+    </a>
+    <a class="nav-card" href="admin-locations.html">
+      <span class="tag">Admin · CRUD</span>
+      <div class="title">QR / สถานที่ (12 site)</div>
+      <div class="desc">เพิ่ม/แก้ไข site, generate QR image, ดาวน์โหลด PNG, copy link, นำเข้า CSV</div>
+      <div class="url">admin-locations.html</div>
+    </a>
+    <a class="nav-card" href="admin-companies.html">
+      <span class="tag">Admin · CRUD</span>
+      <div class="title">บริษัทคู่ค้า</div>
+      <div class="desc">จัดการรายชื่อบริษัท + เลือกหลายรายการเพื่อลบพร้อมกัน + นำเข้า CSV</div>
+      <div class="url">admin-companies.html</div>
+    </a>
+  </div>
+</div>
+
+<div class="section">
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h2>รีเซ็ตข้อมูลตัวอย่าง</h2>
+        <div class="muted small">ข้อมูล mock เก็บใน <code style="font-family:var(--font-mono)">localStorage</code> ของเบราว์เซอร์. กดปุ่มนี้เพื่อรีเซ็ตเป็นข้อมูลเริ่มต้น (28 ผลตรวจ + 12 site).</div>
+      </div>
+      <button class="btn btn-danger" onclick="if(confirm('รีเซ็ตข้อมูลทั้งหมดเป็นค่าเริ่มต้น?')){resetDB(); showToast('รีเซ็ตข้อมูลเรียบร้อย')}">รีเซ็ตข้อมูล</button>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+</body>
+</html>

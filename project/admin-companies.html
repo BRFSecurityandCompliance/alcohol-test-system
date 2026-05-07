@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>บริษัทคู่ค้า — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<style>
+  .check {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border-strong);
+    border-radius: 4px; cursor: pointer;
+    display: inline-grid; place-items: center;
+    background: #fff;
+    transition: all .15s;
+  }
+  .check.on {
+    background: var(--brand);
+    border-color: var(--brand);
+  }
+  .check.on::after {
+    content: '✓';
+    color: #fff;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1;
+  }
+  tr.selected td { background: rgba(40,81,214,.06) !important; }
+  .bulk-bar {
+    background: var(--brand);
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: var(--r-md);
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-md);
+    animation: slideIn .2s ease-out;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .bulk-bar .btn { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); color: #fff; }
+  .bulk-bar .btn:hover { background: rgba(255,255,255,.25); }
+  .bulk-bar .btn.btn-danger { background: var(--danger); border-color: var(--danger); }
+  .bulk-bar .btn.btn-danger:hover { background: #8a1212; }
+</style>
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page page-narrow">
+  <div class="row between" style="margin-bottom:24px">
+    <div>
+      <h1>บริษัทคู่ค้า</h1>
+      <div class="muted small" id="meta"></div>
+    </div>
+    <div class="row gap-sm">
+      <button class="btn" onclick="document.getElementById('import-csv').click()">📤 นำเข้า CSV</button>
+      <input id="import-csv" type="file" accept=".csv" style="display:none" onchange="importCSV(event)" />
+      <button class="btn btn-ghost" onclick="downloadTemplate()">📄 Template</button>
+      <button class="btn btn-primary" onclick="openModal()">+ เพิ่มบริษัท</button>
+    </div>
+  </div>
+
+  <div id="bulk-bar"></div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:36px"><div class="check" id="check-all" onclick="toggleAll()"></div></th>
+          <th>ชื่อบริษัท</th>
+          <th>ผลตรวจที่เกี่ยวข้อง</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">เพิ่มบริษัท</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <form id="form" onsubmit="save(event)">
+      <div class="modal-body">
+        <input type="hidden" name="id" />
+        <div class="field">
+          <label>ชื่อบริษัท <span style="color:var(--danger)">*</span></label>
+          <input class="input" name="name" required />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('companies');
+  let selected = new Set();
+
+  function render() {
+    const cos = DB.companies();
+    const tests = DB.tests();
+    document.getElementById('meta').textContent = `${cos.length} บริษัท`;
+    document.getElementById('rows').innerHTML = cos.length ? cos.map(c => {
+      const count = tests.filter(t => t.company === c.name).length;
+      const isOn = selected.has(c.id);
+      return `
+        <tr class="${isOn ? 'selected' : ''}">
+          <td><div class="check ${isOn ? 'on' : ''}" onclick="toggleOne('${c.id}')"></div></td>
+          <td><div style="font-weight:600">${c.name}</div></td>
+          <td class="small muted">${count} รายการ</td>
+          <td style="text-align:right">
+            <button class="btn btn-sm" onclick='openModal(${JSON.stringify(c)})'>แก้ไข</button>
+            <button class="btn btn-sm btn-danger" onclick="del('${c.id}')">ลบ</button>
+          </td>
+        </tr>
+      `;
+    }).join('') : '<tr><td colspan="4"><div class="empty"><div class="icon">🏢</div>ยังไม่มีบริษัท</div></td></tr>';
+    renderBulk();
+    updateCheckAll();
+  }
+
+  function renderBulk() {
+    const bar = document.getElementById('bulk-bar');
+    if (selected.size === 0) { bar.innerHTML = ''; return; }
+    bar.innerHTML = `
+      <div class="bulk-bar">
+        <div><b>${selected.size}</b> รายการที่เลือก</div>
+        <div class="row gap-sm">
+          <button class="btn btn-sm" onclick="clearSel()">ยกเลิก</button>
+          <button class="btn btn-sm btn-danger" onclick="delSelected()">🗑 ลบที่เลือก (${selected.size})</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function updateCheckAll() {
+    const all = DB.companies();
+    const allOn = all.length > 0 && all.every(c => selected.has(c.id));
+    document.getElementById('check-all').classList.toggle('on', allOn);
+  }
+
+  function toggleOne(id) {
+    if (selected.has(id)) selected.delete(id);
+    else selected.add(id);
+    render();
+  }
+  function toggleAll() {
+    const all = DB.companies();
+    const allOn = all.length > 0 && all.every(c => selected.has(c.id));
+    if (allOn) selected.clear();
+    else all.forEach(c => selected.add(c.id));
+    render();
+  }
+  function clearSel() { selected.clear(); render(); }
+  function delSelected() {
+    if (!confirm(`ยืนยันการลบ ${selected.size} บริษัทที่เลือก?`)) return;
+    selected.forEach(id => DB.deleteCompany(id));
+    showToast(`ลบ ${selected.size} รายการเรียบร้อย`);
+    selected.clear();
+    render();
+  }
+
+  function openModal(c) {
+    document.getElementById('modal-title').textContent = c ? 'แก้ไขบริษัท' : 'เพิ่มบริษัท';
+    const f = document.getElementById('form');
+    f.reset();
+    f.id.value = c?.id || '';
+    f.name.value = c?.name || '';
+    document.getElementById('modal').classList.add('show');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('show'); }
+  function save(e) {
+    e.preventDefault();
+    const f = e.target;
+    const c = { name: f.name.value.trim() };
+    if (f.id.value) c.id = f.id.value;
+    DB.upsertCompany(c);
+    showToast('บันทึกเรียบร้อย');
+    closeModal();
+    render();
+  }
+  function del(id) {
+    if (!confirm('ยืนยันการลบ?')) return;
+    DB.deleteCompany(id);
+    selected.delete(id);
+    showToast('ลบเรียบร้อย');
+    render();
+  }
+
+  function downloadTemplate() {
+    const csv = 'name\n"บริษัทตัวอย่าง จำกัด"\n"บริษัททดสอบ จำกัด"';
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'companies-template.csv'; a.click();
+    showToast('ดาวน์โหลด Template เรียบร้อย');
+  }
+  function parseCSV(text) {
+    text = text.replace(/^\uFEFF/, '');
+    const rows = [];
+    let i = 0, field = '', row = [], inQ = false;
+    while (i < text.length) {
+      const ch = text[i];
+      if (inQ) {
+        if (ch === '"' && text[i+1] === '"') { field += '"'; i += 2; continue; }
+        if (ch === '"') { inQ = false; i++; continue; }
+        field += ch; i++;
+      } else {
+        if (ch === '"') { inQ = true; i++; continue; }
+        if (ch === ',') { row.push(field); field = ''; i++; continue; }
+        if (ch === '\n' || ch === '\r') {
+          if (ch === '\r' && text[i+1] === '\n') i++;
+          row.push(field); rows.push(row); row = []; field = ''; i++; continue;
+        }
+        field += ch; i++;
+      }
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim()));
+  }
+  function importCSV(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = parseCSV(reader.result);
+      if (rows.length < 2) { alert('ไฟล์ว่าง'); return; }
+      const headers = rows[0].map(h => h.trim().toLowerCase());
+      const ni = headers.indexOf('name');
+      if (ni < 0) { alert('CSV ต้องมีคอลัมน์ name (ดู Template)'); return; }
+      let added = 0;
+      const existing = new Set(DB.companies().map(c => c.name));
+      for (let r = 1; r < rows.length; r++) {
+        const name = (rows[r][ni] || '').trim();
+        if (!name || existing.has(name)) continue;
+        DB.upsertCompany({ name });
+        existing.add(name);
+        added++;
+      }
+      showToast(`นำเข้าเรียบร้อย: เพิ่ม ${added} บริษัท`);
+      e.target.value = '';
+      render();
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  Object.assign(window, { openModal, closeModal, save, del, toggleOne, toggleAll, clearSel, delSelected, downloadTemplate, importCSV });
+  render();
+}
+</script>
+</body>
+</html>

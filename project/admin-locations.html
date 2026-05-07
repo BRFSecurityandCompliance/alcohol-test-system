@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QR / สถานที่ — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page">
+  <div class="row between" style="margin-bottom:24px">
+    <div>
+      <h1>QR / สถานที่</h1>
+      <div class="muted small" id="meta"></div>
+    </div>
+    <div class="row gap-sm">
+      <button class="btn" onclick="document.getElementById('import-csv').click()">📤 นำเข้า CSV</button>
+      <input id="import-csv" type="file" accept=".csv,text/csv" style="display:none" onchange="importCSV(event)" />
+      <button class="btn btn-ghost" onclick="downloadTemplate()">📄 Template</button>
+      <button class="btn" onclick="downloadAllQR()">📥 ดาวน์โหลด QR ทั้งหมด</button>
+      <button class="btn btn-primary" onclick="openModal()">+ เพิ่มสถานที่</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px; background: var(--brand-soft); border-color: #c7d2fe">
+    <div class="row gap-md">
+      <div style="font-size:20px">💡</div>
+      <div>
+        <div style="font-weight:600; color:var(--brand); margin-bottom:4px">วิธีใช้งาน</div>
+        <div class="small" style="color:var(--brand)">แต่ละสถานที่จะถูก generate QR Code อัตโนมัติจาก URL <code style="font-family:var(--font-mono)">?location=QRxxx</code> — กดดาวน์โหลดเพื่อพิมพ์ติดที่จุดตรวจหน้างาน. ผู้ใช้สแกน QR แล้วระบบจะ lock ค่า location อัตโนมัติ ไม่สามารถแก้ไขได้</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px"></div>
+</div>
+
+<!-- Modal: edit -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">เพิ่มสถานที่</h2>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <form id="form" onsubmit="save(event)">
+      <div class="modal-body">
+        <div class="col gap-md">
+          <div class="field">
+            <label>รหัส (Code) <span style="color:var(--danger)">*</span></label>
+            <input class="input" name="code" required placeholder="เช่น QR013" />
+            <div class="hint">ใช้รูปแบบ QRxxx — ใช้ในส่วน URL <code>?location=...</code></div>
+          </div>
+          <div class="field">
+            <label>ชื่อสถานที่ <span style="color:var(--danger)">*</span></label>
+            <input class="input" name="name" required placeholder="เช่น ปทุมธานี" />
+          </div>
+          <div class="field">
+            <label>ที่อยู่</label>
+            <input class="input" name="address" />
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label>ผู้ติดต่อ</label>
+              <input class="input" name="contact" />
+            </div>
+            <div class="field">
+              <label>โทรศัพท์</label>
+              <input class="input" name="phone" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal()">ยกเลิก</button>
+        <button type="submit" class="btn btn-primary">บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: QR detail -->
+<div class="modal-backdrop" id="qr-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="qr-title">QR Code</h2>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('qr-modal').classList.remove('show')">✕</button>
+    </div>
+    <div class="modal-body" style="text-align:center">
+      <div id="qr-large" style="background:#fff; padding:24px; border:1px solid var(--border); border-radius:var(--r-md); display:inline-block"></div>
+      <div style="margin-top:16px">
+        <div id="qr-name" style="font-size:18px; font-weight:600"></div>
+        <div id="qr-code-text" class="muted" style="font-family:var(--font-mono); font-size:13px"></div>
+      </div>
+      <div style="margin-top:12px; padding:12px; background:var(--surface-2); border-radius:var(--r-md); word-break:break-all; font-family:var(--font-mono); font-size:12px; color:var(--text-muted); text-align:left" id="qr-url"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="copyQRLink()">📋 คัดลอกลิงก์</button>
+      <button class="btn btn-primary" onclick="downloadCurrentQR()">📥 ดาวน์โหลด PNG</button>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('locations');
+  let editingCode = null;
+  let currentQR = null;
+
+  function userFormURL(code) {
+    const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+    return `${base}user-form.html?location=${code}`;
+  }
+
+  // Render QR onto a canvas using qrcode-generator API
+  function renderQRToCanvas(canvas, text, size) {
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const count = qr.getModuleCount();
+    const cell = Math.floor(size / (count + 2));
+    const px = cell * (count + 2);
+    canvas.width = px;
+    canvas.height = px;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, px, px);
+    ctx.fillStyle = '#0f172a';
+    for (let r = 0; r < count; r++) {
+      for (let c = 0; c < count; c++) {
+        if (qr.isDark(r, c)) ctx.fillRect((c + 1) * cell, (r + 1) * cell, cell, cell);
+      }
+    }
+  }
+
+  function render() {
+    const locs = DB.locations();
+    document.getElementById('meta').textContent = `${locs.length} สถานที่`;
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    locs.forEach(l => {
+      const card = document.createElement('div');
+      card.className = 'qr-card';
+      card.innerHTML = `
+        <div class="qr-img"><canvas data-code="${l.code}"></canvas></div>
+        <div class="name">${l.name}</div>
+        <div class="code">${l.code}</div>
+        ${l.address ? `<div class="tiny muted" style="margin-top:6px">${l.address}</div>` : ''}
+        <div class="row gap-sm" style="margin-top:14px; justify-content:center">
+          <button class="btn btn-sm" onclick="openQRDetail('${l.code}')">ดู QR</button>
+          <button class="btn btn-sm" onclick="openModal('${l.code}')">แก้ไข</button>
+          <button class="btn btn-sm btn-danger" onclick="del('${l.code}')">ลบ</button>
+        </div>
+      `;
+      grid.appendChild(card);
+      renderQRToCanvas(card.querySelector('canvas'), userFormURL(l.code), 180);
+    });
+  }
+
+  function openModal(code) {
+    editingCode = code || null;
+    document.getElementById('modal-title').textContent = code ? 'แก้ไขสถานที่' : 'เพิ่มสถานที่';
+    const form = document.getElementById('form');
+    form.reset();
+    if (code) {
+      const l = DB.findLocation(code);
+      form.code.value = l.code;
+      form.name.value = l.name;
+      form.address.value = l.address || '';
+      form.contact.value = l.contact || '';
+      form.phone.value = l.phone || '';
+      form.code.setAttribute('readonly', '');
+    } else {
+      form.code.removeAttribute('readonly');
+      const next = String(DB.locations().length + 1).padStart(3, '0');
+      form.code.value = 'QR' + next;
+    }
+    document.getElementById('modal').classList.add('show');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('show'); }
+  function save(e) {
+    e.preventDefault();
+    const form = e.target;
+    DB.upsertLocation({
+      code: form.code.value.trim().toUpperCase(),
+      name: form.name.value.trim(),
+      address: form.address.value.trim(),
+      contact: form.contact.value.trim(),
+      phone: form.phone.value.trim()
+    });
+    showToast(editingCode ? 'แก้ไขเรียบร้อย' : 'เพิ่มเรียบร้อย');
+    closeModal();
+    render();
+  }
+  function del(code) {
+    if (!confirm(`ยืนยันการลบ ${code}?`)) return;
+    DB.deleteLocation(code);
+    showToast('ลบเรียบร้อย');
+    render();
+  }
+
+  function openQRDetail(code) {
+    const l = DB.findLocation(code);
+    currentQR = l;
+    document.getElementById('qr-title').textContent = 'QR Code — ' + l.name;
+    document.getElementById('qr-name').textContent = l.name;
+    document.getElementById('qr-code-text').textContent = l.code;
+    document.getElementById('qr-url').textContent = userFormURL(l.code);
+    const big = document.getElementById('qr-large');
+    big.innerHTML = '<canvas></canvas>';
+    renderQRToCanvas(big.querySelector('canvas'), userFormURL(l.code), 280);
+    document.getElementById('qr-modal').classList.add('show');
+  }
+  function copyQRLink() {
+    navigator.clipboard.writeText(userFormURL(currentQR.code));
+    showToast('คัดลอกลิงก์เรียบร้อย');
+  }
+  function downloadCurrentQR() { downloadQR(currentQR); }
+
+  async function downloadQR(loc) {
+    // build composite poster: QR + label
+    const c = document.createElement('canvas');
+    c.width = 600; c.height = 760;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    // header bar
+    ctx.fillStyle = '#1f3a8a';
+    ctx.fillRect(0, 0, c.width, 80);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px Sarabun, sans-serif';
+    ctx.fillText('สแกนเพื่อบันทึกผลตรวจแอลกอฮอล์', 30, 50);
+    // qr
+    const qrCanvas = document.createElement('canvas');
+    renderQRToCanvas(qrCanvas, userFormURL(loc.code), 480);
+    ctx.drawImage(qrCanvas, 60, 120, 480, 480);
+    // labels
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 36px Sarabun, sans-serif';
+    ctx.fillText(loc.name, c.width / 2, 660);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '500 22px Sarabun, sans-serif';
+    ctx.fillText(loc.code, c.width / 2, 695);
+    if (loc.address) {
+      ctx.font = '400 16px Sarabun, sans-serif';
+      ctx.fillText(loc.address, c.width / 2, 725);
+    }
+    const url = c.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url; a.download = `qr-${loc.code}-${loc.name}.png`; a.click();
+  }
+  async function downloadAllQR() {
+    showToast('กำลังเตรียมไฟล์...');
+    for (const l of DB.locations()) {
+      await downloadQR(l);
+      await new Promise(r => setTimeout(r, 200));
+    }
+  }
+
+  Object.assign(window, { openModal, closeModal, save, del, openQRDetail, copyQRLink, downloadCurrentQR, downloadAllQR });
+
+  // CSV Import / Template
+  function downloadTemplate() {
+    const headers = ['code','name','address','contact','phone'];
+    const sample = [
+      ['QR013','ตัวอย่างไซต์ A','123 ถนนตัวอย่าง','คุณตัวอย่าง','02-000-0000'],
+      ['QR014','ตัวอย่างไซต์ B','456 ถนนตัวอย่าง','คุณทดสอบ','02-111-1111']
+    ];
+    const csv = [headers, ...sample].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = 'qr-locations-template.csv'; a.click();
+    showToast('ดาวน์โหลด Template เรียบร้อย');
+  }
+  function parseCSV(text) {
+    text = text.replace(/^\uFEFF/, '');
+    const rows = [];
+    let i = 0, field = '', row = [], inQ = false;
+    while (i < text.length) {
+      const ch = text[i];
+      if (inQ) {
+        if (ch === '"' && text[i+1] === '"') { field += '"'; i += 2; continue; }
+        if (ch === '"') { inQ = false; i++; continue; }
+        field += ch; i++;
+      } else {
+        if (ch === '"') { inQ = true; i++; continue; }
+        if (ch === ',') { row.push(field); field = ''; i++; continue; }
+        if (ch === '\n' || ch === '\r') {
+          if (ch === '\r' && text[i+1] === '\n') i++;
+          row.push(field); rows.push(row); row = []; field = ''; i++; continue;
+        }
+        field += ch; i++;
+      }
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim()));
+  }
+  function importCSV(e) {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCSV(reader.result);
+        if (rows.length < 2) { alert('ไฟล์ว่างหรือไม่มีข้อมูล'); return; }
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        const idx = (k) => headers.indexOf(k);
+        const codeI = idx('code'), nameI = idx('name');
+        if (codeI < 0 || nameI < 0) { alert('CSV ต้องมีคอลัมน์ code และ name (ดู Template)'); return; }
+        let added = 0, updated = 0;
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          const code = (row[codeI] || '').trim().toUpperCase();
+          const name = (row[nameI] || '').trim();
+          if (!code || !name) continue;
+          const existing = DB.findLocation(code);
+          DB.upsertLocation({
+            code, name,
+            address: (row[idx('address')] || '').trim(),
+            contact: (row[idx('contact')] || '').trim(),
+            phone: (row[idx('phone')] || '').trim()
+          });
+          if (existing) updated++; else added++;
+        }
+        showToast(`นำเข้าเรียบร้อย: เพิ่ม ${added}, อัพเดต ${updated}`);
+        e.target.value = '';
+        render();
+      } catch (err) {
+        alert('ไม่สามารถอ่านไฟล์ได้: ' + err.message);
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+  Object.assign(window, { downloadTemplate, importCSV });
+  render();
+}
+</script>
+</body>
+</html>

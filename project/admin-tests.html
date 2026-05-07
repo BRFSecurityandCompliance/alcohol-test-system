@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ผลตรวจทั้งหมด — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page">
+  <div class="row between" style="margin-bottom:20px">
+    <div>
+      <h1>ผลตรวจทั้งหมด</h1>
+      <div class="muted small" id="meta"></div>
+    </div>
+    <input class="input" id="search" placeholder="ค้นหาชื่อ / ทะเบียน / บริษัท" style="max-width:320px" />
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>วันที่</th><th>ชื่อ</th><th>แผนก</th><th>สถานที่</th><th>บริษัท</th><th>ผล</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>รายละเอียดผลตรวจ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('modal').classList.remove('show')">✕</button>
+    </div>
+    <div class="modal-body" id="detail"></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('tests');
+  const search = document.getElementById('search');
+  function render() {
+    const q = search.value.toLowerCase().trim();
+    const tests = DB.tests().filter(t => !q || (t.full_name + t.plate_number + t.company + t.location_name).toLowerCase().includes(q));
+    document.getElementById('meta').textContent = `${tests.length} รายการ`;
+    document.getElementById('rows').innerHTML = tests.length ? tests.map(t => `
+      <tr>
+        <td class="small">${formatDateShort(t.created_at)}</td>
+        <td><div style="font-weight:600">${t.full_name}</div>${t.plate_number ? `<div class="tiny muted">ทะเบียน ${t.plate_number}</div>` : ''}</td>
+        <td class="small">${t.department}</td>
+        <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${t.location_code}</span> ${t.location_name}</td>
+        <td class="small">${t.company}</td>
+        <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
+        <td style="text-align:right">
+          <button class="btn btn-sm" onclick="viewDetail('${t.id}')">ดู</button>
+          <button class="btn btn-sm btn-danger" onclick="del('${t.id}')">ลบ</button>
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="7"><div class="empty"><div class="icon">📋</div>ยังไม่มีข้อมูล</div></td></tr>';
+  }
+  function viewDetail(id) {
+    const t = DB.tests().find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('detail').innerHTML = `
+      <div class="col gap-md">
+        <div class="row between"><span class="muted small">ชื่อ</span><span style="font-weight:600">${t.full_name}</span></div>
+        <div class="row between"><span class="muted small">แผนก</span><span>${t.department}</span></div>
+        <div class="row between"><span class="muted small">บริษัท</span><span>${t.company}</span></div>
+        <div class="row between"><span class="muted small">ทะเบียนรถ</span><span>${t.plate_number || '—'}</span></div>
+        <div class="row between"><span class="muted small">สถานที่</span><span>${t.location_name} (${t.location_code})</span></div>
+        <div class="row between"><span class="muted small">เวลา</span><span>${formatDate(t.created_at)}</span></div>
+        <div class="row between"><span class="muted small">ผลตรวจ</span>${t.is_zero ? '<span class="badge badge-success">ไม่พบแอลกอฮอล์</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</div>
+        <div class="divider"></div>
+        <div class="muted small">ภาพถ่ายเครื่องตรวจ</div>
+        <div style="background:var(--surface-2); border-radius:var(--r-md); aspect-ratio:4/3; display:grid; place-items:center; overflow:hidden">
+          ${t.photo_url ? `<img src="${t.photo_url}" style="width:100%; height:100%; object-fit:cover">` : '<div class="muted small">— ไม่มีรูปภาพ —</div>'}
+        </div>
+      </div>
+    `;
+    document.getElementById('modal').classList.add('show');
+  }
+  function del(id) {
+    if (!confirm('ยืนยันการลบรายการนี้?')) return;
+    DB.deleteTest(id);
+    showToast('ลบเรียบร้อย');
+    render();
+  }
+  search.addEventListener('input', render);
+  window.viewDetail = viewDetail; window.del = del;
+  render();
+}
+</script>
+</body>
+</html>

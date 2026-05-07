@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>รายงาน — แอดมิน</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+<div id="chrome"></div>
+<div class="page">
+  <div class="row between" style="margin-bottom:24px">
+    <div>
+      <h1>รายงาน</h1>
+      <div class="muted small">กรองข้อมูลและส่งออกรายงาน</div>
+    </div>
+    <button class="btn btn-primary" onclick="exportCSV()">📥 ส่งออก CSV</button>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <h3 style="margin-bottom:14px">ตัวกรอง</h3>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
+      <div class="field">
+        <label>สถานที่</label>
+        <select class="select" id="f-location"><option value="">ทั้งหมด</option></select>
+      </div>
+      <div class="field">
+        <label>แผนก</label>
+        <select class="select" id="f-department"><option value="">ทั้งหมด</option></select>
+      </div>
+      <div class="field">
+        <label>บริษัท</label>
+        <select class="select" id="f-company"><option value="">ทั้งหมด</option></select>
+      </div>
+      <div class="field">
+        <label>ผลตรวจ</label>
+        <select class="select" id="f-result">
+          <option value="">ทั้งหมด</option>
+          <option value="zero">0% เท่านั้น</option>
+          <option value="positive">พบแอลกอฮอล์เท่านั้น</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>วันที่เริ่ม</label>
+        <input class="input" type="date" id="f-from" />
+      </div>
+      <div class="field">
+        <label>วันที่สิ้นสุด</label>
+        <input class="input" type="date" id="f-to" />
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="apply()">กรอง</button>
+      <button class="btn" onclick="reset()">ล้าง</button>
+      <span class="muted small grow" style="text-align:right" id="count"></span>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>วันที่</th><th>ชื่อ</th><th>แผนก</th><th>บริษัท</th><th>สถานที่</th><th>ทะเบียน</th><th>ผล</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+if (!requireAdmin()) {} else {
+  document.getElementById('chrome').innerHTML = renderTopbar('reports');
+  const fLoc = document.getElementById('f-location');
+  const fDept = document.getElementById('f-department');
+  const fCo = document.getElementById('f-company');
+  DB.locations().forEach(l => fLoc.insertAdjacentHTML('beforeend', `<option value="${l.code}">${l.name} (${l.code})</option>`));
+  DEPARTMENTS.forEach(d => fDept.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`));
+  DB.companies().forEach(c => fCo.insertAdjacentHTML('beforeend', `<option value="${c.name}">${c.name}</option>`));
+
+  let filtered = DB.tests();
+  function apply() {
+    const loc = fLoc.value, dept = fDept.value, co = fCo.value;
+    const result = document.getElementById('f-result').value;
+    const from = document.getElementById('f-from').value;
+    const to = document.getElementById('f-to').value;
+    filtered = DB.tests().filter(t => {
+      if (loc && t.location_code !== loc) return false;
+      if (dept && t.department !== dept) return false;
+      if (co && t.company !== co) return false;
+      if (result === 'zero' && !t.is_zero) return false;
+      if (result === 'positive' && t.is_zero) return false;
+      const d = new Date(t.created_at);
+      if (from && d < new Date(from)) return false;
+      if (to) { const tEnd = new Date(to); tEnd.setHours(23,59,59); if (d > tEnd) return false; }
+      return true;
+    });
+    render();
+  }
+  function reset() {
+    [fLoc, fDept, fCo, document.getElementById('f-result'), document.getElementById('f-from'), document.getElementById('f-to')].forEach(el => el.value = '');
+    apply();
+  }
+  function render() {
+    document.getElementById('count').textContent = `พบ ${filtered.length} รายการ`;
+    document.getElementById('rows').innerHTML = filtered.length ? filtered.map(t => `
+      <tr>
+        <td class="small">${formatDateShort(t.created_at)}</td>
+        <td><div style="font-weight:600">${t.full_name}</div></td>
+        <td class="small">${t.department}</td>
+        <td class="small">${t.company}</td>
+        <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${t.location_code}</span> ${t.location_name}</td>
+        <td class="small">${t.plate_number || '—'}</td>
+        <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="7"><div class="empty"><div class="icon">🔍</div>ไม่พบข้อมูล</div></td></tr>';
+  }
+  function exportCSV() {
+    const headers = ['วันที่','ชื่อ','แผนก','บริษัท','รหัสสถานที่','สถานที่','ทะเบียน','ค่า (mg%)','ผล'];
+    const rows = filtered.map(t => [
+      formatDate(t.created_at), t.full_name, t.department, t.company,
+      t.location_code, t.location_name, t.plate_number || '',
+      t.alcohol_value, t.is_zero ? '0%' : 'พบแอลกอฮอล์'
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `alcohol-tests-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    showToast('ส่งออก CSV เรียบร้อย');
+  }
+  window.apply = apply; window.reset = reset; window.exportCSV = exportCSV;
+  render();
+}
+</script>
+</body>
+</html>
