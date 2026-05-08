@@ -184,7 +184,6 @@ const SEED_TESTS = (() => {
       shift_id: getShiftFromDate(created.toISOString()).id,
       device_serial: device.serial,
       operator_id: i % 3 === 0 ? 'u2' : 'u1',
-      signature_employee: '',
       signature_operator: '',
       retest_of: null,
       retest_status: null, // null | 'required' | 'completed' | 'failed'
@@ -558,7 +557,6 @@ DB.addTest = function(t) {
       photo_url: enriched.photo_url || '',
       shift_id: enriched.shift_id,
       device_serial: enriched.device_serial || '',
-      signature_employee: enriched.signature_employee || '',
       retest_of: enriched.retest_of || null,
       retest_status: enriched.retest_status || null,
       action_taken: enriched.action_taken || null,
@@ -582,7 +580,7 @@ const _rawUpdateTest = DB.updateTest.bind(DB);
 DB.updateTest = function(id, patch, actor) {
   _rawUpdateTest(id, patch, actor);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    const cols = ['alcohol_value','is_zero','level','retest_status','action_taken','action_note','action_by','signature_employee','operator_id'];
+    const cols = ['alcohol_value','is_zero','level','retest_status','action_taken','action_note','action_by','operator_id'];
     const row = {};
     cols.forEach(k => { if (patch[k] !== undefined) row[k] = patch[k]; });
     if (Object.keys(row).length) {

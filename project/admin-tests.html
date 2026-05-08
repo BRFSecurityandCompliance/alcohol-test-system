@@ -110,11 +110,6 @@ if (!requireAdmin()) {} else {
         <div style="background:var(--surface-2); border-radius:var(--r-md); aspect-ratio:4/3; display:grid; place-items:center; overflow:hidden">
           ${t.photo_url ? `<img src="${t.photo_url}" style="width:100%; height:100%; object-fit:cover">` : `<div class="muted small">${isEN ? '— No photo —' : '— ไม่มีรูปภาพ —'}</div>`}
         </div>
-        ${t.signature_employee ? `
-          <div>
-            <div class="muted small" style="margin-bottom:6px">${isEN ? 'Employee Signature' : 'ลายเซ็นพนักงาน'}</div>
-            <img src="${t.signature_employee}" style="border:1px solid var(--border); border-radius:var(--r-sm); max-width:100%; background:#fff">
-          </div>` : ''}
       </div>
     `;
     document.getElementById('modal').classList.add('show');

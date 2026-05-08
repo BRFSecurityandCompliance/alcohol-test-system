@@ -186,15 +186,7 @@ function renderForm() {
             </div>
           </div>
 
-          <!-- Signature -->
-          <div class="field">
-            <label>${T('sig_label')} <span style="color:var(--danger)">*</span></label>
-            <div class="sig-wrap">
-              <canvas class="sig-pad" id="sig-pad" width="600" height="140"></canvas>
-              <button type="button" class="btn btn-sm sig-clear" id="sig-clear">${T('clear')}</button>
-            </div>
-            <div class="tiny muted">${T('sig_hint')}</div>
-          </div>
+          <!-- Signature removed -->
 
           <div class="divider"></div>
           <button type="submit" class="btn btn-primary btn-lg btn-block" disabled id="submit-btn">${T('submit')}</button>
@@ -221,7 +213,6 @@ function renderForm() {
   const photoInput = photoSlot.querySelector('input[type=file]');
   const tpEl = document.getElementById('threshold-preview');
   let photoData = null;
-  let signatureData = null;
 
   // Employee quick lookup
   document.getElementById('emp-lookup').onclick = () => {
@@ -240,24 +231,6 @@ function renderForm() {
     updateThresholdPreview();
     validate();
   };
-
-  // Signature pad
-  const sigPad = document.getElementById('sig-pad');
-  const sctx = sigPad.getContext('2d');
-  sctx.lineWidth = 2.5; sctx.lineCap = 'round'; sctx.strokeStyle = '#0f172a';
-  let drawing = false, lastX = 0, lastY = 0, hasInk = false;
-  function getPos(e) {
-    const r = sigPad.getBoundingClientRect();
-    const sx = sigPad.width / r.width, sy = sigPad.height / r.height;
-    const c = e.touches ? e.touches[0] : e;
-    return { x: (c.clientX - r.left) * sx, y: (c.clientY - r.top) * sy };
-  }
-  function down(e) { e.preventDefault(); drawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; }
-  function move(e) { if (!drawing) return; e.preventDefault(); const p = getPos(e); sctx.beginPath(); sctx.moveTo(lastX, lastY); sctx.lineTo(p.x, p.y); sctx.stroke(); lastX = p.x; lastY = p.y; hasInk = true; }
-  function up() { if (drawing && hasInk) { signatureData = sigPad.toDataURL('image/png'); } drawing = false; validate(); }
-  sigPad.addEventListener('mousedown', down); sigPad.addEventListener('mousemove', move); sigPad.addEventListener('mouseup', up); sigPad.addEventListener('mouseleave', up);
-  sigPad.addEventListener('touchstart', down, {passive:false}); sigPad.addEventListener('touchmove', move, {passive:false}); sigPad.addEventListener('touchend', up);
-  document.getElementById('sig-clear').onclick = () => { sctx.clearRect(0,0,sigPad.width,sigPad.height); signatureData = null; hasInk = false; validate(); };
 
   // Toggle 0% / Positive
   document.querySelectorAll('#zero-toggle .seg').forEach(seg => {
@@ -373,7 +346,7 @@ function renderForm() {
   ['input','change'].forEach(evt => form.addEventListener(evt, validate));
 
   function validate() {
-    const ok = form.full_name.value && form.department.value && form.company.value && isZero !== null && photoData && signatureData;
+    const ok = form.full_name.value && form.department.value && form.company.value && isZero !== null && photoData;
     const plateOk = !PLATE_REQUIRED_DEPTS.includes(form.department.value) || form.plate_number.value;
     const valueOk = isZero === true || (isZero === false && parseFloat(form.alcohol_value.value) > 0);
     submitBtn.disabled = !(ok && plateOk && valueOk);
@@ -393,7 +366,6 @@ function renderForm() {
       location_name: loc.name,
       photo_url: photoData,
       device_serial: device?.serial || '',
-      signature_employee: signatureData,
       retest_of: retestOf
     };
     let savedOffline = false;
