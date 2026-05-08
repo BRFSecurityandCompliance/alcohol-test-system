@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>คู่มือการใช้งาน — ระบบตรวจแอลกอฮอล์</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Sarabun', sans-serif; background: #f0f4ff; color: #1e293b; }
+
+/* ===== HEADER ===== */
+.hero {
+  background: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%);
+  color: #fff;
+  text-align: center;
+  padding: 48px 24px 56px;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='20'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.hero-badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 999px;
+  padding: 6px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  margin-bottom: 20px;
+}
+.hero h1 { font-size: clamp(28px, 5vw, 48px); font-weight: 800; line-height: 1.2; margin-bottom: 10px; }
+.hero h1 span { color: #fde68a; }
+.hero-sub {
+  display: inline-block;
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+  color: #1e293b;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 999px;
+  padding: 8px 28px;
+  margin-top: 16px;
+}
+.stars { font-size: 22px; margin-bottom: 8px; letter-spacing: 4px; }
+
+/* ===== LAYOUT ===== */
+.container { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+.section { padding: 48px 0; }
+.section-title {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 22px; font-weight: 800;
+  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  color: #fff;
+  border-radius: 16px;
+  padding: 14px 24px;
+  margin-bottom: 32px;
+}
+.section-title .icon { font-size: 26px; }
+
+/* ===== STEPS ===== */
+.steps { display: grid; grid-template-columns: repeat(5,1fr); gap: 16px; }
+@media(max-width:700px) { .steps { grid-template-columns: 1fr 1fr; } }
+@media(max-width:440px) { .steps { grid-template-columns: 1fr; } }
+
+.step-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px 16px 20px;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,.08);
+  position: relative;
+  border-top: 5px solid var(--c);
+}
+.step-num {
+  position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--c); color: #fff;
+  font-weight: 800; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 10px rgba(0,0,0,.2);
+}
+.step-icon { font-size: 44px; margin: 8px 0 12px; }
+.step-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 8px; color: var(--c); }
+.step-card p { font-size: 13px; color: #475569; line-height: 1.6; }
+
+/* arrows between steps */
+.steps-wrap { position: relative; }
+.arrow-row {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 100%; pointer-events: none; z-index: 2;
+}
+@media(max-width:700px) { .arrow-row { display: none; } }
+
+/* ===== DASHBOARD SECTION ===== */
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media(max-width:600px) { .dash-grid { grid-template-columns: 1fr; } }
+
+.dash-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.07);
+  overflow: hidden;
+}
+.dash-card-header {
+  padding: 14px 20px;
+  font-weight: 700; font-size: 15px;
+  display: flex; align-items: center; gap: 10px;
+}
+.dash-card-body { padding: 16px 20px; }
+
+.stat-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.stat-box {
+  border-radius: 14px; padding: 16px 12px; text-align: center;
+}
+.stat-box .n { font-size: 32px; font-weight: 800; line-height: 1; }
+.stat-box .l { font-size: 12px; font-weight: 600; margin-top: 4px; }
+
+.table-demo { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-demo th { background: #f1f5f9; padding: 8px 10px; text-align: left; font-weight: 700; color: #64748b; }
+.table-demo td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+.badge { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 10px; }
+.badge-pass { background: #dcfce7; color: #16a34a; }
+.badge-fail { background: #fee2e2; color: #dc2626; }
+
+/* ===== LEGEND LIST ===== */
+.legend-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.legend-list li {
+  display: flex; align-items: flex-start; gap: 12px;
+  font-size: 14px; line-height: 1.5;
+}
+.legend-dot {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 14px; flex-shrink: 0; margin-top: 1px;
+}
+
+/* ===== ADMIN SECTION ===== */
+.admin-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+@media(max-width:700px) { .admin-grid { grid-template-columns: 1fr 1fr; } }
+@media(max-width:380px) { .admin-grid { grid-template-columns: 1fr; } }
+
+.admin-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px 16px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,.07);
+  border-bottom: 4px solid var(--c);
+}
+.admin-card .a-icon {
+  width: 56px; height: 56px; border-radius: 16px;
+  background: var(--cs);
+  display: grid; place-items: center;
+  font-size: 28px; margin: 0 auto 14px;
+}
+.admin-card h3 { font-size: 15px; font-weight: 800; color: var(--c); margin-bottom: 10px; }
+.admin-card ul { list-style: none; text-align: left; font-size: 13px; color: #475569; display: flex; flex-direction: column; gap: 5px; }
+.admin-card ul li::before { content: '• '; color: var(--c); font-weight: 700; }
+
+/* ===== HISTORY TABLE ===== */
+.history-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.history-table th { background: #f8fafc; padding: 7px 12px; text-align: left; font-weight: 700; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+.history-table td { padding: 7px 12px; border-bottom: 1px solid #f1f5f9; }
+
+/* ===== TIPS ===== */
+.tips-bar {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-radius: 20px;
+  padding: 32px;
+  margin-bottom: 8px;
+}
+.tips-bar h2 { font-size: 20px; font-weight: 800; color: #92400e; margin-bottom: 20px; }
+.tips-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+@media(max-width:600px) { .tips-grid { grid-template-columns: 1fr; } }
+.tip-item {
+  background: rgba(255,255,255,0.7);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.tip-item .ti { font-size: 28px; flex-shrink: 0; }
+.tip-item p { font-size: 13px; color: #78350f; line-height: 1.6; font-weight: 600; }
+
+/* ===== FOOTER ===== */
+.footer-bar {
+  background: linear-gradient(90deg, #1d4ed8, #7c3aed);
+  color: #fff;
+  text-align: center;
+  padding: 18px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 16px;
+  margin-bottom: 40px;
+}
+
+/* ===== STEP COLORS ===== */
+.s1 { --c: #2563eb; }
+.s2 { --c: #16a34a; }
+.s3 { --c: #9333ea; }
+.s4 { --c: #ea580c; }
+.s5 { --c: #0891b2; }
+
+.a1 { --c: #2563eb; --cs: #dbeafe; }
+.a2 { --c: #ea580c; --cs: #ffedd5; }
+.a3 { --c: #16a34a; --cs: #dcfce7; }
+.a4 { --c: #dc2626; --cs: #fee2e2; }
+</style>
+</head>
+<body>
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <div class="stars">✦ ✦ ✦</div>
+  <div class="hero-badge">📋 คู่มือการใช้งาน</div>
+  <h1>เทคนิคการใช้โปรแกรม<br><span>ตรวจแอลกอฮอล์</span></h1>
+  <div class="hero-sub">✅ บันทึกจุดตรวจอัตโนมัติ · แม่นยำ · รวดเร็ว · ใช้งานง่าย 💛</div>
+</div>
+
+<div class="container">
+
+  <!-- ===== 5 STEPS ===== -->
+  <div class="section">
+    <div class="section-title">
+      <span class="icon">👣</span> ขั้นตอนการใช้งาน (สำหรับผู้ใช้)
+    </div>
+
+    <div class="steps-wrap">
+      <div class="steps">
+
+        <!-- Step 1 -->
+        <div class="step-card s1">
+          <div class="step-num">1</div>
+          <div class="step-icon">📱</div>
+          <h3>สแกน QR Code</h3>
+          <p>ใช้กล้องโทรศัพท์สแกน QR Code ที่ติดไว้ ณ จุดตรวจ ระบบจะเปิดฟอร์มให้อัตโนมัติ</p>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-card s2">
+          <div class="step-num">2</div>
+          <div class="step-icon">📝</div>
+          <h3>กรอกข้อมูล</h3>
+          <p>กรอกชื่อ-นามสกุล แผนก และบริษัท หรือค้นหาด้วยรหัสพนักงานเพื่อเติมข้อมูลอัตโนมัติ</p>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-card s3">
+          <div class="step-num">3</div>
+          <div class="step-icon">🍺</div>
+          <h3>เลือกผลตรวจ</h3>
+          <p>กดเลือก <b>0%</b> หรือ <b>&gt; 0%</b> พร้อมระบุค่า mg% ถ้าตรวจพบแอลกอฮอล์</p>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step-card s4">
+          <div class="step-num">4</div>
+          <div class="step-icon">📷</div>
+          <h3>ถ่ายรูปเครื่องตรวจ</h3>
+          <p>ถ่ายรูปหน้าจอเครื่องตรวจแสดงผล ระบบประทับวันที่ เวลา และสถานที่ลงบนรูปอัตโนมัติ</p>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="step-card s5">
+          <div class="step-num">5</div>
+          <div class="step-icon">✅</div>
+          <h3>บันทึกสำเร็จ</h3>
+          <p>กด <b>"ส่งข้อมูล"</b> ระบบบันทึกทันทีและส่งไปยัง Admin Panel โดยอัตโนมัติ</p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- step notes -->
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:20px;">
+      <div style="background:#dbeafe; border-radius:12px; padding:14px 16px; font-size:13px; color:#1e40af;">
+        <b>💡 ค้นหาด้วยรหัสพนักงาน</b><br>
+        กรอก Employee ID แล้วกด "ค้นหา" ระบบเติมชื่อ แผนก บริษัทให้อัตโนมัติ
+      </div>
+      <div style="background:#dcfce7; border-radius:12px; padding:14px 16px; font-size:13px; color:#166534;">
+        <b>📸 รูปจะมีข้อมูลกำกับ</b><br>
+        รูปที่ถ่ายจะมีวัน เวลา และชื่อสถานที่ประทับไว้อัตโนมัติ ไม่ต้องจำ
+      </div>
+      <div style="background:#fce7f3; border-radius:12px; padding:14px 16px; font-size:13px; color:#9d174d;">
+        <b>📶 ออฟไลน์ได้</b><br>
+        หากไม่มีสัญญาณอินเทอร์เน็ต ระบบบันทึกไว้ในเครื่องก่อน แล้วซิงค์เองเมื่อออนไลน์
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD ===== -->
+  <div class="section" style="padding-top:0">
+    <div class="section-title">
+      <span class="icon">🖥️</span> หน้าจอหลัก (Dashboard) — สำหรับ Admin
+    </div>
+
+    <div class="dash-grid">
+      <!-- left: stats + table -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="dash-card">
+          <div class="dash-card-header" style="background:#f0f4ff; color:#1d4ed8;">
+            📊 สถิติภาพรวมวันนี้
+          </div>
+          <div class="dash-card-body">
+            <div class="stat-row">
+              <div class="stat-box" style="background:#dbeafe;">
+                <div class="n" style="color:#1d4ed8;">25</div>
+                <div class="l" style="color:#1d4ed8;">ทั้งหมด</div>
+              </div>
+              <div class="stat-box" style="background:#dcfce7;">
+                <div class="n" style="color:#16a34a;">18</div>
+                <div class="l" style="color:#16a34a;">ผ่าน (0%)</div>
+              </div>
+              <div class="stat-box" style="background:#fee2e2;">
+                <div class="n" style="color:#dc2626;">7</div>
+                <div class="l" style="color:#dc2626;">พบแอลกอฮอล์</div>
+              </div>
+            </div>
+            <table class="table-demo">
+              <thead>
+                <tr>
+                  <th>ชื่อ</th>
+                  <th>สถานที่</th>
+                  <th>เวลา</th>
+                  <th>ผล</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>สมชาย ใจดี</td><td>ปทุมธานี</td><td>08:03</td><td><span class="badge badge-pass">0%</span></td></tr>
+                <tr><td>สมหญิง รักดี</td><td>รังสิต</td><td>08:15</td><td><span class="badge badge-pass">0%</span></td></tr>
+                <tr><td>มานะ ตั้งใจ</td><td>นวนคร</td><td>08:22</td><td><span class="badge badge-fail">50 mg%</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- right: legend -->
+      <div class="dash-card">
+        <div class="dash-card-header" style="background:#f0fdf4; color:#16a34a;">
+          📋 คำอธิบายสถานะ
+        </div>
+        <div class="dash-card-body">
+          <ul class="legend-list">
+            <li>
+              <div class="legend-dot" style="background:#dcfce7; color:#16a34a;">✓</div>
+              <div><b style="color:#16a34a;">ผล 0%</b><br><span style="color:#475569; font-size:13px;">ไม่ตรวจพบแอลกอฮอล์ — อนุญาตให้เข้างาน</span></div>
+            </li>
+            <li>
+              <div class="legend-dot" style="background:#fee2e2; color:#dc2626;">✕</div>
+              <div><b style="color:#dc2626;">ตรวจพบแอลกอฮอล์</b><br><span style="color:#475569; font-size:13px;">ต้องบันทึกการดำเนินการ (ส่งกลับบ้าน / พักงาน)</span></div>
+            </li>
+            <li>
+              <div class="legend-dot" style="background:#fef3c7; color:#d97706;">⚠</div>
+              <div><b style="color:#d97706;">รอดำเนินการ</b><br><span style="color:#475569; font-size:13px;">มีผลไม่ผ่านที่ยังไม่ได้ดำเนินการ — ต้องตรวจสอบ</span></div>
+            </li>
+            <li>
+              <div class="legend-dot" style="background:#ede9fe; color:#7c3aed;">🔁</div>
+              <div><b style="color:#7c3aed;">ตรวจซ้ำ (Re-test)</b><br><span style="color:#475569; font-size:13px;">ผู้ใช้ที่ผลไม่ผ่านต้องรอแล้วตรวจซ้ำ</span></div>
+            </li>
+            <li>
+              <div class="legend-dot" style="background:#e0f2fe; color:#0891b2;">📊</div>
+              <div><b style="color:#0891b2;">Watchlist</b><br><span style="color:#475569; font-size:13px;">พนักงานที่ตรวจไม่ผ่านบ่อยครั้ง — ระบบแจ้งเตือนอัตโนมัติ</span></div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ADMIN SECTION ===== -->
+  <div class="section" style="padding-top:0">
+    <div class="section-title">
+      <span class="icon">⭐</span> สำหรับผู้ดูแลระบบ (Admin) 🔒
+    </div>
+
+    <div class="admin-grid">
+
+      <div class="admin-card a1">
+        <div class="a-icon">👤</div>
+        <h3>จัดการผู้ใช้งาน</h3>
+        <ul>
+          <li>เพิ่ม / แก้ไข / ลบผู้ใช้</li>
+          <li>กำหนดบทบาท (Super / Manager / Viewer)</li>
+          <li>ค้นหาและดูประวัติพนักงาน</li>
+          <li>รายการเฝ้าระวัง (Watchlist)</li>
+        </ul>
+      </div>
+
+      <div class="admin-card a2">
+        <div class="a-icon">📍</div>
+        <h3>จัดการจุดตรวจ</h3>
+        <ul>
+          <li>เพิ่มจุดตรวจใหม่</li>
+          <li>Generate QR Code อัตโนมัติ</li>
+          <li>Download QR เป็น PNG</li>
+          <li>นำเข้าข้อมูลผ่าน CSV</li>
+        </ul>
+      </div>
+
+      <div class="admin-card a3">
+        <div class="a-icon">📋</div>
+        <h3>ดูประวัติการตรวจ</h3>
+        <ul>
+          <li>ดูผลตรวจทั้งหมด</li>
+          <li>กรองตามวันที่ / ผู้ใช้ / จุดตรวจ</li>
+          <li>ส่งออกข้อมูล (Export CSV)</li>
+          <li>ดูรูปภาพและรายละเอียด</li>
+        </ul>
+      </div>
+
+      <div class="admin-card a4">
+        <div class="a-icon">⚙️</div>
+        <h3>ตั้งค่าระบบ</h3>
+        <ul>
+          <li>ตั้งเกณฑ์แอลกอฮอล์</li>
+          <li>จัดการกะทำงาน</li>
+          <li>ช่องทางแจ้งเตือน</li>
+          <li>Audit Log ทุกการกระทำ</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- history table sample -->
+    <div class="dash-card" style="margin-top:20px;">
+      <div class="dash-card-header" style="background:#f0fdf4; color:#166534;">
+        📅 ตัวอย่างรายงานผลตรวจ
+      </div>
+      <div class="dash-card-body" style="overflow-x:auto;">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>วันที่</th>
+              <th>เวลา</th>
+              <th>ชื่อ</th>
+              <th>แผนก</th>
+              <th>บริษัท</th>
+              <th>จุดตรวจ</th>
+              <th>ผลตรวจ</th>
+              <th>การดำเนินการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>15/05/68</td><td>09:15</td><td>สมชาย ใจดี</td><td>ขนส่ง</td><td>บริษัท A</td><td>ปทุมธานี</td>
+              <td><span class="badge badge-pass">0%</span></td><td>—</td>
+            </tr>
+            <tr>
+              <td>15/05/68</td><td>09:18</td><td>สมหญิง รักดี</td><td>คลังสินค้า</td><td>บริษัท B</td><td>รังสิต</td>
+              <td><span class="badge badge-pass">0%</span></td><td>—</td>
+            </tr>
+            <tr>
+              <td>15/05/68</td><td>09:22</td><td>มานะ ตั้งใจ</td><td>ขนส่ง</td><td>บริษัท A</td><td>นวนคร</td>
+              <td><span class="badge badge-fail">50 mg%</span></td>
+              <td><span style="font-size:12px; background:#fee2e2; color:#dc2626; border-radius:6px; padding:2px 8px; font-weight:600;">ส่งกลับบ้าน</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TIPS ===== -->
+  <div class="section" style="padding-top:0">
+    <div class="tips-bar">
+      <h2>💡 เคล็ดลับการใช้งาน</h2>
+      <div class="tips-grid">
+        <div class="tip-item">
+          <div class="ti">📱</div>
+          <p>ถือกล้องให้นิ่งและให้ระยะพอดีเพื่อถ่ายรูปเครื่องตรวจให้ชัด</p>
+        </div>
+        <div class="tip-item">
+          <div class="ti">☀️</div>
+          <p>สแกน QR ในที่แสงพอเหมาะ ไม่มีแสงจ้าเกินไป เพื่อให้ระบบอ่านได้แม่นยำ</p>
+        </div>
+        <div class="tip-item">
+          <div class="ti">✅</div>
+          <p>สแกนให้ครบทุกจุดเพื่อให้ข้อมูลถูกต้องและครบทุกจุดตรวจ</p>
+        </div>
+        <div class="tip-item">
+          <div class="ti">🔋</div>
+          <p>ชาร์จแบตเตอรี่ไว้ให้เพียงพอก่อนออกปฏิบัติงาน</p>
+        </div>
+        <div class="tip-item">
+          <div class="ti">📶</div>
+          <p>หากไม่มีสัญญาณ ระบบบันทึกไว้ในเครื่อง แล้วซิงค์ให้เองเมื่อมีสัญญาณ</p>
+        </div>
+        <div class="tip-item">
+          <div class="ti">🔐</div>
+          <p>ข้อมูลส่วนบุคคลได้รับการคุ้มครองตาม PDPA — ดูนโยบายความเป็นส่วนตัว</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bar">
+      สแกนง่าย · บันทึกไว · ข้อมูลถูกต้อง · ครบทุกจุดตรวจ 🎯
+    </div>
+  </div>
+
+</div><!-- /container -->
+</body>
+</html>
