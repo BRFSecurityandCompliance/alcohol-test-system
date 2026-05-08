@@ -387,27 +387,30 @@ function canViewSite(code) {
 function renderTopbar(active) {
   const u = currentUser();
   const role = u ? ROLE_LABELS[u.role] : null;
+  const lang = localStorage.getItem('lang') || 'th';
+  const isEN = lang === 'en';
   const links = [
-    { href: 'admin-dashboard.html', label: 'แดชบอร์ด', key: 'dashboard' },
-    { href: 'admin-alerts.html', label: 'แจ้งเตือน', key: 'alerts', roles: ['super','manager','viewer','auditor'] },
-    { href: 'admin-reports.html', label: 'รายงาน', key: 'reports' },
-    { href: 'admin-tests.html', label: 'ผลตรวจ', key: 'tests' },
-    { href: 'admin-persons.html', label: 'พนักงาน', key: 'persons' },
-    { href: 'admin-locations.html', label: 'QR/สถานที่', key: 'locations' },
-    { href: 'admin-companies.html', label: 'บริษัท', key: 'companies' },
-    { href: 'admin-devices.html', label: 'เครื่องตรวจ', key: 'devices' },
-    { href: 'admin-settings.html', label: 'ตั้งค่า', key: 'settings', roles: ['super'] },
-    { href: 'admin-audit.html', label: 'Audit Log', key: 'audit', roles: ['super','auditor'] }
+    { href: 'admin-dashboard.html', label: isEN ? 'Dashboard'    : 'แดชบอร์ด',   key: 'dashboard' },
+    { href: 'admin-alerts.html',    label: isEN ? 'Alerts'       : 'แจ้งเตือน',  key: 'alerts',    roles: ['super','manager','viewer','auditor'] },
+    { href: 'admin-reports.html',   label: isEN ? 'Reports'      : 'รายงาน',     key: 'reports' },
+    { href: 'admin-tests.html',     label: isEN ? 'Test Results' : 'ผลตรวจ',     key: 'tests' },
+    { href: 'admin-persons.html',   label: isEN ? 'Employees'    : 'พนักงาน',    key: 'persons' },
+    { href: 'admin-locations.html', label: isEN ? 'QR / Locations' : 'QR/สถานที่', key: 'locations' },
+    { href: 'admin-companies.html', label: isEN ? 'Companies'    : 'บริษัท',     key: 'companies' },
+    { href: 'admin-devices.html',   label: isEN ? 'Devices'      : 'เครื่องตรวจ', key: 'devices' },
+    { href: 'admin-settings.html',  label: isEN ? 'Settings'     : 'ตั้งค่า',    key: 'settings',  roles: ['super'] },
+    { href: 'admin-audit.html',     label: 'Audit Log',                            key: 'audit',     roles: ['super','auditor'] }
   ];
   const visible = links.filter(l => !l.roles || (u && l.roles.includes(u.role)));
   // Pending alerts count
   const pending = DB.tests().filter(x => !x.is_zero && x.action_taken === 'pending').length;
+  const nextLang = isEN ? 'th' : 'en';
   return `
     <div class="topbar">
       <a href="admin-dashboard.html" class="brand">
         <div class="logo">A</div>
         <div>
-          <div style="font-size:15px">ระบบตรวจแอลกอฮอล์</div>
+          <div style="font-size:15px">${isEN ? 'Alcohol Test System' : 'ระบบตรวจแอลกอฮอล์'}</div>
           <div class="tiny muted" style="font-weight:500">Admin Panel</div>
         </div>
       </a>
@@ -422,8 +425,9 @@ function renderTopbar(active) {
             <span class="tiny" style="color:var(--text-muted)">${role?.label || ''}</span>
           </div>
         </div>
-        <a href="index.html" class="btn btn-ghost btn-sm">หน้าหลัก</a>
-        <button class="btn btn-sm" onclick="setAdminAuth(false); location.href='admin-login.html'">ออก</button>
+        <button class="btn btn-ghost btn-sm" onclick="localStorage.setItem('lang','${nextLang}');location.reload()" style="font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;min-width:52px">${isEN ? 'TH | <b>EN</b>' : '<b>TH</b> | EN'}</button>
+        <a href="index.html" class="btn btn-ghost btn-sm">${isEN ? 'Home' : 'หน้าหลัก'}</a>
+        <button class="btn btn-sm" onclick="setAdminAuth(false); location.href='admin-login.html'">${isEN ? 'Logout' : 'ออก'}</button>
       </div>
     </div>
   `;
