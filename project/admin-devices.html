@@ -34,6 +34,7 @@
       <thead>
         <tr>
           <th>Serial No.</th>
+          <th id="th-asset"></th>
           <th id="th-model"></th>
           <th id="th-location"></th>
           <th id="th-last-cal"></th>
@@ -62,6 +63,12 @@
             <label>Serial No. <span style="color:var(--danger)">*</span></label>
             <input class="input" name="serial" required placeholder="BT-AL7-0001" />
           </div>
+          <div class="field">
+            <label id="lbl-asset"></label>
+            <input class="input" name="asset_no" placeholder="AST-00001" />
+          </div>
+        </div>
+        <div class="grid-2" style="margin-top:12px">
           <div class="field">
             <label id="lbl-model"></label>
             <input class="input" name="model" required placeholder="AlcoSense AL7000" />
@@ -103,6 +110,8 @@ if (!requireAdmin()) {} else {
 
   document.getElementById('page-title').textContent = isEN ? 'Alcohol Test Devices' : 'เครื่องตรวจแอลกอฮอล์';
   document.getElementById('add-dev-btn').textContent = isEN ? '+ Add Device' : '+ เพิ่มเครื่องตรวจ';
+  document.getElementById('th-asset').textContent = 'Asset No.';
+  document.getElementById('lbl-asset').textContent = 'Asset No.';
   document.getElementById('th-model').textContent = isEN ? 'Model' : 'รุ่น';
   document.getElementById('th-location').textContent = isEN ? 'Location' : 'สถานที่';
   document.getElementById('th-last-cal').textContent = isEN ? 'Last Calibrated' : 'สอบเทียบล่าสุด';
@@ -171,6 +180,7 @@ if (!requireAdmin()) {} else {
       return `
         <tr>
           <td style="font-family:var(--font-mono); font-size:13px; font-weight:600">${d.serial}</td>
+          <td class="small" style="font-family:var(--font-mono); font-size:12px">${d.asset_no || '<span class="muted">—</span>'}</td>
           <td class="small">${d.model}</td>
           <td class="small">${d.location_code ? `<span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${d.location_code}</span> ${locs[d.location_code] || ''}` : '<span class="muted">—</span>'}</td>
           <td class="small">${d.last_calibrated || '—'}</td>
@@ -185,7 +195,7 @@ if (!requireAdmin()) {} else {
           </td>
         </tr>
       `;
-    }).join('') : `<tr><td colspan="7"><div class="empty"><div class="icon">🔬</div>${isEN ? 'No devices yet' : 'ยังไม่มีเครื่องตรวจ'}</div></td></tr>`;
+    }).join('') : `<tr><td colspan="8"><div class="empty"><div class="icon">🔬</div>${isEN ? 'No devices yet' : 'ยังไม่มีเครื่องตรวจ'}</div></td></tr>`;
   }
 
   function openModal(d) {
@@ -195,6 +205,7 @@ if (!requireAdmin()) {} else {
     if (d) {
       f.id.value = d.id;
       f.serial.value = d.serial;
+      f.asset_no.value = d.asset_no || '';
       f.model.value = d.model;
       f.location_code.value = d.location_code || '';
       f.last_calibrated.value = d.last_calibrated || '';
@@ -208,6 +219,7 @@ if (!requireAdmin()) {} else {
     const f = e.target;
     const d = {
       serial: f.serial.value.trim(),
+      asset_no: f.asset_no.value.trim(),
       model: f.model.value.trim(),
       location_code: f.location_code.value || '',
       last_calibrated: f.last_calibrated.value || '',

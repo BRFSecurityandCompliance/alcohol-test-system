@@ -84,14 +84,14 @@ function getShiftFromDate(iso) {
 
 // ===== FEATURE #13: Devices =====
 const SEED_DEVICES = [
-  { id: 'd1', serial: 'BT-AL7-0001', model: 'AlcoSense AL7000', location_code: 'QR001', last_calibrated: '2026-03-15', next_calibration: '2026-09-15', status: 'active' },
-  { id: 'd2', serial: 'BT-AL7-0002', model: 'AlcoSense AL7000', location_code: 'QR002', last_calibrated: '2026-02-20', next_calibration: '2026-08-20', status: 'active' },
-  { id: 'd3', serial: 'BT-AL7-0003', model: 'AlcoSense AL7000', location_code: 'QR003', last_calibrated: '2025-11-10', next_calibration: '2026-05-10', status: 'due-soon' },
-  { id: 'd4', serial: 'BT-X3-0007',  model: 'Drager X-3',       location_code: 'QR004', last_calibrated: '2026-04-01', next_calibration: '2026-10-01', status: 'active' },
-  { id: 'd5', serial: 'BT-X3-0008',  model: 'Drager X-3',       location_code: 'QR005', last_calibrated: '2025-09-15', next_calibration: '2026-03-15', status: 'overdue' },
-  { id: 'd6', serial: 'BT-AL7-0009', model: 'AlcoSense AL7000', location_code: 'QR006', last_calibrated: '2026-04-20', next_calibration: '2026-10-20', status: 'active' },
-  { id: 'd7', serial: 'BT-AL7-0010', model: 'AlcoSense AL7000', location_code: 'QR007', last_calibrated: '2026-03-30', next_calibration: '2026-09-30', status: 'active' },
-  { id: 'd8', serial: 'BT-X3-0011',  model: 'Drager X-3',       location_code: 'QR008', last_calibrated: '2026-01-10', next_calibration: '2026-07-10', status: 'active' }
+  { id: 'd1', serial: 'BT-AL7-0001', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR001', last_calibrated: '2026-03-15', next_calibration: '2026-09-15', status: 'active' },
+  { id: 'd2', serial: 'BT-AL7-0002', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR002', last_calibrated: '2026-02-20', next_calibration: '2026-08-20', status: 'active' },
+  { id: 'd3', serial: 'BT-AL7-0003', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR003', last_calibrated: '2025-11-10', next_calibration: '2026-05-10', status: 'due-soon' },
+  { id: 'd4', serial: 'BT-X3-0007',  asset_no: '', model: 'Drager X-3',       location_code: 'QR004', last_calibrated: '2026-04-01', next_calibration: '2026-10-01', status: 'active' },
+  { id: 'd5', serial: 'BT-X3-0008',  asset_no: '', model: 'Drager X-3',       location_code: 'QR005', last_calibrated: '2025-09-15', next_calibration: '2026-03-15', status: 'overdue' },
+  { id: 'd6', serial: 'BT-AL7-0009', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR006', last_calibrated: '2026-04-20', next_calibration: '2026-10-20', status: 'active' },
+  { id: 'd7', serial: 'BT-AL7-0010', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR007', last_calibrated: '2026-03-30', next_calibration: '2026-09-30', status: 'active' },
+  { id: 'd8', serial: 'BT-X3-0011',  asset_no: '', model: 'Drager X-3',       location_code: 'QR008', last_calibrated: '2026-01-10', next_calibration: '2026-07-10', status: 'active' }
 ];
 function getDeviceStatus(nextDate) {
   const days = (new Date(nextDate) - Date.now()) / 86400000;
@@ -508,7 +508,7 @@ DB.init = async function() {
         shift_id: t.shift_id || getShiftFromDate(t.created_at).id,
         action_taken: t.action_taken || null
       })),
-      devices: (devs || []).map(d => ({ ...d, status: getDeviceStatus(d.next_calibration) })),
+      devices: (devs || []).map(d => ({ ...d, asset_no: d.asset_no || '', status: getDeviceStatus(d.next_calibration) })),
       users: (users || []).map(u => ({
         id: u.id, username: u.username, name: u.name,
         email: u.email, role: u.role, sites: u.sites
@@ -645,7 +645,7 @@ DB.upsertDevice = function(d) {
   const id = _isUUID(d.id) ? d.id : _genUUID();
   const db = loadDB();
   const i = db.devices.findIndex(x => x.id === d.id || x.serial === d.serial);
-  const row = { id, serial: d.serial, model: d.model, location_code: d.location_code, last_calibrated: d.last_calibrated, next_calibration: d.next_calibration, status: getDeviceStatus(d.next_calibration) };
+  const row = { id, serial: d.serial, asset_no: d.asset_no || '', model: d.model, location_code: d.location_code, last_calibrated: d.last_calibrated, next_calibration: d.next_calibration, status: getDeviceStatus(d.next_calibration) };
   if (i >= 0) db.devices[i] = row; else db.devices.push(row);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
