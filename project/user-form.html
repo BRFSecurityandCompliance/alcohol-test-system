@@ -109,7 +109,7 @@ function renderForm() {
         <div class="row between" style="margin-bottom:14px">
           <h2 style="margin:0">${T('record')}</h2>
           <div class="lang-switch" id="lang-switch">
-            ${['th','en','my','km'].map(l => `<button data-l="${l}" class="${lang===l?'active':''}">${l.toUpperCase()}</button>`).join('')}
+            ${(function(){const lb={th:'TH',en:'EN',my:'MM',km:'KH'};return['th','en','my','km'].map(l=>`<button data-l="${l}" class="${lang===l?'active':''}">${lb[l]}</button>`).join('');})()}
           </div>
         </div>
         <p class="muted small" style="margin:0 0 16px">${T('fill_in')}</p>
