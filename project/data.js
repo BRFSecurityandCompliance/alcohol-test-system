@@ -398,7 +398,8 @@ function renderTopbar(active) {
     { href: 'admin-companies.html', label: isEN ? 'Companies'    : 'บริษัท',     key: 'companies' },
     { href: 'admin-devices.html',   label: isEN ? 'Devices'      : 'เครื่องตรวจ', key: 'devices' },
     { href: 'admin-settings.html',  label: isEN ? 'Settings'     : 'ตั้งค่า',    key: 'settings',  roles: ['super'] },
-    { href: 'admin-audit.html',     label: 'Audit Log',                            key: 'audit',     roles: ['super','auditor'] }
+    { href: 'admin-audit.html',     label: 'Audit Log',                            key: 'audit',     roles: ['super','auditor'] },
+    { href: 'guide.html',           label: isEN ? 'Guide'        : 'คู่มือ',      key: 'guide' }
   ];
   const visible = links.filter(l => !l.roles || (u && l.roles.includes(u.role)));
   // Pending alerts count
