@@ -12,18 +12,16 @@
 <div class="page">
   <div class="row between" style="margin-bottom:20px">
     <div>
-      <h1>ผลตรวจทั้งหมด</h1>
+      <h1 id="page-title"></h1>
       <div class="muted small" id="meta"></div>
     </div>
-    <input class="input" id="search" placeholder="ค้นหาชื่อ / ทะเบียน / บริษัท" style="max-width:320px" />
+    <input class="input" id="search" style="max-width:320px" />
   </div>
 
   <div class="table-wrap">
     <table class="table">
       <thead>
-        <tr>
-          <th>วันที่</th><th>ชื่อ</th><th>แผนก</th><th>สถานที่</th><th>บริษัท</th><th>ผล</th><th></th>
-        </tr>
+        <tr id="table-head"></tr>
       </thead>
       <tbody id="rows"></tbody>
     </table>
@@ -33,7 +31,7 @@
 <div class="modal-backdrop" id="modal">
   <div class="modal">
     <div class="modal-header">
-      <h2>รายละเอียดผลตรวจ</h2>
+      <h2 id="modal-title"></h2>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('modal').classList.remove('show')">✕</button>
     </div>
     <div class="modal-body" id="detail"></div>
@@ -47,54 +45,74 @@
 DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('tests');
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
+
+  document.getElementById('page-title').textContent = isEN ? 'All Test Results' : 'ผลตรวจทั้งหมด';
+  document.getElementById('search').placeholder = isEN ? 'Search name / license plate / company' : 'ค้นหาชื่อ / ทะเบียน / บริษัท';
+  document.getElementById('modal-title').textContent = isEN ? 'Test Result Details' : 'รายละเอียดผลตรวจ';
+  document.getElementById('table-head').innerHTML = `
+    <th>${isEN ? 'Date' : 'วันที่'}</th>
+    <th>${isEN ? 'Name' : 'ชื่อ'}</th>
+    <th>${isEN ? 'Department' : 'แผนก'}</th>
+    <th>${isEN ? 'Location' : 'สถานที่'}</th>
+    <th>${isEN ? 'Company' : 'บริษัท'}</th>
+    <th>${isEN ? 'Result' : 'ผล'}</th>
+    <th></th>
+  `;
+
   const search = document.getElementById('search');
   function render() {
     const q = search.value.toLowerCase().trim();
     const tests = DB.tests().filter(t => !q || (t.full_name + t.plate_number + t.company + t.location_name).toLowerCase().includes(q));
-    document.getElementById('meta').textContent = `${tests.length} รายการ`;
+    document.getElementById('meta').textContent = `${tests.length} ${isEN ? 'records' : 'รายการ'}`;
     document.getElementById('rows').innerHTML = tests.length ? tests.map(t => `
       <tr>
         <td class="small">${formatDateShort(t.created_at)}</td>
-        <td><div style="font-weight:600">${t.full_name}</div>${t.plate_number ? `<div class="tiny muted">ทะเบียน ${t.plate_number}</div>` : ''}</td>
+        <td><div style="font-weight:600">${t.full_name}</div>${t.plate_number ? `<div class="tiny muted">${isEN ? 'License Plate' : 'ทะเบียน'} ${t.plate_number}</div>` : ''}</td>
         <td class="small">${t.department}</td>
         <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${t.location_code}</span> ${t.location_name}</td>
         <td class="small">${t.company}</td>
         <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
         <td style="text-align:right">
-          <button class="btn btn-sm" onclick="viewDetail('${t.id}')">ดู</button>
-          <button class="btn btn-sm btn-danger" onclick="del('${t.id}')">ลบ</button>
+          <button class="btn btn-sm" onclick="viewDetail('${t.id}')">${isEN ? 'View' : 'ดู'}</button>
+          <button class="btn btn-sm btn-danger" onclick="del('${t.id}')">${isEN ? 'Delete' : 'ลบ'}</button>
         </td>
       </tr>
-    `).join('') : '<tr><td colspan="7"><div class="empty"><div class="icon">📋</div>ยังไม่มีข้อมูล</div></td></tr>';
+    `).join('') : `<tr><td colspan="7"><div class="empty"><div class="icon">📋</div>${isEN ? 'No data found' : 'ยังไม่มีข้อมูล'}</div></td></tr>`;
   }
   function viewDetail(id) {
     const t = DB.tests().find(x => x.id === id);
     if (!t) return;
     const shift = SHIFTS.find(s => s.id === t.shift_id);
-    const actionMap = { 'sent-home': 'ส่งกลับบ้าน', 'suspended': 'พักงาน', 'allowed': 'อนุญาต', 'pending': 'รอดำเนินการ' };
+    const actionMap = {
+      'sent-home': isEN ? 'Sent Home' : 'ส่งกลับบ้าน',
+      'suspended': isEN ? 'Suspended' : 'พักงาน',
+      'allowed': isEN ? 'Allowed' : 'อนุญาต',
+      'pending': isEN ? 'Pending' : 'รอดำเนินการ'
+    };
     document.getElementById('detail').innerHTML = `
       <div class="col gap-md">
-        <div class="row between"><span class="muted small">ชื่อ</span><span style="font-weight:600">${t.full_name}</span></div>
-        <div class="row between"><span class="muted small">รหัสพนักงาน</span><span style="font-family:var(--font-mono);font-size:13px">${t.employee_id || '—'}</span></div>
-        <div class="row between"><span class="muted small">แผนก</span><span>${t.department}</span></div>
-        <div class="row between"><span class="muted small">บริษัท</span><span>${t.company}</span></div>
-        <div class="row between"><span class="muted small">ทะเบียนรถ</span><span>${t.plate_number || '—'}</span></div>
-        <div class="row between"><span class="muted small">สถานที่</span><span>${t.location_name} (${t.location_code})</span></div>
-        <div class="row between"><span class="muted small">เวลา</span><span>${formatDate(t.created_at)}</span></div>
-        ${shift && DB.settings().shifts_enabled !== false ? `<div class="row between"><span class="muted small">กะ</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
-        ${t.device_serial ? `<div class="row between"><span class="muted small">เครื่องตรวจ</span><span style="font-family:var(--font-mono);font-size:13px">${t.device_serial}</span></div>` : ''}
-        <div class="row between"><span class="muted small">ผลตรวจ</span>${thresholdBadge(t)}</div>
-        ${!t.is_zero && t.action_taken ? `<div class="row between"><span class="muted small">การดำเนินการ</span><span class="action-chip action-${t.action_taken}">${actionMap[t.action_taken] || t.action_taken}</span></div>` : ''}
-        ${t.action_note ? `<div class="row between"><span class="muted small">หมายเหตุ</span><span class="small">${t.action_note}</span></div>` : ''}
-        ${t.retest_of ? `<div class="row between"><span class="muted small">ประเภท</span><span class="badge badge-warn">ตรวจซ้ำ</span></div>` : ''}
+        <div class="row between"><span class="muted small">${isEN ? 'Name' : 'ชื่อ'}</span><span style="font-weight:600">${t.full_name}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Employee ID' : 'รหัสพนักงาน'}</span><span style="font-family:var(--font-mono);font-size:13px">${t.employee_id || '—'}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Department' : 'แผนก'}</span><span>${t.department}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Company' : 'บริษัท'}</span><span>${t.company}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'License Plate' : 'ทะเบียนรถ'}</span><span>${t.plate_number || '—'}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Location' : 'สถานที่'}</span><span>${t.location_name} (${t.location_code})</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Time' : 'เวลา'}</span><span>${formatDate(t.created_at)}</span></div>
+        ${shift && DB.settings().shifts_enabled !== false ? `<div class="row between"><span class="muted small">${isEN ? 'Shift' : 'กะ'}</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
+        ${t.device_serial ? `<div class="row between"><span class="muted small">${isEN ? 'Device' : 'เครื่องตรวจ'}</span><span style="font-family:var(--font-mono);font-size:13px">${t.device_serial}</span></div>` : ''}
+        <div class="row between"><span class="muted small">${isEN ? 'Test Result' : 'ผลตรวจ'}</span>${thresholdBadge(t)}</div>
+        ${!t.is_zero && t.action_taken ? `<div class="row between"><span class="muted small">${isEN ? 'Action Taken' : 'การดำเนินการ'}</span><span class="action-chip action-${t.action_taken}">${actionMap[t.action_taken] || t.action_taken}</span></div>` : ''}
+        ${t.action_note ? `<div class="row between"><span class="muted small">${isEN ? 'Notes' : 'หมายเหตุ'}</span><span class="small">${t.action_note}</span></div>` : ''}
+        ${t.retest_of ? `<div class="row between"><span class="muted small">${isEN ? 'Type' : 'ประเภท'}</span><span class="badge badge-warn">${isEN ? 'Re-test' : 'ตรวจซ้ำ'}</span></div>` : ''}
         <div class="divider"></div>
-        <div class="muted small">ภาพถ่ายเครื่องตรวจ</div>
+        <div class="muted small">${isEN ? 'Device Photo' : 'ภาพถ่ายเครื่องตรวจ'}</div>
         <div style="background:var(--surface-2); border-radius:var(--r-md); aspect-ratio:4/3; display:grid; place-items:center; overflow:hidden">
-          ${t.photo_url ? `<img src="${t.photo_url}" style="width:100%; height:100%; object-fit:cover">` : '<div class="muted small">— ไม่มีรูปภาพ —</div>'}
+          ${t.photo_url ? `<img src="${t.photo_url}" style="width:100%; height:100%; object-fit:cover">` : `<div class="muted small">${isEN ? '— No photo —' : '— ไม่มีรูปภาพ —'}</div>`}
         </div>
         ${t.signature_employee ? `
           <div>
-            <div class="muted small" style="margin-bottom:6px">ลายเซ็นพนักงาน</div>
+            <div class="muted small" style="margin-bottom:6px">${isEN ? 'Employee Signature' : 'ลายเซ็นพนักงาน'}</div>
             <img src="${t.signature_employee}" style="border:1px solid var(--border); border-radius:var(--r-sm); max-width:100%; background:#fff">
           </div>` : ''}
       </div>
@@ -102,9 +120,9 @@ if (!requireAdmin()) {} else {
     document.getElementById('modal').classList.add('show');
   }
   function del(id) {
-    if (!confirm('ยืนยันการลบรายการนี้?')) return;
+    if (!confirm(isEN ? 'Confirm delete this record?' : 'ยืนยันการลบรายการนี้?')) return;
     DB.deleteTest(id);
-    showToast('ลบเรียบร้อย');
+    showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');
     render();
   }
   search.addEventListener('input', render);
