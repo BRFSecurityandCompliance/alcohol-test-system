@@ -12,47 +12,47 @@
 <div class="page">
   <div class="row between" style="margin-bottom:24px">
     <div>
-      <h1>รายงาน</h1>
-      <div class="muted small">กรองข้อมูลและส่งออกรายงาน</div>
+      <h1 id="page-title"></h1>
+      <div class="muted small" id="page-sub"></div>
     </div>
-    <button class="btn btn-primary" onclick="exportCSV()">📥 ส่งออก CSV</button>
+    <button class="btn btn-primary" id="export-btn" onclick="exportCSV()"></button>
   </div>
 
   <div class="card" style="margin-bottom:20px">
-    <h3 style="margin-bottom:14px">ตัวกรอง</h3>
+    <h3 id="filter-title" style="margin-bottom:14px"></h3>
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
       <div class="field">
-        <label>สถานที่</label>
-        <select class="select" id="f-location"><option value="">ทั้งหมด</option></select>
+        <label id="label-location"></label>
+        <select class="select" id="f-location"><option value="" id="opt-all-loc"></option></select>
       </div>
       <div class="field">
-        <label>แผนก</label>
-        <select class="select" id="f-department"><option value="">ทั้งหมด</option></select>
+        <label id="label-dept"></label>
+        <select class="select" id="f-department"><option value="" id="opt-all-dept"></option></select>
       </div>
       <div class="field">
-        <label>บริษัท</label>
-        <select class="select" id="f-company"><option value="">ทั้งหมด</option></select>
+        <label id="label-co"></label>
+        <select class="select" id="f-company"><option value="" id="opt-all-co"></option></select>
       </div>
       <div class="field">
-        <label>ผลตรวจ</label>
+        <label id="label-result"></label>
         <select class="select" id="f-result">
-          <option value="">ทั้งหมด</option>
-          <option value="zero">0% เท่านั้น</option>
-          <option value="positive">พบแอลกอฮอล์เท่านั้น</option>
+          <option value="" id="opt-all-result"></option>
+          <option value="zero" id="opt-zero"></option>
+          <option value="positive" id="opt-positive"></option>
         </select>
       </div>
       <div class="field">
-        <label>วันที่เริ่ม</label>
+        <label id="label-from"></label>
         <input class="input" type="date" id="f-from" />
       </div>
       <div class="field">
-        <label>วันที่สิ้นสุด</label>
+        <label id="label-to"></label>
         <input class="input" type="date" id="f-to" />
       </div>
     </div>
     <div class="row" style="margin-top:14px">
-      <button class="btn btn-primary" onclick="apply()">กรอง</button>
-      <button class="btn" onclick="reset()">ล้าง</button>
+      <button class="btn btn-primary" id="filter-btn" onclick="apply()"></button>
+      <button class="btn" id="reset-btn" onclick="reset()"></button>
       <span class="muted small grow" style="text-align:right" id="count"></span>
     </div>
   </div>
@@ -60,9 +60,7 @@
   <div class="table-wrap">
     <table class="table">
       <thead>
-        <tr>
-          <th>วันที่</th><th>ชื่อ</th><th>แผนก</th><th>บริษัท</th><th>สถานที่</th><th>ทะเบียน</th><th>ผล</th>
-        </tr>
+        <tr id="table-head"></tr>
       </thead>
       <tbody id="rows"></tbody>
     </table>
@@ -76,6 +74,30 @@
 DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('reports');
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
+
+  document.getElementById('page-title').textContent = isEN ? 'Reports' : 'รายงาน';
+  document.getElementById('page-sub').textContent = isEN ? 'Filter data and export reports' : 'กรองข้อมูลและส่งออกรายงาน';
+  document.getElementById('export-btn').textContent = isEN ? '📥 Export CSV' : '📥 ส่งออก CSV';
+  document.getElementById('filter-title').textContent = isEN ? 'Filters' : 'ตัวกรอง';
+  document.getElementById('label-location').textContent = isEN ? 'Location' : 'สถานที่';
+  document.getElementById('opt-all-loc').textContent = isEN ? 'All' : 'ทั้งหมด';
+  document.getElementById('label-dept').textContent = isEN ? 'Department' : 'แผนก';
+  document.getElementById('opt-all-dept').textContent = isEN ? 'All' : 'ทั้งหมด';
+  document.getElementById('label-co').textContent = isEN ? 'Company' : 'บริษัท';
+  document.getElementById('opt-all-co').textContent = isEN ? 'All' : 'ทั้งหมด';
+  document.getElementById('label-result').textContent = isEN ? 'Test Result' : 'ผลตรวจ';
+  document.getElementById('opt-all-result').textContent = isEN ? 'All' : 'ทั้งหมด';
+  document.getElementById('opt-zero').textContent = isEN ? '0% Only' : '0% เท่านั้น';
+  document.getElementById('opt-positive').textContent = isEN ? 'Alcohol Detected Only' : 'พบแอลกอฮอล์เท่านั้น';
+  document.getElementById('label-from').textContent = isEN ? 'Start Date' : 'วันที่เริ่ม';
+  document.getElementById('label-to').textContent = isEN ? 'End Date' : 'วันที่สิ้นสุด';
+  document.getElementById('filter-btn').textContent = isEN ? 'Filter' : 'กรอง';
+  document.getElementById('reset-btn').textContent = isEN ? 'Clear' : 'ล้าง';
+  document.getElementById('table-head').innerHTML = `
+    <th>${isEN ? 'Date' : 'วันที่'}</th><th>${isEN ? 'Name' : 'ชื่อ'}</th><th>${isEN ? 'Department' : 'แผนก'}</th><th>${isEN ? 'Company' : 'บริษัท'}</th><th>${isEN ? 'Location' : 'สถานที่'}</th><th>${isEN ? 'License Plate' : 'ทะเบียน'}</th><th>${isEN ? 'Result' : 'ผล'}</th>
+  `;
+
   const fLoc = document.getElementById('f-location');
   const fDept = document.getElementById('f-department');
   const fCo = document.getElementById('f-company');
@@ -107,7 +129,7 @@ if (!requireAdmin()) {} else {
     apply();
   }
   function render() {
-    document.getElementById('count').textContent = `พบ ${filtered.length} รายการ`;
+    document.getElementById('count').textContent = isEN ? `${filtered.length} records found` : `พบ ${filtered.length} รายการ`;
     document.getElementById('rows').innerHTML = filtered.length ? filtered.map(t => `
       <tr>
         <td class="small">${formatDateShort(t.created_at)}</td>
@@ -118,14 +140,16 @@ if (!requireAdmin()) {} else {
         <td class="small">${t.plate_number || '—'}</td>
         <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
       </tr>
-    `).join('') : '<tr><td colspan="7"><div class="empty"><div class="icon">🔍</div>ไม่พบข้อมูล</div></td></tr>';
+    `).join('') : `<tr><td colspan="7"><div class="empty"><div class="icon">🔍</div>${isEN ? 'No data found' : 'ไม่พบข้อมูล'}</div></td></tr>`;
   }
   function exportCSV() {
-    const headers = ['วันที่','ชื่อ','แผนก','บริษัท','รหัสสถานที่','สถานที่','ทะเบียน','ค่า (mg%)','ผล'];
+    const headers = isEN
+      ? ['Date','Name','Department','Company','Location Code','Location','License Plate','Value (mg%)','Result']
+      : ['วันที่','ชื่อ','แผนก','บริษัท','รหัสสถานที่','สถานที่','ทะเบียน','ค่า (mg%)','ผล'];
     const rows = filtered.map(t => [
       formatDate(t.created_at), t.full_name, t.department, t.company,
       t.location_code, t.location_name, t.plate_number || '',
-      t.alcohol_value, t.is_zero ? '0%' : 'พบแอลกอฮอล์'
+      t.alcohol_value, t.is_zero ? '0%' : (isEN ? 'Alcohol Detected' : 'พบแอลกอฮอล์')
     ]);
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8'});
@@ -133,7 +157,7 @@ if (!requireAdmin()) {} else {
     a.href = URL.createObjectURL(blob);
     a.download = `alcohol-tests-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
-    showToast('ส่งออก CSV เรียบร้อย');
+    showToast(isEN ? 'CSV exported' : 'ส่งออก CSV เรียบร้อย');
   }
   window.apply = apply; window.reset = reset; window.exportCSV = exportCSV;
   render();

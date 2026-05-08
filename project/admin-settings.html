@@ -27,16 +27,16 @@
 <div id="chrome"></div>
 <div class="page">
   <div style="margin-bottom:24px">
-    <h1>ตั้งค่าระบบ</h1>
-    <div class="muted small">จัดการการตั้งค่า ผู้ใช้ และช่องทางแจ้งเตือน</div>
+    <h1 id="page-title"></h1>
+    <div class="muted small" id="page-sub"></div>
   </div>
 
   <div class="tabs-page">
-    <button class="active" data-tab="system" onclick="switchTab('system')">ระบบ</button>
-    <button data-tab="users" onclick="switchTab('users')">ผู้ใช้งาน</button>
-    <button data-tab="thresholds" onclick="switchTab('thresholds')">เกณฑ์แอลกอฮอล์</button>
-    <button data-tab="shifts" onclick="switchTab('shifts')">กะทำงาน</button>
-    <button data-tab="danger" onclick="switchTab('danger')">อันตราย</button>
+    <button class="active" data-tab="system" onclick="switchTab('system')" id="tab-btn-system"></button>
+    <button data-tab="users" onclick="switchTab('users')" id="tab-btn-users"></button>
+    <button data-tab="thresholds" onclick="switchTab('thresholds')" id="tab-btn-thresholds"></button>
+    <button data-tab="shifts" onclick="switchTab('shifts')" id="tab-btn-shifts"></button>
+    <button data-tab="danger" onclick="switchTab('danger')" id="tab-btn-danger"></button>
   </div>
 
   <div id="tab-system"></div>
@@ -50,7 +50,7 @@
 <div class="modal-backdrop" id="user-modal">
   <div class="modal">
     <div class="modal-header">
-      <h2 id="user-modal-title">เพิ่มผู้ใช้</h2>
+      <h2 id="user-modal-title"></h2>
       <button class="btn btn-ghost btn-sm" onclick="closeUserModal()">✕</button>
     </div>
     <form id="user-form" onsubmit="saveUser(event)">
@@ -62,16 +62,16 @@
             <input class="input" name="username" required placeholder="manager1" />
           </div>
           <div class="field">
-            <label>ชื่อแสดง <span style="color:var(--danger)">*</span></label>
-            <input class="input" name="name" required placeholder="สมชาย จัดการดี" />
+            <label id="lbl-display-name"></label>
+            <input class="input" name="name" required placeholder="e.g. John Manager" />
           </div>
         </div>
         <div class="field" style="margin-top:12px">
-          <label>อีเมล</label>
+          <label id="lbl-email"></label>
           <input class="input" type="email" name="email" placeholder="user@example.com" />
         </div>
         <div class="field" style="margin-top:12px">
-          <label>บทบาท</label>
+          <label id="lbl-role"></label>
           <select class="select" name="role">
             <option value="super">Super Admin — จัดการทุกอย่าง</option>
             <option value="manager">Site Manager — ดูเฉพาะสถานที่ตัวเอง</option>
@@ -80,14 +80,14 @@
           </select>
         </div>
         <div class="field" style="margin-top:12px" id="sites-field">
-          <label>สถานที่ที่รับผิดชอบ (Site Manager)</label>
-          <div class="hint" style="margin-bottom:8px">เว้นว่างไว้ = ทุกสถานที่</div>
+          <label id="lbl-sites"></label>
+          <div class="hint" id="hint-sites" style="margin-bottom:8px"></div>
           <select class="select" name="sites_select" multiple style="height:120px" id="sites-select"></select>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="closeUserModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">บันทึก</button>
+        <button type="button" class="btn" id="user-modal-cancel-btn" onclick="closeUserModal()"></button>
+        <button type="submit" class="btn btn-primary" id="user-modal-save-btn"></button>
       </div>
     </form>
   </div>
@@ -100,6 +100,24 @@
 DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('settings');
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
+
+  document.getElementById('page-title').textContent = isEN ? 'System Settings' : 'ตั้งค่าระบบ';
+  document.getElementById('page-sub').textContent = isEN ? 'Manage settings, users, and notification channels' : 'จัดการการตั้งค่า ผู้ใช้ และช่องทางแจ้งเตือน';
+  document.getElementById('tab-btn-system').textContent = isEN ? 'System' : 'ระบบ';
+  document.getElementById('tab-btn-users').textContent = isEN ? 'Users' : 'ผู้ใช้งาน';
+  document.getElementById('tab-btn-thresholds').textContent = isEN ? 'Alcohol Thresholds' : 'เกณฑ์แอลกอฮอล์';
+  document.getElementById('tab-btn-shifts').textContent = isEN ? 'Shifts' : 'กะทำงาน';
+  document.getElementById('tab-btn-danger').textContent = isEN ? 'Danger Zone' : 'อันตราย';
+
+  // User modal labels
+  document.getElementById('lbl-display-name').innerHTML = `${isEN ? 'Display Name' : 'ชื่อแสดง'} <span style="color:var(--danger)">*</span>`;
+  document.getElementById('lbl-email').textContent = isEN ? 'Email' : 'อีเมล';
+  document.getElementById('lbl-role').textContent = isEN ? 'Role' : 'บทบาท';
+  document.getElementById('lbl-sites').textContent = isEN ? 'Assigned Locations (Site Manager)' : 'สถานที่ที่รับผิดชอบ (Site Manager)';
+  document.getElementById('hint-sites').textContent = isEN ? 'Leave blank = all locations' : 'เว้นว่างไว้ = ทุกสถานที่';
+  document.getElementById('user-modal-cancel-btn').textContent = isEN ? 'Cancel' : 'ยกเลิก';
+  document.getElementById('user-modal-save-btn').textContent = isEN ? 'Save' : 'บันทึก';
 
   // Populate sites select
   DB.locations().forEach(l => {
@@ -119,56 +137,56 @@ if (!requireAdmin()) {} else {
     const s = DB.settings();
     document.getElementById('tab-system').innerHTML = `
       <div class="card" style="margin-bottom:16px">
-        <h2 style="margin-bottom:4px">การตรวจซ้ำ (Re-test)</h2>
-        <div class="muted small" style="margin-bottom:16px">เมื่อตรวจไม่ผ่าน ระบบจะบังคับรอก่อนตรวจซ้ำ</div>
+        <h2 style="margin-bottom:4px">${isEN ? 'Re-test' : 'การตรวจซ้ำ (Re-test)'}</h2>
+        <div class="muted small" style="margin-bottom:16px">${isEN ? 'When a test fails, the system enforces a waiting period before re-testing.' : 'เมื่อตรวจไม่ผ่าน ระบบจะบังคับรอก่อนตรวจซ้ำ'}</div>
         <div class="setting-row">
           <div class="setting-label">
-            <div class="name">เวลารอตรวจซ้ำ</div>
-            <div class="desc">จำนวนนาทีที่ต้องรอก่อนทำการตรวจซ้ำ</div>
+            <div class="name">${isEN ? 'Re-test Wait Time' : 'เวลารอตรวจซ้ำ'}</div>
+            <div class="desc">${isEN ? 'Number of minutes to wait before re-testing' : 'จำนวนนาทีที่ต้องรอก่อนทำการตรวจซ้ำ'}</div>
           </div>
           <div class="setting-ctrl">
             <div class="row gap-sm">
               <input class="input" type="number" id="retest-min" value="${s.retest_minutes || 5}" min="1" max="60" style="width:80px" />
-              <span class="muted">นาที</span>
+              <span class="muted">${isEN ? 'minutes' : 'นาที'}</span>
             </div>
           </div>
         </div>
       </div>
 
       <div class="card" style="margin-bottom:16px">
-        <h2 style="margin-bottom:4px">Watchlist อัตโนมัติ</h2>
-        <div class="muted small" style="margin-bottom:16px">ระบบจะเพิ่มพนักงานเข้า Watchlist อัตโนมัติเมื่อตรวจไม่ผ่านบ่อยครั้ง</div>
+        <h2 style="margin-bottom:4px">${isEN ? 'Auto Watchlist' : 'Watchlist อัตโนมัติ'}</h2>
+        <div class="muted small" style="margin-bottom:16px">${isEN ? 'The system automatically adds employees to the Watchlist when they fail tests frequently.' : 'ระบบจะเพิ่มพนักงานเข้า Watchlist อัตโนมัติเมื่อตรวจไม่ผ่านบ่อยครั้ง'}</div>
         <div class="setting-row">
           <div class="setting-label">
-            <div class="name">จำนวนครั้งที่กระตุ้น Watchlist</div>
-            <div class="desc">เมื่อตรวจไม่ผ่านครบจำนวนนี้ในช่วงเวลาที่กำหนด</div>
+            <div class="name">${isEN ? 'Watchlist Trigger Count' : 'จำนวนครั้งที่กระตุ้น Watchlist'}</div>
+            <div class="desc">${isEN ? 'When fails reach this count within the window' : 'เมื่อตรวจไม่ผ่านครบจำนวนนี้ในช่วงเวลาที่กำหนด'}</div>
           </div>
           <div class="setting-ctrl">
             <div class="row gap-sm">
               <input class="input" type="number" id="wl-threshold" value="${s.watchlist_threshold || 2}" min="1" max="10" style="width:80px" />
-              <span class="muted">ครั้ง</span>
+              <span class="muted">${isEN ? 'times' : 'ครั้ง'}</span>
             </div>
           </div>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <div class="name">ช่วงเวลา Watchlist</div>
-            <div class="desc">นับย้อนหลังจากวันนี้</div>
+            <div class="name">${isEN ? 'Watchlist Window' : 'ช่วงเวลา Watchlist'}</div>
+            <div class="desc">${isEN ? 'Counting back from today' : 'นับย้อนหลังจากวันนี้'}</div>
           </div>
           <div class="setting-ctrl">
             <div class="row gap-sm">
               <input class="input" type="number" id="wl-days" value="${s.watchlist_window_days || 30}" min="7" max="365" style="width:80px" />
-              <span class="muted">วัน</span>
+              <span class="muted">${isEN ? 'days' : 'วัน'}</span>
             </div>
           </div>
         </div>
       </div>
 
       <div class="card" style="margin-bottom:16px">
-        <h2 style="margin-bottom:4px">ภาษาเริ่มต้น</h2>
-        <div class="muted small" style="margin-bottom:16px">ภาษาที่แสดงในฟอร์มผู้ใช้เมื่อเปิดครั้งแรก</div>
+        <h2 style="margin-bottom:4px">${isEN ? 'Default Language' : 'ภาษาเริ่มต้น'}</h2>
+        <div class="muted small" style="margin-bottom:16px">${isEN ? 'Language shown in the user form on first load' : 'ภาษาที่แสดงในฟอร์มผู้ใช้เมื่อเปิดครั้งแรก'}</div>
         <div class="setting-row">
-          <div class="setting-label"><div class="name">ภาษา</div></div>
+          <div class="setting-label"><div class="name">${isEN ? 'Language' : 'ภาษา'}</div></div>
           <div class="setting-ctrl">
             <select class="select" id="lang-default">
               <option value="th" ${(s.language||'th')==='th'?'selected':''}>ไทย (TH)</option>
@@ -181,7 +199,7 @@ if (!requireAdmin()) {} else {
       </div>
 
       <div style="text-align:right">
-        <button class="btn btn-primary" onclick="saveSystem()">💾 บันทึกการตั้งค่า</button>
+        <button class="btn btn-primary" onclick="saveSystem()">💾 ${isEN ? 'Save Settings' : 'บันทึกการตั้งค่า'}</button>
       </div>
     `;
   }
@@ -194,7 +212,7 @@ if (!requireAdmin()) {} else {
       language: document.getElementById('lang-default').value
     });
     DB.addAudit({ actor_id: currentUser()?.id, actor_name: currentUser()?.name, action: 'update_settings', target: 'system', detail: 'แก้ไขการตั้งค่าระบบ' });
-    showToast('บันทึกการตั้งค่าเรียบร้อย', 'success');
+    showToast(isEN ? 'Settings saved' : 'บันทึกการตั้งค่าเรียบร้อย', 'success');
   }
 
   // ===== USERS TAB =====
@@ -204,14 +222,14 @@ if (!requireAdmin()) {} else {
       <div class="card">
         <div class="card-header">
           <div>
-            <h2>ผู้ใช้งานระบบ Admin</h2>
-            <div class="muted small">${users.length} ผู้ใช้</div>
+            <h2>${isEN ? 'Admin System Users' : 'ผู้ใช้งานระบบ Admin'}</h2>
+            <div class="muted small">${users.length} ${isEN ? 'users' : 'ผู้ใช้'}</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ เพิ่มผู้ใช้</button>
+          <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ ${isEN ? 'Add User' : 'เพิ่มผู้ใช้'}</button>
         </div>
         <div class="table-wrap" style="border:none; border-radius:0">
           <table class="table">
-            <thead><tr><th>Username</th><th>ชื่อ</th><th>บทบาท</th><th>สถานที่</th><th>อีเมล</th><th></th></tr></thead>
+            <thead><tr><th>Username</th><th>${isEN ? 'Name' : 'ชื่อ'}</th><th>${isEN ? 'Role' : 'บทบาท'}</th><th>${isEN ? 'Location' : 'สถานที่'}</th><th>Email</th><th></th></tr></thead>
             <tbody>
               ${users.map(u => `
                 <tr>
@@ -223,11 +241,11 @@ if (!requireAdmin()) {} else {
                     </div>
                   </td>
                   <td><span class="role-badge role-${u.role}">${ROLE_LABELS[u.role]?.label || u.role}</span></td>
-                  <td class="small muted">${u.sites === 'all' ? 'ทุกสถานที่' : Array.isArray(u.sites) ? u.sites.join(', ') : u.sites}</td>
+                  <td class="small muted">${u.sites === 'all' ? (isEN ? 'All locations' : 'ทุกสถานที่') : Array.isArray(u.sites) ? u.sites.join(', ') : u.sites}</td>
                   <td class="small muted">${u.email || '—'}</td>
                   <td style="text-align:right">
-                    <button class="btn btn-sm" onclick='openUserModal(${JSON.stringify(u).replace(/"/g,"&quot;")})'>แก้ไข</button>
-                    <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')" ${u.id === 'u1' ? 'disabled title="ไม่สามารถลบ Super Admin หลัก"' : ''}>ลบ</button>
+                    <button class="btn btn-sm" onclick='openUserModal(${JSON.stringify(u).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>
+                    <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')" ${u.id === 'u1' ? `disabled title="${isEN ? 'Cannot delete the primary Super Admin' : 'ไม่สามารถลบ Super Admin หลัก'}"` : ''}>${isEN ? 'Delete' : 'ลบ'}</button>
                   </td>
                 </tr>
               `).join('')}
@@ -237,13 +255,13 @@ if (!requireAdmin()) {} else {
       </div>
       <div class="banner banner-info" style="margin-top:16px">
         <span class="banner-icon">ℹ️</span>
-        <div class="small">ใน production ให้เชื่อมระบบ Authentication จริง (เช่น Supabase Auth) แทนการใช้รหัสผ่าน hardcoded</div>
+        <div class="small">${isEN ? 'In production, connect a real authentication system (e.g. Supabase Auth) instead of hardcoded passwords.' : 'ใน production ให้เชื่อมระบบ Authentication จริง (เช่น Supabase Auth) แทนการใช้รหัสผ่าน hardcoded'}</div>
       </div>
     `;
   }
 
   function openUserModal(u) {
-    document.getElementById('user-modal-title').textContent = u ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้';
+    document.getElementById('user-modal-title').textContent = u ? (isEN ? 'Edit User' : 'แก้ไขผู้ใช้') : (isEN ? 'Add User' : 'เพิ่มผู้ใช้');
     const f = document.getElementById('user-form');
     f.reset();
     if (u) {
@@ -274,18 +292,18 @@ if (!requireAdmin()) {} else {
     };
     if (f.id.value) u.id = f.id.value;
     DB.upsertUser(u);
-    DB.addAudit({ actor_id: currentUser()?.id, actor_name: currentUser()?.name, action: f.id.value ? 'update_user' : 'add_user', target: u.username, detail: `${f.id.value ? 'แก้ไข' : 'เพิ่ม'} ผู้ใช้ ${u.name} (${u.role})` });
-    showToast('บันทึกเรียบร้อย');
+    DB.addAudit({ actor_id: currentUser()?.id, actor_name: currentUser()?.name, action: f.id.value ? 'update_user' : 'add_user', target: u.username, detail: `${f.id.value ? (isEN ? 'Updated' : 'แก้ไข') : (isEN ? 'Added' : 'เพิ่ม')} ${isEN ? 'user' : 'ผู้ใช้'} ${u.name} (${u.role})` });
+    showToast(isEN ? 'Saved' : 'บันทึกเรียบร้อย');
     closeUserModal();
     renderUsers();
   }
   function delUser(id) {
-    if (id === 'u1') { showToast('ไม่สามารถลบ Super Admin หลัก'); return; }
-    if (!confirm('ยืนยันการลบผู้ใช้งาน?')) return;
+    if (id === 'u1') { showToast(isEN ? 'Cannot delete the primary Super Admin' : 'ไม่สามารถลบ Super Admin หลัก'); return; }
+    if (!confirm(isEN ? 'Confirm delete this user?' : 'ยืนยันการลบผู้ใช้งาน?')) return;
     const u = DB.users().find(x => x.id === id);
     DB.deleteUser(id);
     DB.addAudit({ actor_id: currentUser()?.id, actor_name: currentUser()?.name, action: 'delete_user', target: u?.username || id, detail: `ลบผู้ใช้ ${u?.name || id}` });
-    showToast('ลบเรียบร้อย');
+    showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');
     renderUsers();
   }
 
@@ -293,11 +311,11 @@ if (!requireAdmin()) {} else {
   function renderThresholds() {
     document.getElementById('tab-thresholds').innerHTML = `
       <div class="card" style="margin-bottom:16px">
-        <h2 style="margin-bottom:4px">เกณฑ์ตัดสินผล (Thai Law Threshold)</h2>
-        <div class="muted small" style="margin-bottom:20px">ปรับเปลี่ยนได้ใน production โดยแก้ THRESHOLDS ใน data.js หรือเชื่อม config จาก backend</div>
+        <h2 style="margin-bottom:4px">${isEN ? 'Result Thresholds (Thai Law)' : 'เกณฑ์ตัดสินผล (Thai Law Threshold)'}</h2>
+        <div class="muted small" style="margin-bottom:20px">${isEN ? 'Can be adjusted in production by editing THRESHOLDS in data.js or connecting a backend config.' : 'ปรับเปลี่ยนได้ใน production โดยแก้ THRESHOLDS ใน data.js หรือเชื่อม config จาก backend'}</div>
         ${Object.entries(THRESHOLDS).map(([dept, rules]) => `
           <div style="margin-bottom:20px">
-            <div style="font-weight:600; margin-bottom:10px">${dept === 'default' ? 'เกณฑ์ทั่วไป (Default)' : dept}</div>
+            <div style="font-weight:600; margin-bottom:10px">${dept === 'default' ? (isEN ? 'General Threshold (Default)' : 'เกณฑ์ทั่วไป (Default)') : dept}</div>
             <div style="display:flex; gap:8px; flex-wrap:wrap">
               ${rules.map(r => `
                 <div class="lvl lvl-${r.color === 'success' ? 'pass' : r.color === 'warn' ? 'warn' : r.color === 'danger-strong' ? 'illegal' : 'danger'}" style="padding:6px 14px; font-size:13px">
@@ -310,7 +328,7 @@ if (!requireAdmin()) {} else {
       </div>
       <div class="banner banner-info">
         <span class="banner-icon">ℹ️</span>
-        <div class="small">เกณฑ์อิงตามกฎหมายไทย พ.ร.บ.จราจรทางบก สำหรับปรับแต่ง threshold แบบ realtime ต้องทำใน admin panel ที่เชื่อมกับ backend</div>
+        <div class="small">${isEN ? 'Thresholds are based on Thai traffic law. For real-time threshold editing, an admin panel connected to a backend is required.' : 'เกณฑ์อิงตามกฎหมายไทย พ.ร.บ.จราจรทางบก สำหรับปรับแต่ง threshold แบบ realtime ต้องทำใน admin panel ที่เชื่อมกับ backend'}</div>
       </div>
     `;
   }
@@ -323,8 +341,8 @@ if (!requireAdmin()) {} else {
       <div class="card" style="margin-bottom:16px">
         <div class="setting-row">
           <div class="setting-label">
-            <div class="name">เปิดใช้ระบบกะทำงาน</div>
-            <div class="desc">เมื่อปิด ระบบจะไม่บันทึกและแสดงข้อมูลกะในฟอร์มและรายงาน</div>
+            <div class="name">${isEN ? 'Enable Shift System' : 'เปิดใช้ระบบกะทำงาน'}</div>
+            <div class="desc">${isEN ? 'When off, the system will not record or display shift data in forms and reports.' : 'เมื่อปิด ระบบจะไม่บันทึกและแสดงข้อมูลกะในฟอร์มและรายงาน'}</div>
           </div>
           <div class="setting-ctrl">
             <label class="switch">
@@ -335,8 +353,8 @@ if (!requireAdmin()) {} else {
         </div>
       </div>
       <div class="card" id="shifts-detail" style="${enabled ? '' : 'opacity:.4; pointer-events:none'}">
-        <h2 style="margin-bottom:4px">รายละเอียดกะ</h2>
-        <div class="muted small" style="margin-bottom:20px">ระบบกำหนดกะอัตโนมัติตามเวลาที่ทำการตรวจ</div>
+        <h2 style="margin-bottom:4px">${isEN ? 'Shift Details' : 'รายละเอียดกะ'}</h2>
+        <div class="muted small" style="margin-bottom:20px">${isEN ? 'The system automatically assigns shifts based on test time.' : 'ระบบกำหนดกะอัตโนมัติตามเวลาที่ทำการตรวจ'}</div>
         ${SHIFTS.map(s => `
           <div class="setting-row">
             <div class="setting-label">
@@ -351,7 +369,7 @@ if (!requireAdmin()) {} else {
   }
   function toggleShifts(enabled) {
     DB.setSettings({ shifts_enabled: enabled });
-    showToast(enabled ? 'เปิดระบบกะทำงานแล้ว' : 'ปิดระบบกะทำงานแล้ว');
+    showToast(enabled ? (isEN ? 'Shift system enabled' : 'เปิดระบบกะทำงานแล้ว') : (isEN ? 'Shift system disabled' : 'ปิดระบบกะทำงานแล้ว'));
     document.getElementById('shifts-detail').style.cssText = enabled ? '' : 'opacity:.4; pointer-events:none';
   }
 
@@ -360,20 +378,20 @@ if (!requireAdmin()) {} else {
     document.getElementById('tab-danger').innerHTML = `
       <div class="banner banner-danger" style="margin-bottom:16px">
         <span class="banner-icon">☢️</span>
-        <div><b>โซนอันตราย</b><br><span class="small">การดำเนินการในส่วนนี้ไม่สามารถย้อนกลับได้</span></div>
+        <div><b>${isEN ? 'Danger Zone' : 'โซนอันตราย'}</b><br><span class="small">${isEN ? 'Actions in this section cannot be undone.' : 'การดำเนินการในส่วนนี้ไม่สามารถย้อนกลับได้'}</span></div>
       </div>
       <div class="card">
         <div class="setting-row">
           <div class="setting-label">
-            <div class="name">รีเซ็ตข้อมูลทั้งหมด</div>
-            <div class="desc">ลบข้อมูลทั้งหมดใน localStorage และโหลดข้อมูลตัวอย่างใหม่</div>
+            <div class="name">${isEN ? 'Reset All Data' : 'รีเซ็ตข้อมูลทั้งหมด'}</div>
+            <div class="desc">${isEN ? 'Delete all data in localStorage and reload sample data.' : 'ลบข้อมูลทั้งหมดใน localStorage และโหลดข้อมูลตัวอย่างใหม่'}</div>
           </div>
-          <button class="btn btn-danger" onclick="doReset()">รีเซ็ตข้อมูล</button>
+          <button class="btn btn-danger" onclick="doReset()">${isEN ? 'Reset Data' : 'รีเซ็ตข้อมูล'}</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <div class="name">Export ข้อมูลทั้งหมด (JSON)</div>
-            <div class="desc">ดาวน์โหลดข้อมูลทั้งหมดเป็น JSON สำหรับสำรองข้อมูล</div>
+            <div class="name">${isEN ? 'Export All Data (JSON)' : 'Export ข้อมูลทั้งหมด (JSON)'}</div>
+            <div class="desc">${isEN ? 'Download all data as JSON for backup.' : 'ดาวน์โหลดข้อมูลทั้งหมดเป็น JSON สำหรับสำรองข้อมูล'}</div>
           </div>
           <button class="btn" onclick="exportAll()">📥 Export JSON</button>
         </div>
@@ -382,9 +400,9 @@ if (!requireAdmin()) {} else {
   }
 
   function doReset() {
-    if (!confirm('ยืนยัน: รีเซ็ตข้อมูลทั้งหมดเป็นค่าเริ่มต้น? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
+    if (!confirm(isEN ? 'Confirm: reset all data to defaults? This action cannot be undone.' : 'ยืนยัน: รีเซ็ตข้อมูลทั้งหมดเป็นค่าเริ่มต้น? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
     resetDB();
-    showToast('รีเซ็ตข้อมูลเรียบร้อย');
+    showToast(isEN ? 'Data reset complete' : 'รีเซ็ตข้อมูลเรียบร้อย');
     setTimeout(() => location.reload(), 800);
   }
   function exportAll() {
@@ -394,7 +412,7 @@ if (!requireAdmin()) {} else {
     a.href = URL.createObjectURL(blob);
     a.download = `alcohol-db-export-${new Date().toISOString().slice(0,10)}.json`;
     a.click();
-    showToast('Export เรียบร้อย');
+    showToast(isEN ? 'Export complete' : 'Export เรียบร้อย');
   }
 
   Object.assign(window, { switchTab, saveSystem, openUserModal, closeUserModal, saveUser, delUser, doReset, exportAll, toggleShifts });

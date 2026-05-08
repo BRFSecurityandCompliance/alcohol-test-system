@@ -29,8 +29,8 @@
 <div class="page">
   <div class="row between" style="margin-bottom:24px">
     <div>
-      <h1>ศูนย์แจ้งเตือน</h1>
-      <div class="muted small">ผลตรวจที่ไม่ผ่านและต้องดำเนินการ</div>
+      <h1 id="page-title"></h1>
+      <div class="muted small" id="page-sub"></div>
     </div>
     <div id="hdr-badges"></div>
   </div>
@@ -38,9 +38,9 @@
   <div class="stats" style="margin-bottom:24px" id="stats"></div>
 
   <div class="tabs-page" id="tabs">
-    <button class="active" data-tab="pending" onclick="switchTab('pending')">รอดำเนินการ <span id="pending-count-tab"></span></button>
-    <button data-tab="resolved" onclick="switchTab('resolved')">ดำเนินการแล้ว</button>
-    <button data-tab="channels" onclick="switchTab('channels')">ช่องทางแจ้งเตือน</button>
+    <button class="active" data-tab="pending" onclick="switchTab('pending')" id="tab-btn-pending"></button>
+    <button data-tab="resolved" onclick="switchTab('resolved')" id="tab-btn-resolved"></button>
+    <button data-tab="channels" onclick="switchTab('channels')" id="tab-btn-channels"></button>
   </div>
 
   <div id="tab-pending"></div>
@@ -52,27 +52,27 @@
 <div class="modal-backdrop" id="action-modal">
   <div class="modal">
     <div class="modal-header">
-      <h2>บันทึกการดำเนินการ</h2>
+      <h2 id="action-modal-title"></h2>
       <button class="btn btn-ghost btn-sm" onclick="closeActionModal()">✕</button>
     </div>
     <div class="modal-body">
       <div id="action-test-info" style="margin-bottom:16px"></div>
       <div class="field" style="margin-bottom:14px">
-        <label>การดำเนินการ</label>
+        <label id="action-select-label"></label>
         <select class="select" id="action-select">
-          <option value="sent-home">ส่งกลับบ้าน (Sent Home)</option>
-          <option value="suspended">พักงาน (Suspended)</option>
-          <option value="allowed">อนุญาตให้ทำงาน (Allowed)</option>
+          <option value="sent-home" id="opt-sent-home"></option>
+          <option value="suspended" id="opt-suspended"></option>
+          <option value="allowed" id="opt-allowed"></option>
         </select>
       </div>
       <div class="field">
-        <label>หมายเหตุ</label>
-        <textarea class="textarea" id="action-note-input" placeholder="เหตุผลหรือรายละเอียดเพิ่มเติม..."></textarea>
+        <label id="action-note-label"></label>
+        <textarea class="textarea" id="action-note-input"></textarea>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeActionModal()">ยกเลิก</button>
-      <button class="btn btn-primary" onclick="saveAction()">บันทึก</button>
+      <button class="btn" id="action-cancel-btn" onclick="closeActionModal()"></button>
+      <button class="btn btn-primary" id="action-save-btn" onclick="saveAction()"></button>
     </div>
   </div>
 </div>
@@ -81,14 +81,14 @@
 <div class="modal-backdrop" id="ch-modal">
   <div class="modal">
     <div class="modal-header">
-      <h2 id="ch-modal-title">ช่องทางแจ้งเตือน</h2>
+      <h2 id="ch-modal-title"></h2>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ch-modal').classList.remove('show')">✕</button>
     </div>
     <form id="ch-form" onsubmit="saveCh(event)">
       <div class="modal-body">
         <input type="hidden" name="id" />
         <div class="field" style="margin-bottom:12px">
-          <label>ประเภท</label>
+          <label id="ch-kind-label"></label>
           <select class="select" name="kind">
             <option value="line">LINE Notify</option>
             <option value="email">Email</option>
@@ -96,8 +96,8 @@
           </select>
         </div>
         <div class="field" style="margin-bottom:12px">
-          <label>ชื่อ / คำอธิบาย</label>
-          <input class="input" name="label" required placeholder="เช่น LINE — ทีมความปลอดภัย" />
+          <label id="ch-label-label"></label>
+          <input class="input" name="label" required id="ch-label-input" />
         </div>
         <div class="field" style="margin-bottom:12px">
           <label>Target (Token/Email/URL)</label>
@@ -105,12 +105,12 @@
         </div>
         <div class="row gap-md">
           <label class="switch"><input type="checkbox" name="enabled" checked /><span class="slide"></span></label>
-          <span class="small">เปิดใช้งาน</span>
+          <span class="small" id="ch-enabled-label"></span>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="document.getElementById('ch-modal').classList.remove('show')">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">บันทึก</button>
+        <button type="button" class="btn" id="ch-cancel-btn" onclick="document.getElementById('ch-modal').classList.remove('show')"></button>
+        <button type="submit" class="btn btn-primary" id="ch-save-btn"></button>
       </div>
     </form>
   </div>
@@ -123,6 +123,33 @@
 DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('alerts');
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
+
+  document.getElementById('page-title').textContent = isEN ? 'Alert Center' : 'ศูนย์แจ้งเตือน';
+  document.getElementById('page-sub').textContent = isEN ? 'Failed tests requiring action' : 'ผลตรวจที่ไม่ผ่านและต้องดำเนินการ';
+  document.getElementById('tab-btn-pending').innerHTML = (isEN ? 'Pending' : 'รอดำเนินการ') + ' <span id="pending-count-tab"></span>';
+  document.getElementById('tab-btn-resolved').textContent = isEN ? 'Resolved' : 'ดำเนินการแล้ว';
+  document.getElementById('tab-btn-channels').textContent = isEN ? 'Notification Channels' : 'ช่องทางแจ้งเตือน';
+
+  // Action modal labels
+  document.getElementById('action-modal-title').textContent = isEN ? 'Log Action' : 'บันทึกการดำเนินการ';
+  document.getElementById('action-select-label').textContent = isEN ? 'Action Taken' : 'การดำเนินการ';
+  document.getElementById('opt-sent-home').textContent = isEN ? 'Sent Home' : 'ส่งกลับบ้าน (Sent Home)';
+  document.getElementById('opt-suspended').textContent = isEN ? 'Suspended' : 'พักงาน (Suspended)';
+  document.getElementById('opt-allowed').textContent = isEN ? 'Allowed to Work' : 'อนุญาตให้ทำงาน (Allowed)';
+  document.getElementById('action-note-label').textContent = isEN ? 'Notes' : 'หมายเหตุ';
+  document.getElementById('action-note-input').placeholder = isEN ? 'Reason or additional details...' : 'เหตุผลหรือรายละเอียดเพิ่มเติม...';
+  document.getElementById('action-cancel-btn').textContent = isEN ? 'Cancel' : 'ยกเลิก';
+  document.getElementById('action-save-btn').textContent = isEN ? 'Save' : 'บันทึก';
+
+  // Channel modal labels
+  document.getElementById('ch-kind-label').textContent = isEN ? 'Type' : 'ประเภท';
+  document.getElementById('ch-label-label').textContent = isEN ? 'Name / Description' : 'ชื่อ / คำอธิบาย';
+  document.getElementById('ch-label-input').placeholder = isEN ? 'e.g. LINE — Safety Team' : 'เช่น LINE — ทีมความปลอดภัย';
+  document.getElementById('ch-enabled-label').textContent = isEN ? 'Enabled' : 'เปิดใช้งาน';
+  document.getElementById('ch-cancel-btn').textContent = isEN ? 'Cancel' : 'ยกเลิก';
+  document.getElementById('ch-save-btn').textContent = isEN ? 'Save' : 'บันทึก';
+
   let activeTab = 'pending';
   let actionTestId = null;
 
@@ -141,10 +168,10 @@ if (!requireAdmin()) {} else {
     const todayResolved = tests.filter(t => t.action_taken && t.action_taken !== 'pending' && new Date(t.created_at) >= today);
     const todayFails = tests.filter(t => new Date(t.created_at) >= today);
     document.getElementById('stats').innerHTML = `
-      <div class="stat accent-red"><div class="label">รอดำเนินการ</div><div class="value">${pending.length}</div><div class="delta">ยังไม่ได้ตรวจสอบ</div></div>
-      <div class="stat"><div class="label">แก้ไขแล้ววันนี้</div><div class="value">${todayResolved.length}</div><div class="delta">${new Date().toLocaleDateString('th-TH',{day:'numeric',month:'short'})}</div></div>
-      <div class="stat accent-red"><div class="label">พบแอลกอฮอล์วันนี้</div><div class="value">${todayFails.length}</div><div class="delta">ทุกสถานที่</div></div>
-      <div class="stat accent-blue"><div class="label">ช่องทางแจ้งเตือน</div><div class="value">${DB.channels().filter(c=>c.enabled).length}</div><div class="delta">ใช้งานอยู่</div></div>
+      <div class="stat accent-red"><div class="label">${isEN ? 'Pending' : 'รอดำเนินการ'}</div><div class="value">${pending.length}</div><div class="delta">${isEN ? 'Not yet reviewed' : 'ยังไม่ได้ตรวจสอบ'}</div></div>
+      <div class="stat"><div class="label">${isEN ? 'Resolved Today' : 'แก้ไขแล้ววันนี้'}</div><div class="value">${todayResolved.length}</div><div class="delta">${new Date().toLocaleDateString(isEN ? 'en-GB' : 'th-TH',{day:'numeric',month:'short'})}</div></div>
+      <div class="stat accent-red"><div class="label">${isEN ? 'Alcohol Detected Today' : 'พบแอลกอฮอล์วันนี้'}</div><div class="value">${todayFails.length}</div><div class="delta">${isEN ? 'All locations' : 'ทุกสถานที่'}</div></div>
+      <div class="stat accent-blue"><div class="label">${isEN ? 'Notification Channels' : 'ช่องทางแจ้งเตือน'}</div><div class="value">${DB.channels().filter(c=>c.enabled).length}</div><div class="delta">${isEN ? 'Active' : 'ใช้งานอยู่'}</div></div>
     `;
     const pc = document.getElementById('pending-count-tab');
     if (pc) pc.innerHTML = pending.length ? `<span class="pill-dot" style="margin-left:4px">${pending.length}</span>` : '';
@@ -154,7 +181,7 @@ if (!requireAdmin()) {} else {
     const tests = DB.tests().filter(t => !t.is_zero && t.action_taken === 'pending');
     const el = document.getElementById('tab-pending');
     if (!tests.length) {
-      el.innerHTML = '<div class="empty"><div class="icon">✅</div>ไม่มีรายการรอดำเนินการ</div>';
+      el.innerHTML = `<div class="empty"><div class="icon">✅</div>${isEN ? 'No pending items' : 'ไม่มีรายการรอดำเนินการ'}</div>`;
       return;
     }
     el.innerHTML = tests.map(t => `
@@ -171,9 +198,9 @@ if (!requireAdmin()) {} else {
           <div class="tiny muted" style="margin:4px 0">${t.location_name} (${t.location_code}) · ${t.company}</div>
           <div style="margin:8px 0">${thresholdBadge(t)}</div>
           <div class="action-row">
-            <button class="btn btn-sm" onclick="openActionModal('${t.id}')">✍ บันทึกการดำเนินการ</button>
-            ${!t.retest_of ? `<a href="user-retest.html?test_id=${t.id}" class="btn btn-sm">🔁 ส่งตรวจซ้ำ</a>` : '<span class="action-chip action-pending">ตรวจซ้ำแล้ว</span>'}
-            <button class="btn btn-sm" onclick="viewTestDetail('${t.id}')">ดูรายละเอียด</button>
+            <button class="btn btn-sm" onclick="openActionModal('${t.id}')">✍ ${isEN ? 'Log Action' : 'บันทึกการดำเนินการ'}</button>
+            ${!t.retest_of ? `<a href="user-retest.html?test_id=${t.id}" class="btn btn-sm">🔁 ${isEN ? 'Send for Re-test' : 'ส่งตรวจซ้ำ'}</a>` : `<span class="action-chip action-pending">${isEN ? 'Re-tested' : 'ตรวจซ้ำแล้ว'}</span>`}
+            <button class="btn btn-sm" onclick="viewTestDetail('${t.id}')">${isEN ? 'View Details' : 'ดูรายละเอียด'}</button>
           </div>
         </div>
       </div>
@@ -184,13 +211,13 @@ if (!requireAdmin()) {} else {
     const tests = DB.tests().filter(t => !t.is_zero && t.action_taken && t.action_taken !== 'pending');
     const el = document.getElementById('tab-resolved');
     if (!tests.length) {
-      el.innerHTML = '<div class="empty"><div class="icon">📋</div>ยังไม่มีรายการที่ดำเนินการแล้ว</div>';
+      el.innerHTML = `<div class="empty"><div class="icon">📋</div>${isEN ? 'No resolved items yet' : 'ยังไม่มีรายการที่ดำเนินการแล้ว'}</div>`;
       return;
     }
     el.innerHTML = `
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>วันที่</th><th>ชื่อ</th><th>ผลตรวจ</th><th>การดำเนินการ</th><th>หมายเหตุ</th></tr></thead>
+          <thead><tr><th>${isEN ? 'Date' : 'วันที่'}</th><th>${isEN ? 'Name' : 'ชื่อ'}</th><th>${isEN ? 'Test Result' : 'ผลตรวจ'}</th><th>${isEN ? 'Action Taken' : 'การดำเนินการ'}</th><th>${isEN ? 'Notes' : 'หมายเหตุ'}</th></tr></thead>
           <tbody>
             ${tests.map(t => `
               <tr>
@@ -216,10 +243,10 @@ if (!requireAdmin()) {} else {
       <div class="card" style="margin-bottom:16px">
         <div class="card-header">
           <div>
-            <h2>ช่องทางแจ้งเตือน</h2>
-            <div class="muted small">เมื่อพบผลตรวจไม่ผ่าน ระบบจะส่งแจ้งเตือนผ่านช่องทางที่เปิดใช้งาน</div>
+            <h2>${isEN ? 'Notification Channels' : 'ช่องทางแจ้งเตือน'}</h2>
+            <div class="muted small">${isEN ? 'When a test fails, the system will send alerts via enabled channels.' : 'เมื่อพบผลตรวจไม่ผ่าน ระบบจะส่งแจ้งเตือนผ่านช่องทางที่เปิดใช้งาน'}</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openChModal()">+ เพิ่มช่องทาง</button>
+          <button class="btn btn-primary btn-sm" onclick="openChModal()">+ ${isEN ? 'Add Channel' : 'เพิ่มช่องทาง'}</button>
         </div>
         ${channels.length ? channels.map(c => `
           <div class="channel-row">
@@ -231,19 +258,19 @@ if (!requireAdmin()) {} else {
               </div>
             </div>
             <div class="row gap-sm">
-              <label class="switch" title="${c.enabled ? 'เปิดอยู่' : 'ปิดอยู่'}">
+              <label class="switch" title="${c.enabled ? (isEN ? 'Active' : 'เปิดอยู่') : (isEN ? 'Inactive' : 'ปิดอยู่')}">
                 <input type="checkbox" ${c.enabled ? 'checked' : ''} onchange="toggleChannel('${c.id}', this.checked)" />
                 <span class="slide"></span>
               </label>
-              <button class="btn btn-sm" onclick="openChModal(${JSON.stringify(c).replace(/"/g,'&quot;')})">แก้ไข</button>
-              <button class="btn btn-sm btn-danger" onclick="delChannel('${c.id}')">ลบ</button>
+              <button class="btn btn-sm" onclick="openChModal(${JSON.stringify(c).replace(/"/g,'&quot;')})">${isEN ? 'Edit' : 'แก้ไข'}</button>
+              <button class="btn btn-sm btn-danger" onclick="delChannel('${c.id}')">${isEN ? 'Delete' : 'ลบ'}</button>
             </div>
           </div>
-        `).join('') : '<div class="empty" style="padding:40px"><div class="icon">📣</div>ยังไม่มีช่องทางแจ้งเตือน</div>'}
+        `).join('') : `<div class="empty" style="padding:40px"><div class="icon">📣</div>${isEN ? 'No notification channels yet' : 'ยังไม่มีช่องทางแจ้งเตือน'}</div>`}
       </div>
       <div class="banner banner-info">
         <span class="banner-icon">ℹ️</span>
-        <div class="small">ใน production ให้เชื่อม LINE Notify Token หรือ Email SMTP จริง — ต้องทำผ่าน backend (Supabase Edge Function หรือ server) เนื่องจาก CORS restrictions</div>
+        <div class="small">${isEN ? 'In production, connect a real LINE Notify Token or Email SMTP — must be done via backend (Supabase Edge Function or server) due to CORS restrictions.' : 'ใน production ให้เชื่อม LINE Notify Token หรือ Email SMTP จริง — ต้องทำผ่าน backend (Supabase Edge Function หรือ server) เนื่องจาก CORS restrictions'}</div>
       </div>
     `;
   }
@@ -255,7 +282,10 @@ if (!requireAdmin()) {} else {
     return kind === 'line' ? '💬' : kind === 'email' ? '📧' : '🔔';
   }
   function actionLabel(a) {
-    return { 'sent-home': 'ส่งกลับบ้าน', 'suspended': 'พักงาน', 'allowed': 'อนุญาต', 'pending': 'รอดำเนินการ' }[a] || a;
+    const map = isEN
+      ? { 'sent-home': 'Sent Home', 'suspended': 'Suspended', 'allowed': 'Allowed', 'pending': 'Pending' }
+      : { 'sent-home': 'ส่งกลับบ้าน', 'suspended': 'พักงาน', 'allowed': 'อนุญาต', 'pending': 'รอดำเนินการ' };
+    return map[a] || a;
   }
 
   function openActionModal(id) {
@@ -276,7 +306,7 @@ if (!requireAdmin()) {} else {
     const action = document.getElementById('action-select').value;
     const note = document.getElementById('action-note-input').value.trim();
     DB.updateTest(actionTestId, { action_taken: action, action_note: note, action_by: currentUser()?.id }, currentUser());
-    showToast('บันทึกการดำเนินการเรียบร้อย');
+    showToast(isEN ? 'Action saved' : 'บันทึกการดำเนินการเรียบร้อย');
     closeActionModal();
     renderAll();
   }
@@ -288,7 +318,7 @@ if (!requireAdmin()) {} else {
   function openChModal(c) {
     const f = document.getElementById('ch-form');
     f.reset();
-    document.getElementById('ch-modal-title').textContent = c ? 'แก้ไขช่องทาง' : 'เพิ่มช่องทาง';
+    document.getElementById('ch-modal-title').textContent = c ? (isEN ? 'Edit Channel' : 'แก้ไขช่องทาง') : (isEN ? 'Add Channel' : 'เพิ่มช่องทาง');
     if (c) {
       f.id.value = c.id;
       f.kind.value = c.kind;
@@ -302,19 +332,19 @@ if (!requireAdmin()) {} else {
     e.preventDefault();
     const f = e.target;
     DB.upsertChannel({ id: f.id.value || undefined, kind: f.kind.value, label: f.label.value.trim(), target: f.target.value.trim(), enabled: f.enabled.checked });
-    showToast('บันทึกเรียบร้อย');
+    showToast(isEN ? 'Saved' : 'บันทึกเรียบร้อย');
     document.getElementById('ch-modal').classList.remove('show');
     renderChannels();
   }
   function toggleChannel(id, enabled) {
     const ch = DB.channels().find(c => c.id === id);
     if (ch) DB.upsertChannel({ ...ch, enabled });
-    showToast(enabled ? 'เปิดช่องทางแจ้งเตือน' : 'ปิดช่องทางแจ้งเตือน');
+    showToast(enabled ? (isEN ? 'Channel enabled' : 'เปิดช่องทางแจ้งเตือน') : (isEN ? 'Channel disabled' : 'ปิดช่องทางแจ้งเตือน'));
   }
   function delChannel(id) {
-    if (!confirm('ยืนยันการลบช่องทางแจ้งเตือนนี้?')) return;
+    if (!confirm(isEN ? 'Confirm delete this channel?' : 'ยืนยันการลบช่องทางแจ้งเตือนนี้?')) return;
     DB.deleteChannel(id);
-    showToast('ลบเรียบร้อย');
+    showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');
     renderChannels();
   }
 

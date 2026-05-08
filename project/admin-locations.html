@@ -17,11 +17,11 @@
       <div class="muted small" id="meta"></div>
     </div>
     <div class="row gap-sm">
-      <button class="btn" onclick="document.getElementById('import-csv').click()">📤 นำเข้า CSV</button>
+      <button class="btn" id="import-btn" onclick="document.getElementById('import-csv').click()"></button>
       <input id="import-csv" type="file" accept=".csv,text/csv" style="display:none" onchange="importCSV(event)" />
       <button class="btn btn-ghost" onclick="downloadTemplate()">📄 Template</button>
-      <button class="btn" onclick="downloadAllQR()">📥 ดาวน์โหลด QR ทั้งหมด</button>
-      <button class="btn btn-primary" onclick="openModal()">+ เพิ่มสถานที่</button>
+      <button class="btn" id="dl-all-btn" onclick="downloadAllQR()"></button>
+      <button class="btn btn-primary" id="add-loc-btn" onclick="openModal()"></button>
     </div>
   </div>
 
@@ -29,8 +29,8 @@
     <div class="row gap-md">
       <div style="font-size:20px">💡</div>
       <div>
-        <div style="font-weight:600; color:var(--brand); margin-bottom:4px">วิธีใช้งาน</div>
-        <div class="small" style="color:var(--brand)">แต่ละสถานที่จะถูก generate QR Code อัตโนมัติจาก URL <code style="font-family:var(--font-mono)">?location=QRxxx</code> — กดดาวน์โหลดเพื่อพิมพ์ติดที่จุดตรวจหน้างาน. ผู้ใช้สแกน QR แล้วระบบจะ lock ค่า location อัตโนมัติ ไม่สามารถแก้ไขได้</div>
+        <div style="font-weight:600; color:var(--brand); margin-bottom:4px" id="howto-title"></div>
+        <div class="small" style="color:var(--brand)" id="howto-desc"></div>
       </div>
     </div>
   </div>
@@ -42,40 +42,40 @@
 <div class="modal-backdrop" id="modal">
   <div class="modal">
     <div class="modal-header">
-      <h2 id="modal-title">เพิ่มสถานที่</h2>
+      <h2 id="modal-title"></h2>
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
     </div>
     <form id="form" onsubmit="save(event)">
       <div class="modal-body">
         <div class="col gap-md">
           <div class="field">
-            <label>รหัส (Code) <span style="color:var(--danger)">*</span></label>
-            <input class="input" name="code" required placeholder="เช่น QR013" />
-            <div class="hint">ใช้รูปแบบ QRxxx — ใช้ในส่วน URL <code>?location=...</code></div>
+            <label id="lbl-code"></label>
+            <input class="input" name="code" required placeholder="e.g. QR013" />
+            <div class="hint" id="hint-code"></div>
           </div>
           <div class="field">
-            <label>ชื่อสถานที่ <span style="color:var(--danger)">*</span></label>
-            <input class="input" name="name" required placeholder="เช่น ปทุมธานี" />
+            <label id="lbl-name"></label>
+            <input class="input" name="name" required id="input-name" />
           </div>
           <div class="field">
-            <label>ที่อยู่</label>
+            <label id="lbl-address"></label>
             <input class="input" name="address" />
           </div>
           <div class="grid-2">
             <div class="field">
-              <label>ผู้ติดต่อ</label>
+              <label id="lbl-contact"></label>
               <input class="input" name="contact" />
             </div>
             <div class="field">
-              <label>โทรศัพท์</label>
+              <label id="lbl-phone"></label>
               <input class="input" name="phone" />
             </div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">บันทึก</button>
+        <button type="button" class="btn" id="modal-cancel-btn" onclick="closeModal()"></button>
+        <button type="submit" class="btn btn-primary" id="modal-save-btn"></button>
       </div>
     </form>
   </div>
@@ -97,8 +97,8 @@
       <div style="margin-top:12px; padding:12px; background:var(--surface-2); border-radius:var(--r-md); word-break:break-all; font-family:var(--font-mono); font-size:12px; color:var(--text-muted); text-align:left" id="qr-url"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="copyQRLink()">📋 คัดลอกลิงก์</button>
-      <button class="btn btn-primary" onclick="downloadCurrentQR()">📥 ดาวน์โหลด PNG</button>
+      <button class="btn" id="copy-link-btn" onclick="copyQRLink()"></button>
+      <button class="btn btn-primary" id="dl-qr-btn" onclick="downloadCurrentQR()"></button>
     </div>
   </div>
 </div>
@@ -110,8 +110,30 @@
 DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('locations');
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
   let editingCode = null;
   let currentQR = null;
+
+  document.getElementById('import-btn').textContent = isEN ? '📤 Import CSV' : '📤 นำเข้า CSV';
+  document.getElementById('dl-all-btn').textContent = isEN ? '📥 Download All QR' : '📥 ดาวน์โหลด QR ทั้งหมด';
+  document.getElementById('add-loc-btn').textContent = isEN ? '+ Add Location' : '+ เพิ่มสถานที่';
+  document.getElementById('howto-title').textContent = isEN ? 'How to use' : 'วิธีใช้งาน';
+  document.getElementById('howto-desc').innerHTML = isEN
+    ? `Each location generates a QR Code automatically from the URL <code style="font-family:var(--font-mono)">?location=QRxxx</code> — download to print at the inspection point. Users scan the QR and the system locks the location automatically.`
+    : `แต่ละสถานที่จะถูก generate QR Code อัตโนมัติจาก URL <code style="font-family:var(--font-mono)">?location=QRxxx</code> — กดดาวน์โหลดเพื่อพิมพ์ติดที่จุดตรวจหน้างาน. ผู้ใช้สแกน QR แล้วระบบจะ lock ค่า location อัตโนมัติ ไม่สามารถแก้ไขได้`;
+
+  // Modal labels
+  document.getElementById('lbl-code').innerHTML = `${isEN ? 'Code' : 'รหัส (Code)'} <span style="color:var(--danger)">*</span>`;
+  document.getElementById('hint-code').textContent = isEN ? 'Use format QRxxx — used in URL ?location=...' : 'ใช้รูปแบบ QRxxx — ใช้ในส่วน URL ?location=...';
+  document.getElementById('lbl-name').innerHTML = `${isEN ? 'Location Name' : 'ชื่อสถานที่'} <span style="color:var(--danger)">*</span>`;
+  document.getElementById('input-name').placeholder = isEN ? 'e.g. Pathum Thani' : 'เช่น ปทุมธานี';
+  document.getElementById('lbl-address').textContent = isEN ? 'Address' : 'ที่อยู่';
+  document.getElementById('lbl-contact').textContent = isEN ? 'Contact Person' : 'ผู้ติดต่อ';
+  document.getElementById('lbl-phone').textContent = isEN ? 'Phone' : 'โทรศัพท์';
+  document.getElementById('modal-cancel-btn').textContent = isEN ? 'Cancel' : 'ยกเลิก';
+  document.getElementById('modal-save-btn').textContent = isEN ? 'Save' : 'บันทึก';
+  document.getElementById('copy-link-btn').textContent = isEN ? '📋 Copy Link' : '📋 คัดลอกลิงก์';
+  document.getElementById('dl-qr-btn').textContent = isEN ? '📥 Download PNG' : '📥 ดาวน์โหลด PNG';
 
   function userFormURL(code) {
     const base = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -143,7 +165,7 @@ if (!requireAdmin()) {} else {
 
   function render() {
     const locs = DB.locations();
-    document.getElementById('meta').textContent = `${locs.length} สถานที่`;
+    document.getElementById('meta').textContent = `${locs.length} ${isEN ? 'locations' : 'สถานที่'}`;
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
     locs.forEach(l => {
@@ -155,9 +177,9 @@ if (!requireAdmin()) {} else {
         <div class="code">${l.code}</div>
         ${l.address ? `<div class="tiny muted" style="margin-top:6px">${l.address}</div>` : ''}
         <div class="row gap-sm" style="margin-top:14px; justify-content:center">
-          <button class="btn btn-sm" onclick="openQRDetail('${l.code}')">ดู QR</button>
-          <button class="btn btn-sm" onclick="openModal('${l.code}')">แก้ไข</button>
-          <button class="btn btn-sm btn-danger" onclick="del('${l.code}')">ลบ</button>
+          <button class="btn btn-sm" onclick="openQRDetail('${l.code}')">${isEN ? 'View QR' : 'ดู QR'}</button>
+          <button class="btn btn-sm" onclick="openModal('${l.code}')">${isEN ? 'Edit' : 'แก้ไข'}</button>
+          <button class="btn btn-sm btn-danger" onclick="del('${l.code}')">${isEN ? 'Delete' : 'ลบ'}</button>
         </div>
       `;
       grid.appendChild(card);
@@ -167,7 +189,7 @@ if (!requireAdmin()) {} else {
 
   function openModal(code) {
     editingCode = code || null;
-    document.getElementById('modal-title').textContent = code ? 'แก้ไขสถานที่' : 'เพิ่มสถานที่';
+    document.getElementById('modal-title').textContent = code ? (isEN ? 'Edit Location' : 'แก้ไขสถานที่') : (isEN ? 'Add Location' : 'เพิ่มสถานที่');
     const form = document.getElementById('form');
     form.reset();
     if (code) {
@@ -196,14 +218,14 @@ if (!requireAdmin()) {} else {
       contact: form.contact.value.trim(),
       phone: form.phone.value.trim()
     });
-    showToast(editingCode ? 'แก้ไขเรียบร้อย' : 'เพิ่มเรียบร้อย');
+    showToast(editingCode ? (isEN ? 'Updated' : 'แก้ไขเรียบร้อย') : (isEN ? 'Added' : 'เพิ่มเรียบร้อย'));
     closeModal();
     render();
   }
   function del(code) {
-    if (!confirm(`ยืนยันการลบ ${code}?`)) return;
+    if (!confirm(isEN ? `Confirm delete ${code}?` : `ยืนยันการลบ ${code}?`)) return;
     DB.deleteLocation(code);
-    showToast('ลบเรียบร้อย');
+    showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');
     render();
   }
 
@@ -221,7 +243,7 @@ if (!requireAdmin()) {} else {
   }
   function copyQRLink() {
     navigator.clipboard.writeText(userFormURL(currentQR.code));
-    showToast('คัดลอกลิงก์เรียบร้อย');
+    showToast(isEN ? 'Link copied' : 'คัดลอกลิงก์เรียบร้อย');
   }
   function downloadCurrentQR() { downloadQR(currentQR); }
 
@@ -237,7 +259,7 @@ if (!requireAdmin()) {} else {
     ctx.fillRect(0, 0, c.width, 80);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 22px Sarabun, sans-serif';
-    ctx.fillText('สแกนเพื่อบันทึกผลตรวจแอลกอฮอล์', 30, 50);
+    ctx.fillText(isEN ? 'Scan to record alcohol test result' : 'สแกนเพื่อบันทึกผลตรวจแอลกอฮอล์', 30, 50);
     // qr
     const qrCanvas = document.createElement('canvas');
     renderQRToCanvas(qrCanvas, userFormURL(loc.code), 480);
@@ -259,7 +281,7 @@ if (!requireAdmin()) {} else {
     a.href = url; a.download = `qr-${loc.code}-${loc.name}.png`; a.click();
   }
   async function downloadAllQR() {
-    showToast('กำลังเตรียมไฟล์...');
+    showToast(isEN ? 'Preparing files...' : 'กำลังเตรียมไฟล์...');
     for (const l of DB.locations()) {
       await downloadQR(l);
       await new Promise(r => setTimeout(r, 200));
@@ -279,7 +301,7 @@ if (!requireAdmin()) {} else {
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = 'qr-locations-template.csv'; a.click();
-    showToast('ดาวน์โหลด Template เรียบร้อย');
+    showToast(isEN ? 'Template downloaded' : 'ดาวน์โหลด Template เรียบร้อย');
   }
   function parseCSV(text) {
     text = text.replace(/^\uFEFF/, '');
@@ -310,11 +332,11 @@ if (!requireAdmin()) {} else {
     reader.onload = () => {
       try {
         const rows = parseCSV(reader.result);
-        if (rows.length < 2) { alert('ไฟล์ว่างหรือไม่มีข้อมูล'); return; }
+        if (rows.length < 2) { alert(isEN ? 'File is empty or has no data' : 'ไฟล์ว่างหรือไม่มีข้อมูล'); return; }
         const headers = rows[0].map(h => h.trim().toLowerCase());
         const idx = (k) => headers.indexOf(k);
         const codeI = idx('code'), nameI = idx('name');
-        if (codeI < 0 || nameI < 0) { alert('CSV ต้องมีคอลัมน์ code และ name (ดู Template)'); return; }
+        if (codeI < 0 || nameI < 0) { alert(isEN ? 'CSV must have columns: code and name (see Template)' : 'CSV ต้องมีคอลัมน์ code และ name (ดู Template)'); return; }
         let added = 0, updated = 0;
         for (let r = 1; r < rows.length; r++) {
           const row = rows[r];
@@ -330,11 +352,11 @@ if (!requireAdmin()) {} else {
           });
           if (existing) updated++; else added++;
         }
-        showToast(`นำเข้าเรียบร้อย: เพิ่ม ${added}, อัพเดต ${updated}`);
+        showToast(isEN ? `Import complete: added ${added}, updated ${updated}` : `นำเข้าเรียบร้อย: เพิ่ม ${added}, อัพเดต ${updated}`);
         e.target.value = '';
         render();
       } catch (err) {
-        alert('ไม่สามารถอ่านไฟล์ได้: ' + err.message);
+        alert((isEN ? 'Cannot read file: ' : 'ไม่สามารถอ่านไฟล์ได้: ') + err.message);
       }
     };
     reader.readAsText(file, 'UTF-8');

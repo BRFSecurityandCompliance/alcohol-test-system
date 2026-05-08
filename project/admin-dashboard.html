@@ -49,8 +49,8 @@
 <div class="page">
   <div class="row between" style="margin-bottom:24px">
     <div>
-      <h1>แดชบอร์ด</h1>
-      <div class="muted small">ภาพรวมข้อมูลการตรวจแอลกอฮอล์</div>
+      <h1 id="page-title"></h1>
+      <div class="muted small" id="page-sub"></div>
     </div>
     <div class="muted small" id="now"></div>
   </div>
@@ -61,17 +61,17 @@
   <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px">
     <div class="card">
       <div class="card-header">
-        <h2>ผลตรวจ 7 วันล่าสุด</h2>
+        <h2 id="chart-title"></h2>
         <div class="row gap-sm">
-          <span class="legend-dot" style="background:var(--brand); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted">ผ่าน</span>
-          <span class="legend-dot" style="background:var(--danger); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted">ไม่ผ่าน</span>
+          <span class="legend-dot" style="background:var(--brand); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted" id="legend-pass"></span>
+          <span class="legend-dot" style="background:var(--danger); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted" id="legend-fail"></span>
         </div>
       </div>
       <div class="chart" id="chart"></div>
       <div style="margin-top:32px"></div>
     </div>
     <div class="card">
-      <div class="card-header"><h2>สัดส่วนผล</h2></div>
+      <div class="card-header"><h2 id="ratio-title"></h2></div>
       <div id="ratio"></div>
     </div>
   </div>
@@ -80,14 +80,14 @@
   <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px">
     <div class="card">
       <div class="card-header">
-        <h2>Top 5 สถานที่ (% ไม่ผ่าน)</h2>
-        <a href="admin-reports.html" class="btn btn-sm btn-ghost">รายงาน →</a>
+        <h2 id="top-sites-title"></h2>
+        <a href="admin-reports.html" class="btn btn-sm btn-ghost" id="reports-link"></a>
       </div>
       <div id="top-sites"></div>
     </div>
     <div class="card">
       <div class="card-header">
-        <h2>Top 5 แผนก (% ไม่ผ่าน)</h2>
+        <h2 id="top-depts-title"></h2>
       </div>
       <div id="top-depts"></div>
     </div>
@@ -96,12 +96,12 @@
   <!-- Row 3: Heatmap -->
   <div class="card" style="margin-bottom:16px">
     <div class="card-header">
-      <h2>Heatmap — ช่วงเวลาที่พบแอลกอฮอล์</h2>
-      <span class="muted small">7 วันล่าสุด × 24 ชั่วโมง</span>
+      <h2 id="heatmap-title"></h2>
+      <span class="muted small" id="heatmap-sub"></span>
     </div>
     <div id="heatmap" style="overflow-x:auto; padding-bottom:4px"></div>
     <div class="row gap-md" style="margin-top:12px; font-size:11px; color:var(--text-muted); justify-content:flex-end">
-      <span>น้อย</span>
+      <span id="hm-low"></span>
       <span style="display:flex;gap:3px">
         <span style="width:16px;height:16px;border-radius:2px;background:var(--surface-2);display:inline-block"></span>
         <span style="width:16px;height:16px;border-radius:2px;background:oklch(0.88 0.08 25);display:inline-block"></span>
@@ -109,20 +109,20 @@
         <span style="width:16px;height:16px;border-radius:2px;background:oklch(0.68 0.18 25);display:inline-block"></span>
         <span style="width:16px;height:16px;border-radius:2px;background:oklch(0.52 0.20 25);display:inline-block"></span>
       </span>
-      <span>มาก</span>
+      <span id="hm-high"></span>
     </div>
   </div>
 
   <!-- Row 4: Month comparison + Latest tests + Alerts -->
   <div style="display:grid; grid-template-columns:1fr 2fr; gap:16px; margin-bottom:16px">
     <div class="card">
-      <div class="card-header"><h2>เดือนนี้ vs เดือนที่แล้ว</h2></div>
+      <div class="card-header"><h2 id="month-compare-title"></h2></div>
       <div id="month-compare"></div>
     </div>
     <div class="card">
       <div class="card-header">
-        <h2>ผลตรวจล่าสุด</h2>
-        <a href="admin-tests.html" class="btn btn-sm">ดูทั้งหมด →</a>
+        <h2 id="latest-title"></h2>
+        <a href="admin-tests.html" class="btn btn-sm" id="view-all-btn"></a>
       </div>
       <div id="latest"></div>
     </div>
@@ -131,8 +131,8 @@
   <!-- Row 5: Pending alerts -->
   <div class="card" id="alert-card" style="margin-bottom:16px; display:none">
     <div class="card-header">
-      <h2 style="color:var(--danger)">⚠ รอดำเนินการ</h2>
-      <a href="admin-alerts.html" class="btn btn-sm btn-danger">ดูทั้งหมด →</a>
+      <h2 style="color:var(--danger)" id="alert-card-title"></h2>
+      <a href="admin-alerts.html" class="btn btn-sm btn-danger" id="alert-view-all-btn"></a>
     </div>
     <div id="pending-alerts"></div>
   </div>
@@ -145,7 +145,27 @@
 DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('dashboard');
-  document.getElementById('now').textContent = new Date().toLocaleDateString('th-TH', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
+
+  document.getElementById('page-title').textContent = isEN ? 'Dashboard' : 'แดชบอร์ด';
+  document.getElementById('page-sub').textContent = isEN ? 'Alcohol test data overview' : 'ภาพรวมข้อมูลการตรวจแอลกอฮอล์';
+  document.getElementById('now').textContent = new Date().toLocaleDateString(isEN ? 'en-GB' : 'th-TH', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  document.getElementById('chart-title').textContent = isEN ? 'Test Results — Last 7 Days' : 'ผลตรวจ 7 วันล่าสุด';
+  document.getElementById('legend-pass').textContent = isEN ? 'Pass' : 'ผ่าน';
+  document.getElementById('legend-fail').textContent = isEN ? 'Fail' : 'ไม่ผ่าน';
+  document.getElementById('ratio-title').textContent = isEN ? 'Result Ratio' : 'สัดส่วนผล';
+  document.getElementById('top-sites-title').textContent = isEN ? 'Top 5 Locations (% Fail)' : 'Top 5 สถานที่ (% ไม่ผ่าน)';
+  document.getElementById('reports-link').textContent = isEN ? 'Reports →' : 'รายงาน →';
+  document.getElementById('top-depts-title').textContent = isEN ? 'Top 5 Departments (% Fail)' : 'Top 5 แผนก (% ไม่ผ่าน)';
+  document.getElementById('heatmap-title').textContent = isEN ? 'Heatmap — Alcohol Detection Times' : 'Heatmap — ช่วงเวลาที่พบแอลกอฮอล์';
+  document.getElementById('heatmap-sub').textContent = isEN ? 'Last 7 days × 24 hours' : '7 วันล่าสุด × 24 ชั่วโมง';
+  document.getElementById('hm-low').textContent = isEN ? 'Low' : 'น้อย';
+  document.getElementById('hm-high').textContent = isEN ? 'High' : 'มาก';
+  document.getElementById('month-compare-title').textContent = isEN ? 'This Month vs Last Month' : 'เดือนนี้ vs เดือนที่แล้ว';
+  document.getElementById('latest-title').textContent = isEN ? 'Latest Test Results' : 'ผลตรวจล่าสุด';
+  document.getElementById('view-all-btn').textContent = isEN ? 'View all →' : 'ดูทั้งหมด →';
+  document.getElementById('alert-card-title').textContent = isEN ? '⚠ Pending' : '⚠ รอดำเนินการ';
+  document.getElementById('alert-view-all-btn').textContent = isEN ? 'View all →' : 'ดูทั้งหมด →';
 
   const tests = DB.tests();
   const today = new Date(); today.setHours(0,0,0,0);
@@ -160,11 +180,11 @@ if (!requireAdmin()) {} else {
 
   // Stats row
   document.getElementById('stats').innerHTML = `
-    <div class="stat accent-blue"><div class="label">ทั้งหมด</div><div class="value">${tests.length}</div><div class="delta">รวมทุกสถานที่</div></div>
-    <div class="stat accent-green"><div class="label">ผลเป็น 0%</div><div class="value">${zero}</div><div class="delta">${tests.length ? Math.round(zero/tests.length*100) : 0}% ของทั้งหมด</div></div>
-    <div class="stat accent-red"><div class="label">ตรวจพบแอลกอฮอล์</div><div class="value">${positive}</div><div class="delta">${tests.length ? Math.round(positive/tests.length*100) : 0}% ของทั้งหมด</div></div>
-    <div class="stat"><div class="label">วันนี้</div><div class="value">${todayTests.length}</div><div class="delta">${new Date().toLocaleDateString('th-TH',{day:'2-digit',month:'short'})}</div></div>
-    ${pending ? `<div class="stat accent-red"><div class="label">รอดำเนินการ</div><div class="value">${pending}</div><div class="delta"><a href="admin-alerts.html" style="color:var(--danger)">ดู Alert →</a></div></div>` : ''}
+    <div class="stat accent-blue"><div class="label">${isEN ? 'All' : 'ทั้งหมด'}</div><div class="value">${tests.length}</div><div class="delta">${isEN ? 'All locations' : 'รวมทุกสถานที่'}</div></div>
+    <div class="stat accent-green"><div class="label">${isEN ? 'Result 0%' : 'ผลเป็น 0%'}</div><div class="value">${zero}</div><div class="delta">${tests.length ? Math.round(zero/tests.length*100) : 0}% ${isEN ? 'of total' : 'ของทั้งหมด'}</div></div>
+    <div class="stat accent-red"><div class="label">${isEN ? 'Alcohol Detected' : 'ตรวจพบแอลกอฮอล์'}</div><div class="value">${positive}</div><div class="delta">${tests.length ? Math.round(positive/tests.length*100) : 0}% ${isEN ? 'of total' : 'ของทั้งหมด'}</div></div>
+    <div class="stat"><div class="label">${isEN ? 'Today' : 'วันนี้'}</div><div class="value">${todayTests.length}</div><div class="delta">${new Date().toLocaleDateString(isEN ? 'en-GB' : 'th-TH',{day:'2-digit',month:'short'})}</div></div>
+    ${pending ? `<div class="stat accent-red"><div class="label">${isEN ? 'Pending' : 'รอดำเนินการ'}</div><div class="value">${pending}</div><div class="delta"><a href="admin-alerts.html" style="color:var(--danger)">${isEN ? 'View Alerts →' : 'ดู Alert →'}</a></div></div>` : ''}
   `;
 
   // 7-day chart
@@ -173,7 +193,7 @@ if (!requireAdmin()) {} else {
     const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
     const next = new Date(d); next.setDate(next.getDate() + 1);
     const dayTests = tests.filter(t => { const td = new Date(t.created_at); return td >= d && td < next; });
-    days7.push({ label: d.toLocaleDateString('th-TH', {weekday:'short'}), pass: dayTests.filter(t=>t.is_zero).length, fail: dayTests.filter(t=>!t.is_zero).length });
+    days7.push({ label: d.toLocaleDateString(isEN ? 'en-GB' : 'th-TH', {weekday:'short'}), pass: dayTests.filter(t=>t.is_zero).length, fail: dayTests.filter(t=>!t.is_zero).length });
   }
   const maxBar = Math.max(...days7.map(d => d.pass + d.fail), 1);
   document.getElementById('chart').innerHTML = days7.map(d => {
@@ -196,15 +216,15 @@ if (!requireAdmin()) {} else {
   const total = tests.length || 1;
   document.getElementById('ratio').innerHTML = `
     <div style="margin-bottom:16px">
-      <div class="row between" style="margin-bottom:6px"><span class="small">ไม่พบแอลกอฮอล์</span><span class="small" style="font-weight:600;color:var(--success)">${zero}</span></div>
+      <div class="row between" style="margin-bottom:6px"><span class="small">${isEN ? 'No Alcohol' : 'ไม่พบแอลกอฮอล์'}</span><span class="small" style="font-weight:600;color:var(--success)">${zero}</span></div>
       <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${zero/total*100}%; background:var(--success); transition:width .4s ease"></div></div>
     </div>
     <div>
-      <div class="row between" style="margin-bottom:6px"><span class="small">ตรวจพบแอลกอฮอล์</span><span class="small" style="font-weight:600;color:var(--danger)">${positive}</span></div>
+      <div class="row between" style="margin-bottom:6px"><span class="small">${isEN ? 'Alcohol Detected' : 'ตรวจพบแอลกอฮอล์'}</span><span class="small" style="font-weight:600;color:var(--danger)">${positive}</span></div>
       <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${positive/total*100}%; background:var(--danger); transition:width .4s ease"></div></div>
     </div>
     <div class="divider"></div>
-    <div style="font-size:13px; font-weight:700; text-align:center; color:var(--success)">${Math.round(zero/total*100)}%<span class="muted" style="font-weight:400; font-size:12px; margin-left:4px">อัตราผ่าน</span></div>
+    <div style="font-size:13px; font-weight:700; text-align:center; color:var(--success)">${Math.round(zero/total*100)}%<span class="muted" style="font-weight:400; font-size:12px; margin-left:4px">${isEN ? 'pass rate' : 'อัตราผ่าน'}</span></div>
   `;
 
   // Top 5 sites by fail rate
@@ -219,7 +239,7 @@ if (!requireAdmin()) {} else {
     return Object.entries(grouped).filter(([,v]) => v.total >= 3).map(([k,v]) => ({ key: k, label: v.label, total: v.total, fail: v.fail, rate: Math.round(v.fail/v.total*100) })).sort((a,b) => b.rate - a.rate).slice(0, 5);
   }
   function renderRanking(containerId, items, maxRate) {
-    if (!items.length) { document.getElementById(containerId).innerHTML = '<div class="muted small" style="padding:12px 0">ข้อมูลไม่เพียงพอ (ต้องมีอย่างน้อย 3 ผลต่อกลุ่ม)</div>'; return; }
+    if (!items.length) { document.getElementById(containerId).innerHTML = `<div class="muted small" style="padding:12px 0">${isEN ? 'Insufficient data (at least 3 results per group required)' : 'ข้อมูลไม่เพียงพอ (ต้องมีอย่างน้อย 3 ผลต่อกลุ่ม)'}</div>`; return; }
     document.getElementById(containerId).innerHTML = items.map((item, i) => `
       <div class="rank-bar-row">
         <div class="rank-name" title="${item.label}"><span class="muted small" style="margin-right:4px">${i+1}.</span>${item.label}</div>
@@ -238,7 +258,9 @@ if (!requireAdmin()) {} else {
   renderRanking('top-depts', topDepts, maxDept);
 
   // Heatmap: 7 days × 24 hours (fail tests only)
-  const days = ['วันนี้','เมื่อวาน','2 วันก่อน','3 วันก่อน','4 วันก่อน','5 วันก่อน','6 วันก่อน'];
+  const days = isEN
+    ? ['Today','Yesterday','2 days ago','3 days ago','4 days ago','5 days ago','6 days ago']
+    : ['วันนี้','เมื่อวาน','2 วันก่อน','3 วันก่อน','4 วันก่อน','5 วันก่อน','6 วันก่อน'];
   const hmData = [];
   for (let d = 0; d < 7; d++) {
     const date = new Date(); date.setDate(date.getDate() - d); date.setHours(0,0,0,0);
@@ -265,7 +287,7 @@ if (!requireAdmin()) {} else {
     for (let h = 0; h < 24; h++) {
       const v = hmData[d][h];
       const lv = hmLevel(v);
-      hmHtml += `<div class="hm-cell" data-v="${lv}"${v ? ` data-tip="${v} ไม่ผ่าน ${h}:00"` : ''}></div>`;
+      hmHtml += `<div class="hm-cell" data-v="${lv}"${v ? ` data-tip="${v} ${isEN ? 'fail' : 'ไม่ผ่าน'} ${h}:00"` : ''}></div>`;
     }
   }
   hmHtml += '</div>';
@@ -284,31 +306,31 @@ if (!requireAdmin()) {} else {
   const countDiff = tmTotal - lmTotal;
   document.getElementById('month-compare').innerHTML = `
     <div style="text-align:center; margin-bottom:20px">
-      <div class="muted small" style="margin-bottom:4px">เดือนนี้</div>
+      <div class="muted small" style="margin-bottom:4px">${isEN ? 'This Month' : 'เดือนนี้'}</div>
       <div style="font-size:40px; font-weight:700; color:var(--brand)">${tmRate}%</div>
-      <div class="muted small">อัตราผ่าน (${tmTotal} ผลตรวจ)</div>
+      <div class="muted small">${isEN ? `Pass rate (${tmTotal} tests)` : `อัตราผ่าน (${tmTotal} ผลตรวจ)`}</div>
       <div style="margin-top:10px">
         <span class="delta-chip ${rateDiff > 0 ? 'delta-up' : rateDiff < 0 ? 'delta-down' : 'delta-same'}">
           ${rateDiff > 0 ? '▲' : rateDiff < 0 ? '▼' : '—'} ${Math.abs(rateDiff)}%
         </span>
-        <span class="muted small" style="margin-left:6px">vs เดือนที่แล้ว</span>
+        <span class="muted small" style="margin-left:6px">${isEN ? 'vs last month' : 'vs เดือนที่แล้ว'}</span>
       </div>
     </div>
     <div class="divider"></div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px">
       <div style="text-align:center">
-        <div class="muted small">เดือนที่แล้ว</div>
+        <div class="muted small">${isEN ? 'Last Month' : 'เดือนที่แล้ว'}</div>
         <div style="font-size:24px; font-weight:700; color:var(--text-muted)">${lmRate}%</div>
-        <div class="tiny muted">${lmTotal} ผลตรวจ</div>
+        <div class="tiny muted">${lmTotal} ${isEN ? 'tests' : 'ผลตรวจ'}</div>
       </div>
       <div style="text-align:center">
-        <div class="muted small">ผลตรวจรวม</div>
+        <div class="muted small">${isEN ? 'Total Tests' : 'ผลตรวจรวม'}</div>
         <div style="font-size:24px; font-weight:700">
           <span class="delta-chip ${countDiff > 0 ? 'delta-down' : 'delta-up'}" style="font-size:14px">
             ${countDiff > 0 ? '+' : ''}${countDiff}
           </span>
         </div>
-        <div class="tiny muted">เทียบเดือนที่แล้ว</div>
+        <div class="tiny muted">${isEN ? 'vs last month' : 'เทียบเดือนที่แล้ว'}</div>
       </div>
     </div>
   `;
@@ -324,7 +346,7 @@ if (!requireAdmin()) {} else {
       </div>
       ${thresholdBadge(t)}
     </div>
-  `).join('') : '<div class="empty"><div class="icon">📋</div>ยังไม่มีข้อมูล</div>';
+  `).join('') : `<div class="empty"><div class="icon">📋</div>${isEN ? 'No data found' : 'ยังไม่มีข้อมูล'}</div>`;
 
   // Pending alerts preview
   const pendingTests = tests.filter(t => !t.is_zero && t.action_taken === 'pending').slice(0, 4);
@@ -338,7 +360,7 @@ if (!requireAdmin()) {} else {
           <div class="tiny muted">${t.location_name} · ${timeAgo(t.created_at)}</div>
         </div>
         ${thresholdBadge(t)}
-        <a href="admin-alerts.html" class="btn btn-sm btn-danger">ดำเนินการ</a>
+        <a href="admin-alerts.html" class="btn btn-sm btn-danger">${isEN ? 'Take Action' : 'ดำเนินการ'}</a>
       </div>
     `).join('');
   }
