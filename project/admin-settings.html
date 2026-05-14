@@ -98,7 +98,7 @@
 <script src="data.js"></script>
 <script>
 DB.init().then(() => {
-if (!requireAdmin()) {} else {
+if (!requireAdmin() || !hasRole('super')) { location.href = 'admin-dashboard.html'; } else {
   document.getElementById('chrome').innerHTML = renderTopbar('settings');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
 

@@ -367,8 +367,9 @@ function setAdminAuth(v, userId) {
   if (!v) sessionStorage.removeItem('admin_user');
 }
 function currentUser() {
-  const id = sessionStorage.getItem('admin_user') || 'u1';
-  return DB.users().find(u => u.id === id) || DB.users()[0];
+  const id = sessionStorage.getItem('admin_user');
+  if (!id) return null;
+  return DB.users().find(u => u.id === id) || null;
 }
 function hasRole(...roles) {
   const u = currentUser();
