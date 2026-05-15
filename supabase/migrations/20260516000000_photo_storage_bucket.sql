@@ -2,7 +2,7 @@
 -- New submissions upload to Storage; old records retain base64 (backward compat)
 insert into storage.buckets (id, name, public)
 values ('test-photos', 'test-photos', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = true;
 
 -- Allow anon (employee form) to upload
 create policy "anon_upload_test_photos" on storage.objects

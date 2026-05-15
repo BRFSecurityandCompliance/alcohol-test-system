@@ -21,7 +21,7 @@
   <form id="form" class="col gap-md">
     <div class="field">
       <label id="lbl-user"></label>
-      <input class="input" type="text" name="username" required autocomplete="username" />
+      <input class="input" type="text" name="username" required autocomplete="username" autofocus placeholder="admin" />
     </div>
     <div class="field">
       <label id="lbl-pw"></label>
@@ -43,9 +43,9 @@ const isEN = (localStorage.getItem('lang')||'th') === 'en';
 document.getElementById('doc-title').textContent  = isEN ? 'Admin Login' : 'เข้าสู่ระบบแอดมิน';
 document.getElementById('lbl-title').textContent  = isEN ? 'Admin Login' : 'เข้าสู่ระบบแอดมิน';
 document.getElementById('lbl-sub').textContent    = isEN ? 'Alcohol Test System' : 'ระบบตรวจแอลกอฮอล์';
-document.getElementById('lbl-user').textContent   = isEN ? 'Name' : 'ชื่อผู้ใช้';
+document.getElementById('lbl-user').textContent   = isEN ? 'Username' : 'ชื่อผู้ใช้';
 document.getElementById('lbl-pw').textContent     = isEN ? 'Password' : 'รหัสผ่าน';
-document.getElementById('err').textContent        = isEN ? 'Incorrect name or password' : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+document.getElementById('err').textContent        = isEN ? 'Incorrect username or password' : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
 document.getElementById('btn-login').textContent  = isEN ? 'Login' : 'เข้าสู่ระบบ';
 document.getElementById('btn-back').textContent   = isEN ? '← Back to Home' : '← กลับหน้าหลัก';
 
@@ -57,14 +57,14 @@ document.getElementById('form').addEventListener('submit', async e => {
   btn.textContent = '⏳...';
   err.style.display = 'none';
 
-  const name = e.target.username.value.trim();
-  const pw   = e.target.password.value;
+  const username = e.target.username.value.trim();
+  const pw       = e.target.password.value;
 
   try {
     const res = await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, password: pw })
+      body: JSON.stringify({ username, password: pw })
     });
     if (res.ok) {
       const { token } = await res.json();

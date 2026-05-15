@@ -21,17 +21,17 @@ export default {
 
 async function handleAuth(request, env) {
   try {
-    const { name, password } = await request.json();
+    const { username, password } = await request.json();
     if (!password || password !== env.ADMIN_PASSWORD) {
       return Response.json({ error: 'Invalid credentials' }, { status: 401 });
     }
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/admin_users?name=eq.${encodeURIComponent(name)}&select=id,name,role,sites&limit=1`,
+      `${SUPABASE_URL}/rest/v1/admin_users?username=eq.${encodeURIComponent(username || '')}&select=id,name,role,sites&limit=1`,
       { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
     );
     const rows = await res.json();
     const user = Array.isArray(rows) ? rows[0] : null;
-    // Return same error for wrong password OR unknown user (prevents user enumeration)
+    // Same error for wrong password OR unknown user (prevents user enumeration)
     if (!user) return Response.json({ error: 'Invalid credentials' }, { status: 401 });
 
     const token = await signToken(
