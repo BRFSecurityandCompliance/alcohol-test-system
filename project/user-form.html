@@ -343,7 +343,10 @@ function renderForm() {
       photoData = await stampPhoto(ev.target.result);
       photoSlot.querySelector('.placeholder')?.remove();
       photoSlot.querySelector('img')?.remove();
-      const img = document.createElement('img'); img.src = photoData; photoSlot.appendChild(img);
+      const img = document.createElement('img');
+      img.onload = () => { photoSlot.style.aspectRatio = `${img.naturalWidth}/${img.naturalHeight}`; };
+      img.src = photoData;
+      photoSlot.appendChild(img);
       validate();
     };
     r.onerror = () => showToast(T('camera_only'));
