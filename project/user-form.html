@@ -195,7 +195,7 @@ function renderForm() {
           <div class="divider"></div>
           <button type="submit" class="btn btn-primary btn-lg btn-block" disabled id="submit-btn">${T('submit')}</button>
           <div style="text-align:center; margin-top:8px">
-            <a href="https://bevchain.co.th/th/pdpa-policy-th/" target="_blank" rel="noopener noreferrer" class="tiny" style="color:var(--text-muted); text-decoration:underline; text-underline-offset:2px">🔐 ${T('pdpa')}</a>
+            <a href="${lang === 'th' ? 'https://bevchain.co.th/th/pdpa-policy-th/' : 'https://bevchain.co.th/pdpa-policy/'}" target="_blank" rel="noopener noreferrer" class="tiny" style="color:var(--text-muted); text-decoration:underline; text-underline-offset:2px">🔐 ${T('pdpa')}</a>
           </div>
         </form>
       </div>
