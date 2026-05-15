@@ -1,6 +1,6 @@
 name = "alcohol-test-system"
 main = "worker.js"
-compatibility_date = "2025-05-01"
+compatibility_date = "2026-05-15"
 
 [vars]
 SUPABASE_URL = "https://qgkevfikehdoufjcubcm.supabase.co"
