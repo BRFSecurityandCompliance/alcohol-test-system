@@ -26,8 +26,12 @@
       <h1 id="page-title"></h1>
       <div class="muted small" id="page-sub"></div>
     </div>
-    <div class="row gap-sm">
-      <input class="input" id="search" style="max-width:280px" oninput="renderPersons()" />
+    <div class="row gap-sm" style="flex-wrap:wrap">
+      <input class="input" id="search" style="max-width:220px" oninput="renderPersons()" />
+      <button class="btn btn-ghost btn-sm" id="template-btn" onclick="downloadTemplate()"></button>
+      <button class="btn btn-ghost btn-sm" id="export-btn" onclick="exportCSV()"></button>
+      <button class="btn btn-ghost btn-sm" id="import-btn" onclick="document.getElementById('csv-input').click()"></button>
+      <input type="file" id="csv-input" accept=".csv,text/csv" style="display:none" onchange="importCSV(this)" />
       <button class="btn btn-primary" id="add-btn" onclick="openModal()"></button>
     </div>
   </div>
@@ -119,7 +123,13 @@ if (!requireAdmin()) {} else {
   document.getElementById('page-sub').textContent = isEN ? 'Employee list, test history, and watchlist' : 'รายชื่อพนักงาน ประวัติการตรวจ และรายการเฝ้าระวัง';
   document.getElementById('search').placeholder = isEN ? 'Search name / ID' : 'ค้นหาชื่อ / รหัส';
   document.getElementById('add-btn').textContent = isEN ? '+ Add Employee' : '+ เพิ่มพนักงาน';
-  if (!canMutate) document.getElementById('add-btn').style.display = 'none';
+  document.getElementById('template-btn').textContent = isEN ? '📋 Template' : '📋 Template';
+  document.getElementById('export-btn').textContent = isEN ? '📤 Export CSV' : '📤 Export CSV';
+  document.getElementById('import-btn').textContent = isEN ? '📥 Import CSV' : '📥 Import CSV';
+  if (!canMutate) {
+    document.getElementById('add-btn').style.display = 'none';
+    document.getElementById('import-btn').style.display = 'none';
+  }
   document.getElementById('tab-btn-persons').textContent = isEN ? 'Employee Registry' : 'ทะเบียนพนักงาน';
 
   // Modal labels
@@ -319,7 +329,81 @@ if (!requireAdmin()) {} else {
     renderPersons();
   }
 
-  Object.assign(window, { switchTab, openModal, closeModal, save, del, viewHistory, removeWL, renderPersons });
+  const CSV_HEADERS = ['employee_id', 'full_name', 'department', 'company', 'plate_number', 'phone'];
+
+  function csvEscape(v) {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  function downloadTemplate() {
+    const example = ['EMP001', isEN ? 'John Smith' : 'สมชาย ใจดี', 'Production', isEN ? 'BRF Co. Ltd.' : 'บริษัท ตัวอย่าง จำกัด', '70-1234', '081-000-0001'];
+    const rows = [CSV_HEADERS.join(','), example.map(csvEscape).join(',')];
+    triggerCSVDownload(rows.join('\r\n'), 'employee_template.csv');
+  }
+
+  function exportCSV() {
+    const persons = DB.persons();
+    if (!persons.length) { showToast(isEN ? 'No data to export' : 'ไม่มีข้อมูลให้ Export'); return; }
+    const rows = [CSV_HEADERS.join(','), ...persons.map(p => CSV_HEADERS.map(h => csvEscape(p[h])).join(','))];
+    triggerCSVDownload(rows.join('\r\n'), `employees_${new Date().toISOString().slice(0,10)}.csv`);
+    showToast(isEN ? `Exported ${persons.length} records` : `Export ${persons.length} รายการแล้ว`);
+  }
+
+  function triggerCSVDownload(content, filename) {
+    const blob = new Blob(['﻿' + content], { type: 'text/csv;charset=utf-8;' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: filename });
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  function importCSV(input) {
+    if (!canMutate || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const lines = e.target.result.replace(/\r/g, '').split('\n').filter(l => l.trim());
+        const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+        const idCol = header.indexOf('employee_id');
+        const nameCol = header.indexOf('full_name');
+        if (idCol < 0 || nameCol < 0) {
+          showToast(isEN ? 'CSV missing required columns: employee_id, full_name' : 'CSV ขาดคอลัมน์ที่จำเป็น: employee_id, full_name');
+          return;
+        }
+        const parseRow = (line) => {
+          const cols = []; let cur = ''; let inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            if (line[i] === '"' && !inQ) { inQ = true; }
+            else if (line[i] === '"' && inQ && line[i+1] === '"') { cur += '"'; i++; }
+            else if (line[i] === '"' && inQ) { inQ = false; }
+            else if (line[i] === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+            else { cur += line[i]; }
+          }
+          cols.push(cur.trim());
+          return cols;
+        };
+        const getCol = (cols, key) => { const i = header.indexOf(key); return i >= 0 ? (cols[i] || '').trim() : ''; };
+        let imported = 0, skipped = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parseRow(lines[i]);
+          const empId = getCol(cols, 'employee_id');
+          const fullName = getCol(cols, 'full_name');
+          if (!empId || !fullName) { skipped++; continue; }
+          DB.upsertPerson({
+            employee_id: empId, full_name: fullName,
+            department: getCol(cols, 'department'), company: getCol(cols, 'company'),
+            plate_number: getCol(cols, 'plate_number'), phone: getCol(cols, 'phone')
+          });
+          imported++;
+        }
+        showToast(isEN ? `Imported ${imported} records${skipped ? `, skipped ${skipped}` : ''}` : `Import ${imported} รายการ${skipped ? ` (ข้าม ${skipped})` : ''} เสร็จแล้ว`);
+        renderPersons();
+      } catch { showToast(isEN ? 'Failed to parse CSV' : 'ไม่สามารถอ่านไฟล์ CSV ได้'); }
+      input.value = '';
+    };
+    reader.readAsText(input.files[0], 'UTF-8');
+  }
+
+  Object.assign(window, { switchTab, openModal, closeModal, save, del, viewHistory, removeWL, renderPersons, downloadTemplate, exportCSV, importCSV });
   renderPersons();
   renderWatchlist();
 }
