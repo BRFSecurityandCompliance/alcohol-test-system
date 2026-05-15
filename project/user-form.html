@@ -420,15 +420,17 @@ function renderForm() {
         device_serial: device?.serial || '',
         retest_of: retestOf
       };
-      const t = DB.addTest(payload);
+      const newTest = DB.addTest(payload);
+      // Wait for Supabase INSERT to complete (max 5s) before navigating away
+      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 5000))]);
       // Mark original as completed if this was a retest
       if (retestOf) DB.updateTest(retestOf, { retest_status: 'completed' });
       // Trigger retest flow if not zero
       if (!isZero && !retestOf) {
         const lvl = getThresholdLevel(payload.alcohol_value, payload.department);
         if (lvl.level !== 'pass') {
-          DB.updateTest(t.id, { retest_status: 'required' });
-          location.href = `user-retest.html?test_id=${t.id}`;
+          DB.updateTest(newTest.id, { retest_status: 'required' });
+          location.href = `user-retest.html?test_id=${newTest.id}`;
           return;
         }
       }

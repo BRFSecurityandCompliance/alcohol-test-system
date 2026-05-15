@@ -637,8 +637,9 @@ DB.init = async function() {
 const _rawAddTest = DB.addTest.bind(DB);
 DB.addTest = function(t) {
   const enriched = _rawAddTest({ ...t, id: _genUUID() });
+  enriched._sync = Promise.resolve();
   if (typeof _sb !== 'undefined') {
-    _dbClient().from('tests').insert({
+    enriched._sync = _dbClient().from('tests').insert({
       id: enriched.id,
       employee_id: enriched.employee_id || '',
       full_name: enriched.full_name,
