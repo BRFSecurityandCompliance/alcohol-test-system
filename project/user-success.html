@@ -22,7 +22,6 @@
   <div class="card" style="text-align:left; margin-bottom:16px" id="summary"></div>
 
   <a href="#" id="again" class="btn btn-primary btn-block btn-lg">บันทึกผลถัดไป</a>
-  <a href="index.html" class="btn btn-ghost btn-block" style="margin-top:8px">กลับหน้าหลัก</a>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -46,7 +45,6 @@ document.title = isEN ? 'Submitted Successfully' : 'ส่งข้อมูล�
 document.querySelector('h1').textContent = isEN ? 'Submitted Successfully' : 'ส่งข้อมูลเรียบร้อย';
 document.querySelector('p.muted').textContent = isEN ? 'Your test result has been recorded. Thank you for your cooperation.' : 'ข้อมูลผลตรวจของคุณถูกบันทึกในระบบแล้ว ขอบคุณที่ให้ความร่วมมือ';
 document.getElementById('again').textContent = isEN ? 'Next person' : 'บันทึกผลถัดไป';
-document.querySelector('a[href="index.html"]').textContent = T('back_home');
 
 // Find the most recent test from this location (just submitted)
 const recentTest = DB.tests().find(t => t.location_code === code);

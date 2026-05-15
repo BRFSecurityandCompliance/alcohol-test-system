@@ -22,7 +22,13 @@
       <h1 id="page-title"></h1>
       <div class="muted small" id="meta"></div>
     </div>
-    <button class="btn btn-primary" id="add-dev-btn" onclick="openModal()"></button>
+    <div class="row gap-sm">
+      <button class="btn btn-ghost btn-sm" id="template-btn" onclick="downloadTemplate()"></button>
+      <button class="btn btn-ghost btn-sm" id="export-btn" onclick="exportCSV()"></button>
+      <button class="btn btn-ghost btn-sm" id="import-btn" onclick="document.getElementById('csv-input').click()"></button>
+      <input type="file" id="csv-input" accept=".csv,text/csv" style="display:none" onchange="importCSV(this)" />
+      <button class="btn btn-primary" id="add-dev-btn" onclick="openModal()"></button>
+    </div>
   </div>
 
   <div id="banners"></div>
@@ -111,6 +117,10 @@ if (!requireAdmin()) {} else {
 
   document.getElementById('page-title').textContent = isEN ? 'Alcohol Test Devices' : 'เครื่องตรวจแอลกอฮอล์';
   document.getElementById('add-dev-btn').textContent = isEN ? '+ Add Device' : '+ เพิ่มเครื่องตรวจ';
+  document.getElementById('template-btn').textContent = isEN ? '📋 Template' : '📋 Template';
+  document.getElementById('export-btn').textContent = isEN ? '📤 Export CSV' : '📤 Export CSV';
+  document.getElementById('import-btn').textContent = isEN ? '📥 Import CSV' : '📥 Import CSV';
+  if (!canMutate) document.getElementById('import-btn').style.display = 'none';
   document.getElementById('th-asset').textContent = 'Asset No.';
   document.getElementById('lbl-asset').textContent = 'Asset No.';
   document.getElementById('th-model').textContent = isEN ? 'Model' : 'รุ่น';
@@ -242,7 +252,69 @@ if (!requireAdmin()) {} else {
     render();
   }
 
-  Object.assign(window, { openModal, closeModal, save, del });
+  const CSV_HEADERS = ['serial', 'asset_no', 'model', 'location_code', 'last_calibrated', 'next_calibration'];
+  function csvEsc(v) { const s = String(v ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s; }
+
+  function downloadTemplate() {
+    const ex = ['BT-AL7-0001', 'AST-00001', 'AlcoSense AL7000', 'LOC001', '2026-01-15', '2027-01-15'];
+    triggerDownload([CSV_HEADERS.join(','), ex.map(csvEsc).join(',')].join('\r\n'), 'device_template.csv');
+  }
+  function exportCSV() {
+    const devs = DB.devices();
+    if (!devs.length) { showToast(isEN ? 'No data to export' : 'ไม่มีข้อมูลให้ Export'); return; }
+    const rows = [CSV_HEADERS.join(','), ...devs.map(d => CSV_HEADERS.map(h => csvEsc(d[h])).join(','))];
+    triggerDownload(rows.join('\r\n'), `devices_${new Date().toISOString().slice(0,10)}.csv`);
+    showToast(isEN ? `Exported ${devs.length} devices` : `Export ${devs.length} เครื่องแล้ว`);
+  }
+  function triggerDownload(content, filename) {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob(['﻿'+content], {type:'text/csv;charset=utf-8;'})), download: filename });
+    a.click(); URL.revokeObjectURL(a.href);
+  }
+  function importCSV(input) {
+    if (!canMutate || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const lines = e.target.result.replace(/\r/g,'').split('\n').filter(l => l.trim());
+        const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
+        const serialCol = header.indexOf('serial');
+        if (serialCol < 0) { showToast(isEN ? 'CSV missing required column: serial' : 'CSV ขาดคอลัมน์: serial'); return; }
+        const parse = (line) => {
+          const cols = []; let cur = ''; let inQ = false;
+          for (let i = 0; i < line.length; i++) {
+            if (line[i]==='"' && !inQ) inQ=true;
+            else if (line[i]==='"' && inQ && line[i+1]==='"') { cur+='"'; i++; }
+            else if (line[i]==='"' && inQ) inQ=false;
+            else if (line[i]===',' && !inQ) { cols.push(cur.trim()); cur=''; }
+            else cur+=line[i];
+          }
+          cols.push(cur.trim()); return cols;
+        };
+        const get = (cols, key) => { const i = header.indexOf(key); return i >= 0 ? (cols[i]||'').trim() : ''; };
+        let imported = 0, skipped = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parse(lines[i]);
+          const serial = get(cols, 'serial');
+          const model = get(cols, 'model');
+          if (!serial) { skipped++; continue; }
+          const existing = DB.devices().find(d => d.serial === serial);
+          DB.upsertDevice({
+            ...(existing ? { id: existing.id } : {}),
+            serial, model: model || existing?.model || '', asset_no: get(cols,'asset_no'),
+            location_code: get(cols,'location_code'), last_calibrated: get(cols,'last_calibrated'),
+            next_calibration: get(cols,'next_calibration')
+          });
+          imported++;
+        }
+        showToast(isEN ? `Imported ${imported} devices${skipped?`, skipped ${skipped}`:''}` : `Import ${imported} เครื่อง${skipped?` (ข้าม ${skipped})`:''}  เสร็จแล้ว`);
+        render();
+      } catch { showToast(isEN ? 'Failed to parse CSV' : 'ไม่สามารถอ่านไฟล์ CSV ได้'); }
+      input.value = '';
+    };
+    reader.readAsText(input.files[0], 'UTF-8');
+  }
+
+  Object.assign(window, { openModal, closeModal, save, del, downloadTemplate, exportCSV, importCSV });
   render();
   DB.startPolling(render, 5000);
 }
