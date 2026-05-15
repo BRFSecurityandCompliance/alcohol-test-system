@@ -257,7 +257,7 @@ const DB = {
   get all() { return loadDB(); },
   locations() { return loadDB().locations; },
   companies() { return loadDB().companies; },
-  tests() { return loadDB().tests; },
+  tests() { return loadDB().tests.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); },
   devices() { return loadDB().devices; },
   users() { return loadDB().users; },
   persons() { return loadDB().persons; },
