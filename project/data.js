@@ -326,7 +326,13 @@ const DB = {
 
   // Person history
   testsByPerson(name) { return loadDB().tests.filter(t => t.full_name === name); },
-  testsByEmployee(empId) { return loadDB().tests.filter(t => t.employee_id === empId); }
+  testsByEmployee(empId) { return loadDB().tests.filter(t => t.employee_id === empId); },
+
+  startPolling(renderFn, ms = 5000) {
+    if (DB._pollTimer) clearInterval(DB._pollTimer);
+    DB._pollTimer = setInterval(() => DB.init().then(renderFn), ms);
+    window.addEventListener('pagehide', () => clearInterval(DB._pollTimer));
+  }
 };
 
 // ===== Helpers =====

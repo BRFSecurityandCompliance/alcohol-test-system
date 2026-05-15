@@ -161,6 +161,7 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
   }
   window.apply = apply; window.reset = reset; window.exportCSV = exportCSV;
   render();
+  DB.startPolling(render, 5000);
 }
 }); // DB.init
 </script>

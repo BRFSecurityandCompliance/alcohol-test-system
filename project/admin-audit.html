@@ -162,6 +162,7 @@ if (!requireAdmin() || !hasRole('super', 'auditor')) { location.href = 'admin-da
   window.render = render;
   window.exportAudit = exportAudit;
   render();
+  DB.startPolling(render, 5000);
 }
 }); // DB.init
 </script>
