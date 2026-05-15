@@ -369,7 +369,7 @@ const I18N = {
 function t(key, lang) { return (I18N[lang || localStorage.getItem('lang') || 'th'] || I18N.th)[key] || I18N.th[key] || key; }
 
 // ===== Auth =====
-const ADMIN_PASSWORD = 'admin1234';
+const ADMIN_PASSWORD = 'sc0000';
 
 // Session idle timeout — 2 hours of inactivity logs out admin
 (function() {
