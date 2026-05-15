@@ -368,8 +368,33 @@ const I18N = {
 };
 function t(key, lang) { return (I18N[lang || localStorage.getItem('lang') || 'th'] || I18N.th)[key] || I18N.th[key] || key; }
 
+// ===== Admin Supabase client (routes through Cloudflare Worker with service_role) =====
+let _sbAdmin = null;
+function _getAdminClient() {
+  if (_sbAdmin) return _sbAdmin;
+  _sbAdmin = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: {
+      fetch: (url, opts = {}) => {
+        const path  = String(url).replace(SUPABASE_URL, '');
+        const token = sessionStorage.getItem('admin_token') || '';
+        const hdrs  = new Headers(opts.headers || {});
+        hdrs.delete('apikey');
+        hdrs.delete('Authorization');
+        hdrs.set('X-Admin-Token', token);
+        return fetch('/api/admin' + path, { ...opts, headers: hdrs });
+      }
+    },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  return _sbAdmin;
+}
+// Returns admin client when logged in, anon client otherwise
+function _dbClient() {
+  return sessionStorage.getItem('admin_token') ? _getAdminClient() : _sb;
+}
+
 // ===== Auth =====
-const ADMIN_PASSWORD = 'sc0000';
+const ADMIN_PASSWORD = 'sc0000'; // fallback for local dev without Worker
 
 // Session idle timeout — 2 hours of inactivity logs out admin
 (function() {
@@ -387,11 +412,34 @@ const ADMIN_PASSWORD = 'sc0000';
   ['click','keydown','touchstart','scroll'].forEach(ev => document.addEventListener(ev, _resetIdle, { passive: true }));
   _resetIdle();
 })();
-function isAdminAuthed() { return sessionStorage.getItem('admin_auth') === '1'; }
+function isAdminAuthed() {
+  const token = sessionStorage.getItem('admin_token');
+  if (token) {
+    try {
+      const p = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (p.exp && p.exp > Date.now()) return true;
+    } catch {}
+  }
+  return sessionStorage.getItem('admin_auth') === '1'; // legacy fallback
+}
 function setAdminAuth(v, userId) {
-  sessionStorage.setItem('admin_auth', v ? '1' : '0');
-  if (v && userId) sessionStorage.setItem('admin_user', userId);
-  if (!v) sessionStorage.removeItem('admin_user');
+  if (!v) {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
+    sessionStorage.setItem('admin_auth', '0');
+  } else if (typeof v === 'string') {
+    // v is a signed JWT from Worker
+    sessionStorage.setItem('admin_token', v);
+    try {
+      const p = JSON.parse(atob(v.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (p.uid) sessionStorage.setItem('admin_user', p.uid);
+    } catch {}
+    sessionStorage.setItem('admin_auth', '1');
+  } else {
+    // legacy boolean (local dev / fallback)
+    sessionStorage.setItem('admin_auth', '1');
+    if (userId) sessionStorage.setItem('admin_user', userId);
+  }
 }
 function currentUser() {
   const id = sessionStorage.getItem('admin_user');
@@ -520,16 +568,16 @@ DB.init = async function() {
       { data: channels }, { data: audit }, { data: watchl },
       { data: sett }
     ] = await Promise.all([
-      _sb.from('locations').select('*').order('code'),
-      _sb.from('companies').select('*').order('name'),
-      _sb.from('tests').select('*').order('created_at', { ascending: false }),
-      _sb.from('devices').select('*'),
-      _sb.from('admin_users').select('*'),
-      _sb.from('persons').select('*'),
-      _sb.from('alert_channels').select('*'),
-      _sb.from('audit_log').select('*').order('created_at', { ascending: false }).limit(500),
-      _sb.from('watchlist').select('*'),
-      _sb.from('settings').select('*').single()
+      _dbClient().from('locations').select('*').order('code'),
+      _dbClient().from('companies').select('*').order('name'),
+      _dbClient().from('tests').select('*').order('created_at', { ascending: false }),
+      _dbClient().from('devices').select('*'),
+      _dbClient().from('admin_users').select('*'),
+      _dbClient().from('persons').select('*'),
+      _dbClient().from('alert_channels').select('*'),
+      _dbClient().from('audit_log').select('*').order('created_at', { ascending: false }).limit(500),
+      _dbClient().from('watchlist').select('*'),
+      _dbClient().from('settings').select('*').single()
     ]);
     const db = {
       locations: locs || [],
@@ -574,7 +622,7 @@ const _rawAddTest = DB.addTest.bind(DB);
 DB.addTest = function(t) {
   const enriched = _rawAddTest({ ...t, id: _genUUID() });
   if (typeof _sb !== 'undefined') {
-    _sb.from('tests').insert({
+    _dbClient().from('tests').insert({
       id: enriched.id,
       employee_id: enriched.employee_id || '',
       full_name: enriched.full_name,
@@ -603,7 +651,7 @@ const _rawDeleteTest = DB.deleteTest.bind(DB);
 DB.deleteTest = function(id, actor) {
   _rawDeleteTest(id, actor);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    _sb.from('tests').delete().eq('id', id)
+    _dbClient().from('tests').delete().eq('id', id)
       .then(({ error }) => { if (error) console.warn('[DB.deleteTest]', error.message); });
   }
 };
@@ -616,11 +664,11 @@ DB.updateTest = function(id, patch, actor) {
     const row = {};
     cols.forEach(k => { if (patch[k] !== undefined) row[k] = patch[k]; });
     if (Object.keys(row).length) {
-      _sb.from('tests').update(row).eq('id', id)
+      _dbClient().from('tests').update(row).eq('id', id)
         .then(({ error }) => { if (error) console.warn('[DB.updateTest]', error.message); });
     }
     if (actor) {
-      _sb.from('audit_log').insert({
+      _dbClient().from('audit_log').insert({
         id: _genUUID(), actor_id: _isUUID(actor.id) ? actor.id : null,
         actor_name: actor.name || 'Admin', action: 'update_test',
         target: id, detail: `แก้ไข: ${Object.keys(patch).join(', ')}`
@@ -635,7 +683,7 @@ DB.upsertLocation = function(loc) {
   if (i >= 0) db.locations[i] = loc; else db.locations.push(loc);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _sb.from('locations').upsert(loc, { onConflict: 'code' })
+    _dbClient().from('locations').upsert(loc, { onConflict: 'code' })
       .then(({ error }) => { if (error) console.warn('[DB.upsertLocation]', error.message); });
   }
 };
@@ -645,7 +693,7 @@ DB.deleteLocation = function(code) {
   db.locations = db.locations.filter(l => l.code !== code);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _sb.from('locations').delete().eq('code', code)
+    _dbClient().from('locations').delete().eq('code', code)
       .then(({ error }) => { if (error) console.warn('[DB.deleteLocation]', error.message); });
   }
 };
@@ -658,7 +706,7 @@ DB.upsertCompany = function(c) {
   else db.companies.push({ id, name: c.name });
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _sb.from('companies').upsert({ id, name: c.name }, { onConflict: 'id' })
+    _dbClient().from('companies').upsert({ id, name: c.name }, { onConflict: 'id' })
       .then(({ error }) => { if (error) console.warn('[DB.upsertCompany]', error.message); });
   }
 };
@@ -668,7 +716,7 @@ DB.deleteCompany = function(id) {
   db.companies = db.companies.filter(c => c.id !== id);
   saveDB(db);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    _sb.from('companies').delete().eq('id', id)
+    _dbClient().from('companies').delete().eq('id', id)
       .then(({ error }) => { if (error) console.warn('[DB.deleteCompany]', error.message); });
   }
 };
@@ -682,7 +730,7 @@ DB.upsertDevice = function(d) {
   saveDB(db);
   if (typeof _sb !== 'undefined') {
     const { status, ...sbRow } = row;
-    _sb.from('devices').upsert(sbRow, { onConflict: 'id' })
+    _dbClient().from('devices').upsert(sbRow, { onConflict: 'id' })
       .then(({ error }) => { if (error) console.warn('[DB.upsertDevice]', error.message); });
   }
 };
@@ -692,7 +740,7 @@ DB.deleteDevice = function(id) {
   db.devices = db.devices.filter(d => d.id !== id);
   saveDB(db);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    _sb.from('devices').delete().eq('id', id)
+    _dbClient().from('devices').delete().eq('id', id)
       .then(({ error }) => { if (error) console.warn('[DB.deleteDevice]', error.message); });
   }
 };
@@ -705,7 +753,7 @@ DB.upsertUser = function(u) {
   if (i >= 0) db.users[i] = row; else db.users.push(row);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _sb.from('admin_users').upsert(row, { onConflict: 'id' })
+    _dbClient().from('admin_users').upsert(row, { onConflict: 'id' })
       .then(({ error }) => { if (error) console.warn('[DB.upsertUser]', error.message); });
   }
 };
@@ -715,7 +763,7 @@ DB.deleteUser = function(id) {
   db.users = db.users.filter(u => u.id !== id);
   saveDB(db);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    _sb.from('admin_users').delete().eq('id', id)
+    _dbClient().from('admin_users').delete().eq('id', id)
       .then(({ error }) => { if (error) console.warn('[DB.deleteUser]', error.message); });
   }
 };
@@ -728,7 +776,7 @@ DB.upsertChannel = function(c) {
   if (i >= 0) db.channels[i] = row; else db.channels.push(row);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _sb.from('alert_channels').upsert(row, { onConflict: 'id' })
+    _dbClient().from('alert_channels').upsert(row, { onConflict: 'id' })
       .then(({ error }) => { if (error) console.warn('[DB.upsertChannel]', error.message); });
   }
 };
@@ -738,7 +786,7 @@ DB.deleteChannel = function(id) {
   db.channels = db.channels.filter(c => c.id !== id);
   saveDB(db);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    _sb.from('alert_channels').delete().eq('id', id)
+    _dbClient().from('alert_channels').delete().eq('id', id)
       .then(({ error }) => { if (error) console.warn('[DB.deleteChannel]', error.message); });
   }
 };
@@ -754,7 +802,7 @@ DB.setSettings = function(s) {
     if (s.language !== undefined) row.language = s.language;
     if (s.shifts_enabled !== undefined) row.shifts_enabled = s.shifts_enabled;
     if (Object.keys(row).length) {
-      _sb.from('settings').update(row).eq('id', 1)
+      _dbClient().from('settings').update(row).eq('id', 1)
         .then(({ error }) => { if (error) console.warn('[DB.setSettings]', error.message); });
     }
   }
@@ -764,7 +812,7 @@ const _rawAddAudit = DB.addAudit.bind(DB);
 DB.addAudit = function(entry) {
   _rawAddAudit(entry);
   if (typeof _sb !== 'undefined') {
-    _sb.from('audit_log').insert({
+    _dbClient().from('audit_log').insert({
       id: _genUUID(),
       actor_id: _isUUID(entry.actor_id) ? entry.actor_id : null,
       actor_name: entry.actor_name || 'System',
@@ -781,7 +829,7 @@ DB.upsertPerson = function(p) {
   if (i >= 0) db.persons[i] = row; else db.persons.push(row);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _sb.from('persons').upsert(row, { onConflict: 'employee_id' })
+    _dbClient().from('persons').upsert(row, { onConflict: 'employee_id' })
       .then(({ error }) => { if (error) console.warn('[DB.upsertPerson]', error.message); });
   }
 };
@@ -791,7 +839,7 @@ DB.deletePerson = function(id) {
   db.persons = db.persons.filter(p => p.id !== id);
   saveDB(db);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    _sb.from('persons').delete().eq('id', id)
+    _dbClient().from('persons').delete().eq('id', id)
       .then(({ error }) => { if (error) console.warn('[DB.deletePerson]', error.message); });
   }
 };
@@ -800,7 +848,7 @@ const _rawRemoveFromWatchlist = DB.removeFromWatchlist.bind(DB);
 DB.removeFromWatchlist = function(id) {
   _rawRemoveFromWatchlist(id);
   if (typeof _sb !== 'undefined' && _isUUID(id)) {
-    _sb.from('watchlist').delete().eq('id', id)
+    _dbClient().from('watchlist').delete().eq('id', id)
       .then(({ error }) => { if (error) console.warn('[DB.removeFromWatchlist]', error.message); });
   }
 };

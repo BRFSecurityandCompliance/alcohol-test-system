@@ -2,6 +2,14 @@ name = "alcohol-test-system"
 main = "worker.js"
 compatibility_date = "2025-05-01"
 
+[vars]
+SUPABASE_URL = "https://qgkevfikehdoufjcubcm.supabase.co"
+
+# Secrets — set once via CLI (never commit values):
+#   wrangler secret put ADMIN_PASSWORD
+#   wrangler secret put SUPABASE_SERVICE_KEY
+#   wrangler secret put TOKEN_SECRET        (random string ≥32 chars)
+
 [assets]
 directory = "./project"
 binding = "ASSETS"

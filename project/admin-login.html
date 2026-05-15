@@ -20,11 +20,14 @@
 
   <form id="form" class="col gap-md">
     <div class="field">
-      <label id="lbl-pw"></label>
-      <input class="input" type="password" name="password" required autofocus />
-      <div class="hint" id="lbl-hint"></div>
+      <label id="lbl-user"></label>
+      <input class="input" type="text" name="username" required autocomplete="username" />
     </div>
-    <div id="err" class="small" style="color:var(--danger); display:none" id="lbl-err"></div>
+    <div class="field">
+      <label id="lbl-pw"></label>
+      <input class="input" type="password" name="password" required autocomplete="current-password" />
+    </div>
+    <div id="err" class="small" style="color:var(--danger); display:none"></div>
     <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-login"></button>
   </form>
 
@@ -40,21 +43,63 @@ const isEN = (localStorage.getItem('lang')||'th') === 'en';
 document.getElementById('doc-title').textContent  = isEN ? 'Admin Login' : 'เข้าสู่ระบบแอดมิน';
 document.getElementById('lbl-title').textContent  = isEN ? 'Admin Login' : 'เข้าสู่ระบบแอดมิน';
 document.getElementById('lbl-sub').textContent    = isEN ? 'Alcohol Test System' : 'ระบบตรวจแอลกอฮอล์';
+document.getElementById('lbl-user').textContent   = isEN ? 'Name' : 'ชื่อผู้ใช้';
 document.getElementById('lbl-pw').textContent     = isEN ? 'Password' : 'รหัสผ่าน';
-document.getElementById('err').textContent        = isEN ? 'Incorrect password' : 'รหัสผ่านไม่ถูกต้อง';
+document.getElementById('err').textContent        = isEN ? 'Incorrect name or password' : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
 document.getElementById('btn-login').textContent  = isEN ? 'Login' : 'เข้าสู่ระบบ';
 document.getElementById('btn-back').textContent   = isEN ? '← Back to Home' : '← กลับหน้าหลัก';
 
-document.getElementById('form').addEventListener('submit', e => {
+document.getElementById('form').addEventListener('submit', async e => {
   e.preventDefault();
-  const pw = e.target.password.value;
-  if (pw === ADMIN_PASSWORD) {
-    setAdminAuth(true);
-    location.href = 'admin-dashboard.html';
-  } else {
-    document.getElementById('err').style.display = 'block';
-    e.target.password.value = '';
+  const btn = document.getElementById('btn-login');
+  const err = document.getElementById('err');
+  btn.disabled = true;
+  btn.textContent = '⏳...';
+  err.style.display = 'none';
+
+  const name = e.target.username.value.trim();
+  const pw   = e.target.password.value;
+
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password: pw })
+    });
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    if (isJson && res.ok) {
+      const { token } = await res.json();
+      setAdminAuth(token);
+      location.href = 'admin-dashboard.html';
+      return;
+    }
+    if (isJson) {
+      // Worker replied with error (wrong credentials)
+      err.style.display = 'block';
+      e.target.password.value = '';
+      btn.disabled = false;
+      btn.textContent = isEN ? 'Login' : 'เข้าสู่ระบบ';
+      return;
+    }
+    // Worker not deployed yet — fall back to local password check
+    if (pw === ADMIN_PASSWORD) {
+      setAdminAuth(true);
+      location.href = 'admin-dashboard.html';
+      return;
+    }
+  } catch {
+    // Network error — fall back to local password check
+    if (pw === ADMIN_PASSWORD) {
+      setAdminAuth(true);
+      location.href = 'admin-dashboard.html';
+      return;
+    }
   }
+
+  err.style.display = 'block';
+  e.target.password.value = '';
+  btn.disabled = false;
+  btn.textContent = isEN ? 'Login' : 'เข้าสู่ระบบ';
 });
 </script>
 </body>
