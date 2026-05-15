@@ -362,6 +362,8 @@ function renderForm() {
 
   form.addEventListener('submit', e => {
     e.preventDefault();
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ ' + T('submit');
     const payload = {
       employee_id: document.getElementById('emp-id').value || '',
       full_name: form.full_name.value,

@@ -370,6 +370,23 @@ function t(key, lang) { return (I18N[lang || localStorage.getItem('lang') || 'th
 
 // ===== Auth =====
 const ADMIN_PASSWORD = 'admin1234';
+
+// Session idle timeout — 2 hours of inactivity logs out admin
+(function() {
+  const IDLE_MS = 2 * 60 * 60 * 1000;
+  let _idleTimer;
+  function _resetIdle() {
+    clearTimeout(_idleTimer);
+    if (isAdminAuthed()) {
+      _idleTimer = setTimeout(() => {
+        setAdminAuth(false);
+        location.href = 'admin-login.html';
+      }, IDLE_MS);
+    }
+  }
+  ['click','keydown','touchstart','scroll'].forEach(ev => document.addEventListener(ev, _resetIdle, { passive: true }));
+  _resetIdle();
+})();
 function isAdminAuthed() { return sessionStorage.getItem('admin_auth') === '1'; }
 function setAdminAuth(v, userId) {
   sessionStorage.setItem('admin_auth', v ? '1' : '0');
