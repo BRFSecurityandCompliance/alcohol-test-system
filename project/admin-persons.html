@@ -27,7 +27,7 @@
       <div class="muted small" id="page-sub"></div>
     </div>
     <div class="row gap-sm">
-      <input class="input" id="search" id="search" style="max-width:280px" oninput="renderPersons()" />
+      <input class="input" id="search" style="max-width:280px" oninput="renderPersons()" />
       <button class="btn btn-primary" id="add-btn" onclick="openModal()"></button>
     </div>
   </div>
@@ -113,11 +113,13 @@ DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('persons');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const canMutate = hasRole('super', 'manager');
 
   document.getElementById('page-title').textContent = isEN ? 'Employees' : 'พนักงาน';
   document.getElementById('page-sub').textContent = isEN ? 'Employee list, test history, and watchlist' : 'รายชื่อพนักงาน ประวัติการตรวจ และรายการเฝ้าระวัง';
   document.getElementById('search').placeholder = isEN ? 'Search name / ID' : 'ค้นหาชื่อ / รหัส';
   document.getElementById('add-btn').textContent = isEN ? '+ Add Employee' : '+ เพิ่มพนักงาน';
+  if (!canMutate) document.getElementById('add-btn').style.display = 'none';
   document.getElementById('tab-btn-persons').textContent = isEN ? 'Employee Registry' : 'ทะเบียนพนักงาน';
 
   // Modal labels
@@ -182,8 +184,8 @@ if (!requireAdmin()) {} else {
                   </td>
                   <td style="text-align:right">
                     <button class="btn btn-sm" onclick="viewHistory('${p.employee_id}')">${isEN ? 'History' : 'ประวัติ'}</button>
-                    <button class="btn btn-sm" onclick='openModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>
-                    <button class="btn btn-sm btn-danger" onclick="del('${p.id}')">${isEN ? 'Delete' : 'ลบ'}</button>
+                    ${canMutate ? `<button class="btn btn-sm" onclick='openModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>` : ''}
+                    ${canMutate ? `<button class="btn btn-sm btn-danger" onclick="del('${p.id}')">${isEN ? 'Delete' : 'ลบ'}</button>` : ''}
                   </td>
                 </tr>
               `;
@@ -274,6 +276,7 @@ if (!requireAdmin()) {} else {
   }
 
   function removeWL(id) {
+    if (!canMutate) return;
     if (!confirm(isEN ? 'Remove employee from Watchlist?' : 'นำพนักงานออกจาก Watchlist?')) return;
     DB.removeFromWatchlist(id);
     showToast(isEN ? 'Removed from Watchlist' : 'นำออกจาก Watchlist แล้ว');
@@ -281,6 +284,7 @@ if (!requireAdmin()) {} else {
   }
 
   function openModal(p) {
+    if (!canMutate) return;
     document.getElementById('modal-title').textContent = p ? (isEN ? 'Edit Employee' : 'แก้ไขพนักงาน') : (isEN ? 'Add Employee' : 'เพิ่มพนักงาน');
     const f = document.getElementById('form');
     f.reset();
@@ -298,21 +302,19 @@ if (!requireAdmin()) {} else {
   function closeModal() { document.getElementById('modal').classList.remove('show'); }
   function save(e) {
     e.preventDefault();
+    if (!canMutate) return;
     const f = e.target;
-    const db = loadDB();
     const p = { employee_id: f.employee_id.value.trim(), full_name: f.full_name.value.trim(), department: f.department.value, company: f.company.value.trim(), plate_number: f.plate_number.value.trim(), phone: f.phone.value.trim() };
     if (f.id.value) p.id = f.id.value;
-    const idx = f.id.value ? db.persons.findIndex(x => x.id === f.id.value) : -1;
-    if (idx >= 0) db.persons[idx] = { ...db.persons[idx], ...p };
-    else db.persons.push({ ...p, id: 'p' + Date.now() });
-    saveDB(db);
+    DB.upsertPerson(p);
     showToast(isEN ? 'Saved' : 'บันทึกเรียบร้อย');
     closeModal();
     renderPersons();
   }
   function del(id) {
+    if (!canMutate) return;
     if (!confirm(isEN ? 'Confirm delete this employee?' : 'ยืนยันการลบพนักงาน?')) return;
-    const db = loadDB(); db.persons = db.persons.filter(p => p.id !== id); saveDB(db);
+    DB.deletePerson(id);
     showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');
     renderPersons();
   }

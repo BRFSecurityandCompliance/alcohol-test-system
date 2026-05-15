@@ -30,6 +30,9 @@
 <script src="data.js"></script>
 <script>
 DB.init().then(() => {
+const lang = localStorage.getItem('lang') || 'th';
+const T = (k) => t(k, lang);
+const isEN = lang === 'en';
 const params = new URLSearchParams(location.search);
 const code = params.get('location');
 const isZero = params.get('zero') === 'true';
@@ -38,37 +41,55 @@ const loc = code ? DB.findLocation(code) : null;
 const summary = document.getElementById('summary');
 const again = document.getElementById('again');
 
+// Update static text with language
+document.title = isEN ? 'Submitted Successfully' : 'ส่งข้อมูลสำเร็จ';
+document.querySelector('h1').textContent = isEN ? 'Submitted Successfully' : 'ส่งข้อมูลเรียบร้อย';
+document.querySelector('p.muted').textContent = isEN ? 'Your test result has been recorded. Thank you for your cooperation.' : 'ข้อมูลผลตรวจของคุณถูกบันทึกในระบบแล้ว ขอบคุณที่ให้ความร่วมมือ';
+document.getElementById('again').textContent = isEN ? 'Next person' : 'บันทึกผลถัดไป';
+document.querySelector('a[href="index.html"]').textContent = T('back_home');
+
+// Find the most recent test from this location (just submitted)
+const recentTest = DB.tests().find(t => t.location_code === code);
+
 if (loc) {
+  const recordedTime = recentTest?.created_at
+    ? new Date(recentTest.created_at).toLocaleString(isEN ? 'en-GB' : 'th-TH', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short', year:'numeric'})
+    : new Date().toLocaleString(isEN ? 'en-GB' : 'th-TH', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short', year:'numeric'});
+
   summary.innerHTML = `
+    ${recentTest?.full_name ? `<div class="row between" style="margin-bottom:12px">
+      <span class="muted small">${isEN ? 'Name' : 'ชื่อ'}</span>
+      <span style="font-weight:600">${recentTest.full_name}</span>
+    </div>` : ''}
+    ${recentTest?.department ? `<div class="row between" style="margin-bottom:12px">
+      <span class="muted small">${isEN ? 'Department' : 'แผนก'}</span>
+      <span class="small">${recentTest.department}</span>
+    </div>` : ''}
     <div class="row between" style="margin-bottom:12px">
-      <span class="muted small">สถานที่</span>
+      <span class="muted small">${isEN ? 'Location' : 'สถานที่'}</span>
       <span style="font-weight:600">${loc.name}</span>
     </div>
     <div class="row between" style="margin-bottom:12px">
-      <span class="muted small">รหัส</span>
-      <span style="font-family:var(--font-mono); font-size:13px">${loc.code}</span>
-    </div>
-    <div class="row between" style="margin-bottom:12px">
-      <span class="muted small">เวลา</span>
-      <span>${new Date().toLocaleString('th-TH', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short', year:'numeric'})}</span>
+      <span class="muted small">${isEN ? 'Time recorded' : 'เวลาที่บันทึก'}</span>
+      <span>${recordedTime}</span>
     </div>
     <div class="row between">
-      <span class="muted small">ผล</span>
+      <span class="muted small">${isEN ? 'Result' : 'ผล'}</span>
       ${isZero
-        ? '<span class="badge badge-success"><span class="badge-dot"></span>ไม่พบแอลกอฮอล์</span>'
-        : '<span class="badge badge-danger"><span class="badge-dot"></span>ตรวจพบแอลกอฮอล์</span>'}
+        ? `<span class="badge badge-success"><span class="badge-dot"></span>${T('no_alcohol')}</span>`
+        : `<span class="badge badge-danger"><span class="badge-dot"></span>${T('has_alcohol')} ${recentTest?.alcohol_value ? `(${recentTest.alcohol_value} mg%)` : ''}</span>`}
     </div>
   `;
   if (isOffline) {
     const banner = document.createElement('div');
     banner.className = 'card';
     banner.style.cssText = 'background:#fef3c7; border-color:#f59e0b; margin-bottom:16px; display:flex; gap:10px; align-items:center; text-align:left';
-    banner.innerHTML = '<span style="font-size:20px">⚡</span><div class="small" style="color:#92400e"><b>บันทึกแบบออฟไลน์</b> — ข้อมูลจะถูกส่งไปยังระบบเมื่อกลับมาออนไลน์</div>';
+    banner.innerHTML = `<span style="font-size:20px">⚡</span><div class="small" style="color:#92400e"><b>${isEN ? 'Saved offline' : 'บันทึกแบบออฟไลน์'}</b> — ${isEN ? 'Data will be synced when back online.' : 'ข้อมูลจะถูกส่งไปยังระบบเมื่อกลับมาออนไลน์'}</div>`;
     summary.parentNode.insertBefore(banner, summary);
   }
   again.href = `user-form.html?location=${code}`;
 } else {
-  summary.innerHTML = '<div class="muted">ไม่พบข้อมูลสถานที่</div>';
+  summary.innerHTML = `<div class="muted">${isEN ? 'Location not found' : 'ไม่พบข้อมูลสถานที่'}</div>`;
   again.style.display = 'none';
 }
 }); // DB.init

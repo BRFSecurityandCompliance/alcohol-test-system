@@ -124,6 +124,7 @@ DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('alerts');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const canAct = hasRole('super', 'manager');
 
   document.getElementById('page-title').textContent = isEN ? 'Alert Center' : 'ศูนย์แจ้งเตือน';
   document.getElementById('page-sub').textContent = isEN ? 'Failed tests requiring action' : 'ผลตรวจที่ไม่ผ่านและต้องดำเนินการ';
@@ -303,6 +304,7 @@ if (!requireAdmin()) {} else {
   }
   function closeActionModal() { document.getElementById('action-modal').classList.remove('show'); }
   function saveAction() {
+    if (!canAct) { showToast(isEN ? 'No permission' : 'ไม่มีสิทธิ์'); return; }
     const action = document.getElementById('action-select').value;
     const note = document.getElementById('action-note-input').value.trim();
     DB.updateTest(actionTestId, { action_taken: action, action_note: note, action_by: currentUser()?.id }, currentUser());
@@ -330,6 +332,7 @@ if (!requireAdmin()) {} else {
   }
   function saveCh(e) {
     e.preventDefault();
+    if (!canAct) return;
     const f = e.target;
     DB.upsertChannel({ id: f.id.value || undefined, kind: f.kind.value, label: f.label.value.trim(), target: f.target.value.trim(), enabled: f.enabled.checked });
     showToast(isEN ? 'Saved' : 'บันทึกเรียบร้อย');
@@ -337,11 +340,13 @@ if (!requireAdmin()) {} else {
     renderChannels();
   }
   function toggleChannel(id, enabled) {
+    if (!canAct) return;
     const ch = DB.channels().find(c => c.id === id);
     if (ch) DB.upsertChannel({ ...ch, enabled });
     showToast(enabled ? (isEN ? 'Channel enabled' : 'เปิดช่องทางแจ้งเตือน') : (isEN ? 'Channel disabled' : 'ปิดช่องทางแจ้งเตือน'));
   }
   function delChannel(id) {
+    if (!canAct) return;
     if (!confirm(isEN ? 'Confirm delete this channel?' : 'ยืนยันการลบช่องทางแจ้งเตือนนี้?')) return;
     DB.deleteChannel(id);
     showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');

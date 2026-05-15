@@ -72,7 +72,7 @@
 <script src="data.js"></script>
 <script>
 DB.init().then(() => {
-if (!requireAdmin()) {} else {
+if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = 'admin-dashboard.html'; } else {
   document.getElementById('chrome').innerHTML = renderTopbar('reports');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
 
@@ -105,13 +105,13 @@ if (!requireAdmin()) {} else {
   DEPARTMENTS.forEach(d => fDept.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`));
   DB.companies().forEach(c => fCo.insertAdjacentHTML('beforeend', `<option value="${c.name}">${c.name}</option>`));
 
-  let filtered = DB.tests();
+  let filtered = DB.tests().filter(t => canViewSite(t.location_code));
   function apply() {
     const loc = fLoc.value, dept = fDept.value, co = fCo.value;
     const result = document.getElementById('f-result').value;
     const from = document.getElementById('f-from').value;
     const to = document.getElementById('f-to').value;
-    filtered = DB.tests().filter(t => {
+    filtered = DB.tests().filter(t => canViewSite(t.location_code)).filter(t => {
       if (loc && t.location_code !== loc) return false;
       if (dept && t.department !== dept) return false;
       if (co && t.company !== co) return false;

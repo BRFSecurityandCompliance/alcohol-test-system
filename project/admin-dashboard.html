@@ -167,7 +167,7 @@ if (!requireAdmin()) {} else {
   document.getElementById('alert-card-title').textContent = isEN ? '⚠ Pending' : '⚠ รอดำเนินการ';
   document.getElementById('alert-view-all-btn').textContent = isEN ? 'View all →' : 'ดูทั้งหมด →';
 
-  const tests = DB.tests();
+  const tests = DB.tests().filter(t => canViewSite(t.location_code));
   const today = new Date(); today.setHours(0,0,0,0);
   const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
   const lastMonth = new Date(thisMonth); lastMonth.setMonth(lastMonth.getMonth() - 1);

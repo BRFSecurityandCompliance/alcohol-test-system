@@ -60,10 +60,13 @@ if (!requireAdmin()) {} else {
     <th></th>
   `;
 
+  const canEdit = canEditTest();
   const search = document.getElementById('search');
   function render() {
     const q = search.value.toLowerCase().trim();
-    const tests = DB.tests().filter(t => !q || (t.full_name + t.plate_number + t.company + t.location_name).toLowerCase().includes(q));
+    const tests = DB.tests()
+      .filter(t => canViewSite(t.location_code))
+      .filter(t => !q || (t.full_name + t.plate_number + t.company + t.location_name).toLowerCase().includes(q));
     document.getElementById('meta').textContent = `${tests.length} ${isEN ? 'records' : 'รายการ'}`;
     document.getElementById('rows').innerHTML = tests.length ? tests.map(t => `
       <tr>
@@ -75,7 +78,7 @@ if (!requireAdmin()) {} else {
         <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
         <td style="text-align:right">
           <button class="btn btn-sm" onclick="viewDetail('${t.id}')">${isEN ? 'View' : 'ดู'}</button>
-          <button class="btn btn-sm btn-danger" onclick="del('${t.id}')">${isEN ? 'Delete' : 'ลบ'}</button>
+          ${canEdit ? `<button class="btn btn-sm btn-danger" onclick="del('${t.id}')">${isEN ? 'Delete' : 'ลบ'}</button>` : ''}
         </td>
       </tr>
     `).join('') : `<tr><td colspan="7"><div class="empty"><div class="icon">📋</div>${isEN ? 'No data found' : 'ยังไม่มีข้อมูล'}</div></td></tr>`;
@@ -115,6 +118,7 @@ if (!requireAdmin()) {} else {
     document.getElementById('modal').classList.add('show');
   }
   function del(id) {
+    if (!canEdit) return;
     if (!confirm(isEN ? 'Confirm delete this record?' : 'ยืนยันการลบรายการนี้?')) return;
     DB.deleteTest(id);
     showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');

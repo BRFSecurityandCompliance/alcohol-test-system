@@ -135,9 +135,16 @@ function pushOfflineQueue(test) {
 function flushOfflineQueue() {
   const q = getOfflineQueue();
   if (!q.length) return 0;
-  q.forEach(t => { delete t._queued_at; DB.addTest(t); });
-  localStorage.setItem('offline_queue', '[]');
-  return q.length;
+  const failed = [];
+  q.forEach(t => {
+    const queued_at = t._queued_at;
+    delete t._queued_at;
+    // Preserve the original submission time so shift/timestamp are correct
+    if (queued_at && !t.created_at) t.created_at = queued_at;
+    try { DB.addTest(t); } catch (e) { console.warn('[flushOfflineQueue] failed item:', e); failed.push(t); }
+  });
+  localStorage.setItem('offline_queue', failed.length ? JSON.stringify(failed) : '[]');
+  return q.length - failed.length;
 }
 
 // ===== FEATURE #11: Persons (employee directory for quick re-entry) =====
@@ -298,7 +305,7 @@ const DB = {
     if (i >= 0) {
       const before = JSON.stringify(db.tests[i]);
       db.tests[i] = { ...db.tests[i], ...patch };
-      db.audit.unshift({ id: 'a' + Date.now(), actor_id: actor?.id || 'u1', actor_name: actor?.name || 'Admin', action: 'update_test', target: id, detail: `แก้ไข: ${Object.keys(patch).join(', ')}`, created_at: new Date().toISOString() });
+      db.audit.unshift({ id: 'a' + Date.now(), actor_id: actor?.id || null, actor_name: actor?.name || 'Unknown', action: 'update_test', target: id, detail: `แก้ไข: ${Object.keys(patch).join(', ')}`, created_at: new Date().toISOString() });
       saveDB(db);
     }
   },
@@ -323,23 +330,26 @@ const DB = {
 };
 
 // ===== Helpers =====
+function _uiLang() { return localStorage.getItem('lang') || 'th'; }
+function _loc() { return _uiLang() === 'en' ? 'en-GB' : 'th-TH'; }
 function formatDate(iso) {
   const d = new Date(iso);
-  return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) +
-    ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(_loc(), { year: 'numeric', month: 'short', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString(_loc(), { hour: '2-digit', minute: '2-digit' });
 }
 function formatDateShort(iso) {
-  return new Date(iso).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+  return new Date(iso).toLocaleDateString(_loc(), { day: '2-digit', month: 'short', year: '2-digit' });
 }
 function formatTime(iso) {
-  return new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(_loc(), { hour: '2-digit', minute: '2-digit' });
 }
 function timeAgo(iso) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return 'เมื่อสักครู่';
-  if (s < 3600) return `${Math.floor(s/60)} นาทีที่แล้ว`;
-  if (s < 86400) return `${Math.floor(s/3600)} ชั่วโมงที่แล้ว`;
-  return `${Math.floor(s/86400)} วันที่แล้ว`;
+  const en = _uiLang() === 'en';
+  if (s < 60) return en ? 'just now' : 'เมื่อสักครู่';
+  if (s < 3600) return en ? `${Math.floor(s/60)}m ago` : `${Math.floor(s/60)} นาทีที่แล้ว`;
+  if (s < 86400) return en ? `${Math.floor(s/3600)}h ago` : `${Math.floor(s/3600)} ชั่วโมงที่แล้ว`;
+  return en ? `${Math.floor(s/86400)}d ago` : `${Math.floor(s/86400)} วันที่แล้ว`;
 }
 function showToast(msg, kind = '') {
   let t = document.querySelector('.toast');
@@ -440,10 +450,13 @@ function requireAdmin() {
 
 // ===== Threshold badge =====
 function thresholdBadge(t) {
-  if (t.is_zero) return '<span class="lvl lvl-pass"><span class="lvl-dot"></span>ผ่าน · 0%</span>';
+  const en = _uiLang() === 'en';
+  if (t.is_zero) return `<span class="lvl lvl-pass"><span class="lvl-dot"></span>${en ? 'Pass · 0%' : 'ผ่าน · 0%'}</span>`;
   const lvl = getThresholdLevel(t.alcohol_value, t.department);
   const cls = 'lvl-' + (lvl.color === 'danger-strong' ? 'illegal' : lvl.color);
-  return `<span class="lvl ${cls}"><span class="lvl-dot"></span>${lvl.label} · ${t.alcohol_value} mg%</span>`;
+  const labelEN = { pass: 'Pass', caution: 'Caution', 'no-drive': 'No Drive', illegal: 'Illegal' };
+  const label = en ? (labelEN[lvl.level] || lvl.label) : lvl.label;
+  return `<span class="lvl ${cls}"><span class="lvl-dot"></span>${label} · ${t.alcohol_value} mg%</span>`;
 }
 
 // ===== Confirm modal helper =====
@@ -740,6 +753,29 @@ DB.addAudit = function(entry) {
       actor_name: entry.actor_name || 'System',
       action: entry.action, target: entry.target || '', detail: entry.detail || ''
     }).then(({ error }) => { if (error) console.warn('[DB.addAudit]', error.message); });
+  }
+};
+
+DB.upsertPerson = function(p) {
+  const id = _isUUID(p.id) ? p.id : _genUUID();
+  const db = loadDB();
+  const i = db.persons.findIndex(x => x.id === p.id || x.employee_id === p.employee_id);
+  const row = { id, employee_id: p.employee_id, full_name: p.full_name, department: p.department || '', company: p.company || '', plate_number: p.plate_number || '', phone: p.phone || '' };
+  if (i >= 0) db.persons[i] = row; else db.persons.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _sb.from('persons').upsert(row, { onConflict: 'employee_id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertPerson]', error.message); });
+  }
+};
+
+DB.deletePerson = function(id) {
+  const db = loadDB();
+  db.persons = db.persons.filter(p => p.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _sb.from('persons').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deletePerson]', error.message); });
   }
 };
 

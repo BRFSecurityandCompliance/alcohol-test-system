@@ -107,6 +107,7 @@ DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('devices');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const canMutate = hasRole('super', 'manager');
 
   document.getElementById('page-title').textContent = isEN ? 'Alcohol Test Devices' : 'เครื่องตรวจแอลกอฮอล์';
   document.getElementById('add-dev-btn').textContent = isEN ? '+ Add Device' : '+ เพิ่มเครื่องตรวจ';
@@ -216,6 +217,7 @@ if (!requireAdmin()) {} else {
   function closeModal() { document.getElementById('modal').classList.remove('show'); }
   function save(e) {
     e.preventDefault();
+    if (!canMutate) return;
     const f = e.target;
     const d = {
       serial: f.serial.value.trim(),
@@ -233,6 +235,7 @@ if (!requireAdmin()) {} else {
     render();
   }
   function del(id) {
+    if (!canMutate) return;
     if (!confirm(isEN ? 'Confirm delete this device?' : 'ยืนยันการลบเครื่องตรวจ?')) return;
     DB.deleteDevice(id);
     showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');

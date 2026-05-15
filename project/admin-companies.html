@@ -109,6 +109,7 @@ DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('companies');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const canMutate = hasRole('super', 'manager');
   let selected = new Set();
 
   document.getElementById('page-title').textContent = isEN ? 'Partner Companies' : 'บริษัทคู่ค้า';
@@ -177,6 +178,7 @@ if (!requireAdmin()) {} else {
   }
   function clearSel() { selected.clear(); render(); }
   function delSelected() {
+    if (!canMutate) return;
     if (!confirm(isEN ? `Confirm delete ${selected.size} selected companies?` : `ยืนยันการลบ ${selected.size} บริษัทที่เลือก?`)) return;
     selected.forEach(id => DB.deleteCompany(id));
     showToast(isEN ? `Deleted ${selected.size} records` : `ลบ ${selected.size} รายการเรียบร้อย`);
@@ -185,6 +187,7 @@ if (!requireAdmin()) {} else {
   }
 
   function openModal(c) {
+    if (!canMutate) return;
     document.getElementById('modal-title').textContent = c ? (isEN ? 'Edit Company' : 'แก้ไขบริษัท') : (isEN ? 'Add Company' : 'เพิ่มบริษัท');
     const f = document.getElementById('form');
     f.reset();
@@ -195,6 +198,7 @@ if (!requireAdmin()) {} else {
   function closeModal() { document.getElementById('modal').classList.remove('show'); }
   function save(e) {
     e.preventDefault();
+    if (!canMutate) return;
     const f = e.target;
     const c = { name: f.name.value.trim() };
     if (f.id.value) c.id = f.id.value;
@@ -204,6 +208,7 @@ if (!requireAdmin()) {} else {
     render();
   }
   function del(id) {
+    if (!canMutate) return;
     if (!confirm(isEN ? 'Confirm delete?' : 'ยืนยันการลบ?')) return;
     DB.deleteCompany(id);
     selected.delete(id);

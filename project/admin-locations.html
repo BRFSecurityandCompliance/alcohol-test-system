@@ -111,6 +111,7 @@ DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('locations');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const canMutate = hasRole('super', 'manager');
   let editingCode = null;
   let currentQR = null;
 
@@ -210,6 +211,7 @@ if (!requireAdmin()) {} else {
   function closeModal() { document.getElementById('modal').classList.remove('show'); }
   function save(e) {
     e.preventDefault();
+    if (!canMutate) return;
     const form = e.target;
     DB.upsertLocation({
       code: form.code.value.trim().toUpperCase(),
@@ -223,6 +225,7 @@ if (!requireAdmin()) {} else {
     render();
   }
   function del(code) {
+    if (!canMutate) return;
     if (!confirm(isEN ? `Confirm delete ${code}?` : `ยืนยันการลบ ${code}?`)) return;
     DB.deleteLocation(code);
     showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');

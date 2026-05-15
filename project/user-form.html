@@ -66,8 +66,12 @@ const app = document.getElementById('app');
 if (!locationCode || !loc) {
   const lang0 = localStorage.getItem('lang') || 'th';
   const T0 = (k) => t(k, lang0);
+  const lb = {th:'TH',en:'EN',my:'MM',km:'KH'};
   app.innerHTML = `
     <div class="invalid-screen">
+      <div style="display:flex; justify-content:center; gap:6px; padding:16px 0 0">
+        ${['th','en','my','km'].map(l=>`<button data-l="${l}" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;background:${lang0===l?'var(--brand)':'var(--surface)'};color:${lang0===l?'#fff':'var(--text)'};cursor:pointer" onclick="localStorage.setItem('lang','${l}');location.reload()">${lb[l]}</button>`).join('')}
+      </div>
       <div class="card invalid-card">
         <div class="invalid-icon">⚠</div>
         <h1 style="margin-bottom:8px">${T0('invalid_title')}</h1>
@@ -203,7 +207,7 @@ function renderForm() {
     localStorage.setItem('lang', b.dataset.l); location.reload();
   });
 
-  let isZero = retestSource ? null : null;
+  let isZero = retestSource ? retestSource.is_zero : null;
   const form = document.getElementById('form');
   const plateField = document.getElementById('plate-field');
   const valueField = document.getElementById('value-field');
@@ -315,7 +319,11 @@ function renderForm() {
     });
   }
   photoInput.addEventListener('change', e => {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0];
+    if (!f) {
+      showToast(T('camera_only'));
+      return;
+    }
     const r = new FileReader();
     r.onload = async ev => {
       photoData = await stampPhoto(ev.target.result);
@@ -324,6 +332,7 @@ function renderForm() {
       const img = document.createElement('img'); img.src = photoData; photoSlot.appendChild(img);
       validate();
     };
+    r.onerror = () => showToast(T('camera_only'));
     r.readAsDataURL(f);
   });
 
@@ -369,7 +378,7 @@ function renderForm() {
     };
     let savedOffline = false;
     if (!navigator.onLine) {
-      pushOfflineQueue(payload);
+      pushOfflineQueue({ ...payload, created_at: new Date().toISOString() });
       savedOffline = true;
     } else {
       const t = DB.addTest(payload);
