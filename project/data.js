@@ -595,15 +595,20 @@ DB.init = async function() {
       _dbClient().from('watchlist').select('*'),
       _dbClient().from('settings').select('*').single()
     ]);
+    const serverTests = (tests || []).map(t => ({
+      ...t,
+      level: t.level || getThresholdLevel(t.alcohol_value, t.department).level,
+      shift_id: t.shift_id || getShiftFromDate(t.created_at).id,
+      action_taken: t.action_taken || null
+    }));
+    // Preserve locally-added tests the server didn't return (anon can't SELECT
+    // tests after tighten_rls — keeps just-submitted records for the retest flow)
+    const serverIds = new Set(serverTests.map(t => t.id));
+    const localExtra = (loadDB().tests || []).filter(t => !serverIds.has(t.id));
     const db = {
       locations: locs || [],
       companies: (comps || []).map(c => ({ id: c.id, name: c.name })),
-      tests: (tests || []).map(t => ({
-        ...t,
-        level: t.level || getThresholdLevel(t.alcohol_value, t.department).level,
-        shift_id: t.shift_id || getShiftFromDate(t.created_at).id,
-        action_taken: t.action_taken || null
-      })),
+      tests: [...localExtra, ...serverTests],
       devices: (devs || []).map(d => ({ ...d, asset_no: d.asset_no || '', status: getDeviceStatus(d.next_calibration) })),
       users: (users || []).map(u => ({
         id: u.id, username: u.username, name: u.name,
