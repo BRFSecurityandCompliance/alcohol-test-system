@@ -318,6 +318,20 @@ function renderForm() {
       img.src = dataUrl;
     });
   }
+  async function uploadPhotoToStorage(dataUrl) {
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      const { data, error } = await _sb.storage.from('test-photos').upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
+      if (error) throw error;
+      const { data: urlData } = _sb.storage.from('test-photos').getPublicUrl(data.path);
+      return urlData.publicUrl;
+    } catch {
+      return null; // fall back to base64 on failure
+    }
+  }
+
   photoInput.addEventListener('change', e => {
     const f = e.target.files[0];
     if (!f) {
@@ -360,29 +374,52 @@ function renderForm() {
     submitBtn.disabled = !(ok && plateOk && valueOk);
   }
 
-  form.addEventListener('submit', e => {
+  form.addEventListener('submit', async e => {
     e.preventDefault();
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ ' + T('submit');
-    const payload = {
-      employee_id: document.getElementById('emp-id').value || '',
-      full_name: form.full_name.value,
-      department: form.department.value,
-      plate_number: form.plate_number.value || '',
-      company: form.company.value,
-      alcohol_value: isZero ? 0 : parseFloat(form.alcohol_value.value),
-      is_zero: isZero,
-      location_code: loc.code,
-      location_name: loc.name,
-      photo_url: photoData,
-      device_serial: device?.serial || '',
-      retest_of: retestOf
-    };
+
+    let photoUrl = photoData; // default: base64 (used for offline)
     let savedOffline = false;
+
     if (!navigator.onLine) {
-      pushOfflineQueue({ ...payload, created_at: new Date().toISOString() });
+      // Keep base64 in offline queue — will be stored as-is when flushed
+      const payload = {
+        employee_id: document.getElementById('emp-id').value || '',
+        full_name: form.full_name.value,
+        department: form.department.value,
+        plate_number: form.plate_number.value || '',
+        company: form.company.value,
+        alcohol_value: isZero ? 0 : parseFloat(form.alcohol_value.value),
+        is_zero: isZero,
+        location_code: loc.code,
+        location_name: loc.name,
+        photo_url: photoUrl,
+        device_serial: device?.serial || '',
+        retest_of: retestOf,
+        created_at: new Date().toISOString()
+      };
+      pushOfflineQueue(payload);
       savedOffline = true;
     } else {
+      // Upload photo to Supabase Storage first
+      const uploaded = await uploadPhotoToStorage(photoData);
+      if (uploaded) photoUrl = uploaded;
+
+      const payload = {
+        employee_id: document.getElementById('emp-id').value || '',
+        full_name: form.full_name.value,
+        department: form.department.value,
+        plate_number: form.plate_number.value || '',
+        company: form.company.value,
+        alcohol_value: isZero ? 0 : parseFloat(form.alcohol_value.value),
+        is_zero: isZero,
+        location_code: loc.code,
+        location_name: loc.name,
+        photo_url: photoUrl,
+        device_serial: device?.serial || '',
+        retest_of: retestOf
+      };
       const t = DB.addTest(payload);
       // Mark original as completed if this was a retest
       if (retestOf) DB.updateTest(retestOf, { retest_status: 'completed' });
