@@ -1,14 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "alcohol-test-system",
+  "main": "worker.js",
   "compatibility_date": "2026-05-07",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "observability": {
     "enabled": true
   },
   "assets": {
-    "directory": "project"
+    "directory": "project",
+    "binding": "ASSETS"
   },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+  "vars": {
+    "SUPABASE_URL": "https://qgkevfikehdoufjcubcm.supabase.co"
+  }
 }
