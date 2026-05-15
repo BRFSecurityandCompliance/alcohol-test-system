@@ -218,10 +218,16 @@ function renderForm() {
   let photoData = null;
 
   // Employee quick lookup
-  document.getElementById('emp-lookup').onclick = () => {
+  document.getElementById('emp-lookup').onclick = async () => {
     const id = document.getElementById('emp-id').value.trim();
     if (!id) return;
-    const p = DB.findPerson(id);
+    let p = DB.findPerson(id);
+    if (!p) {
+      try {
+        const r = await fetch(`/api/lookup-person?id=${encodeURIComponent(id)}`);
+        p = await r.json();
+      } catch {}
+    }
     if (!p) { showToast(T('emp_not_found') + ' ' + id); return; }
     form.full_name.value = p.full_name;
     form.department.value = p.department;
