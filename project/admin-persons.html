@@ -404,6 +404,7 @@ if (!requireAdmin()) {} else {
   }
 
   Object.assign(window, { switchTab, openModal, closeModal, save, del, viewHistory, removeWL, renderPersons, downloadTemplate, exportCSV, importCSV });
+  DB.startPolling(() => { renderPersons(); renderWatchlist(); }, 5000);
   renderPersons();
   renderWatchlist();
 }

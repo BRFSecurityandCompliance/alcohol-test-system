@@ -244,6 +244,7 @@ if (!requireAdmin()) {} else {
 
   Object.assign(window, { openModal, closeModal, save, del });
   render();
+  DB.startPolling(render, 5000);
 }
 }); // DB.init
 </script>

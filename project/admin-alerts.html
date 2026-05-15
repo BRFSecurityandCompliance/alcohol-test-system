@@ -362,6 +362,7 @@ if (!requireAdmin()) {} else {
 
   Object.assign(window, { switchTab, openActionModal, closeActionModal, saveAction, viewTestDetail, openChModal, saveCh, toggleChannel, delChannel });
   renderAll();
+  DB.startPolling(renderAll, 5000);
 }
 }); // DB.init
 </script>

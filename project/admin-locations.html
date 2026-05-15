@@ -366,6 +366,7 @@ if (!requireAdmin()) {} else {
   }
   Object.assign(window, { downloadTemplate, importCSV });
   render();
+  DB.startPolling(render, 5000);
 }
 }); // DB.init
 </script>

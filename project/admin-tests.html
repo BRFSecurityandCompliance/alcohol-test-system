@@ -127,6 +127,7 @@ if (!requireAdmin()) {} else {
   search.addEventListener('input', render);
   window.viewDetail = viewDetail; window.del = del;
   render();
+  DB.startPolling(render, 5000);
   // Auto-open a specific test if URL contains ?open=id
   const openId = new URLSearchParams(location.search).get('open');
   if (openId) {
