@@ -413,8 +413,10 @@ function renderForm() {
       savedOffline = true;
     } else {
       // Upload photo to Supabase Storage first
+      // If storage upload fails, use empty string — avoids storing a huge base64 blob
+      // in the INSERT payload which can cause the request to time out on mobile networks
       const uploaded = await uploadPhotoToStorage(photoData);
-      if (uploaded) photoUrl = uploaded;
+      photoUrl = uploaded || '';
 
       const payload = {
         employee_id: document.getElementById('emp-id').value || '',
@@ -432,7 +434,7 @@ function renderForm() {
       };
       const newTest = DB.addTest(payload);
       // Wait for Supabase INSERT to complete (max 5s) before navigating away
-      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 5000))]);
+      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 20000))]);
       // Mark original as completed if this was a retest
       if (retestOf) DB.updateTest(retestOf, { retest_status: 'completed' });
       // Trigger retest flow if not zero
