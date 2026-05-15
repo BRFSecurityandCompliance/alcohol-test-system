@@ -332,7 +332,7 @@ if (!requireAdmin()) {} else {
   function importCSV(e) {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const rows = parseCSV(reader.result);
         if (rows.length < 2) { alert(isEN ? 'File is empty or has no data' : 'ไฟล์ว่างหรือไม่มีข้อมูล'); return; }
@@ -341,25 +341,29 @@ if (!requireAdmin()) {} else {
         const codeI = idx('code'), nameI = idx('name');
         if (codeI < 0 || nameI < 0) { alert(isEN ? 'CSV must have columns: code and name (see Template)' : 'CSV ต้องมีคอลัมน์ code และ name (ดู Template)'); return; }
         let added = 0, updated = 0;
+        const promises = [];
         for (let r = 1; r < rows.length; r++) {
           const row = rows[r];
           const code = (row[codeI] || '').trim().toUpperCase();
           const name = (row[nameI] || '').trim();
           if (!code || !name) continue;
           const existing = DB.findLocation(code);
-          DB.upsertLocation({
+          promises.push(DB.upsertLocation({
             code, name,
             address: (row[idx('address')] || '').trim(),
             contact: (row[idx('contact')] || '').trim(),
             phone: (row[idx('phone')] || '').trim()
-          });
+          }));
           if (existing) updated++; else added++;
         }
-        showToast(isEN ? `Import complete: added ${added}, updated ${updated}` : `นำเข้าเรียบร้อย: เพิ่ม ${added}, อัพเดต ${updated}`);
+        await Promise.all(promises);
         e.target.value = '';
+        DB._initialized = false;
+        await DB.init();
         render();
+        showToast(isEN ? `Import complete: added ${added}, updated ${updated}` : `นำเข้าเรียบร้อย: เพิ่ม ${added}, อัพเดต ${updated}`);
       } catch (err) {
-        alert((isEN ? 'Cannot read file: ' : 'ไม่สามารถอ่านไฟล์ได้: ') + err.message);
+        alert((isEN ? 'Import failed: ' : 'นำเข้าไม่สำเร็จ: ') + err.message);
       }
     };
     reader.readAsText(file, 'UTF-8');
