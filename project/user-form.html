@@ -286,13 +286,13 @@ function renderForm() {
         const ctx = c.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
 
-        // Dark gradient bar at bottom
+        // Dark gradient bar at top
         const barH = Math.max(130, Math.round(h * 0.14));
-        const g = ctx.createLinearGradient(0, h - barH, 0, h);
-        g.addColorStop(0, 'rgba(0,0,0,0)');
-        g.addColorStop(1, 'rgba(0,0,0,0.80)');
+        const g = ctx.createLinearGradient(0, 0, 0, barH);
+        g.addColorStop(0, 'rgba(0,0,0,0.80)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g;
-        ctx.fillRect(0, h - barH, w, barH);
+        ctx.fillRect(0, 0, w, barH);
 
         // Scale font size relative to image width so stamp is readable on any resolution
         const fs1 = Math.max(20, Math.round(w * 0.022));
@@ -307,10 +307,11 @@ function renderForm() {
         ctx.shadowColor = 'rgba(0,0,0,0.8)';
         ctx.shadowBlur = Math.round(w * 0.004);
         ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'top';
         ctx.font = `bold ${fs1}px Sarabun, Arial, sans-serif`;
-        ctx.fillText(dateStr, pad, h - Math.round(barH * 0.45));
+        ctx.fillText(dateStr, pad, Math.round(barH * 0.18));
         ctx.font = `${fs2}px Sarabun, Arial, sans-serif`;
-        ctx.fillText(`📍 ${loc.name} (${loc.code})`, pad, h - Math.round(barH * 0.12));
+        ctx.fillText(`📍 ${loc.name} (${loc.code})`, pad, Math.round(barH * 0.18 + fs1 * 1.4));
         ctx.shadowBlur = 0;
 
         resolve(c.toDataURL('image/jpeg', 0.88));
