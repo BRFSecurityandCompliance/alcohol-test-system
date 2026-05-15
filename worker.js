@@ -10,6 +10,9 @@ export default {
     if (url.pathname === '/api/auth' && request.method === 'POST') {
       return handleAuth(request, env);
     }
+    if (url.pathname === '/api/lookup-person' && request.method === 'GET') {
+      return handlePersonLookup(url, env);
+    }
     if (url.pathname.startsWith(ADMIN_PREFIX + '/')) {
       return handleAdminProxy(request, url, env);
     }
@@ -42,6 +45,19 @@ async function handleAuth(request, env) {
   } catch {
     return Response.json({ error: 'Bad request' }, { status: 400 });
   }
+}
+
+// ── Person Lookup (employee form quick-fill) ──────────────────────────────────
+
+async function handlePersonLookup(url, env) {
+  const empId = (url.searchParams.get('id') || '').trim();
+  if (!empId) return Response.json(null);
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/persons?employee_id=eq.${encodeURIComponent(empId)}&select=employee_id,full_name,department,company,plate_number&limit=1`,
+    { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+  );
+  const rows = await res.json();
+  return Response.json(Array.isArray(rows) && rows[0] ? rows[0] : null);
 }
 
 // ── Admin API Proxy ───────────────────────────────────────────────────────────
