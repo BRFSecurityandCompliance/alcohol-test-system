@@ -25,8 +25,15 @@
   <div id="app"></div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
+const lang = localStorage.getItem('lang') || 'th';
+const T = (k) => t(k, lang);
+const isEN = lang === 'en';
+const lb = {th:'TH',en:'EN',my:'MM',km:'KH'};
 const params = new URLSearchParams(location.search);
 const testId = params.get('test_id');
 const test = testId ? DB.tests().find(t => t.id === testId) : null;
@@ -34,46 +41,47 @@ const settings = DB.settings();
 const RETEST_SECONDS = (settings.retest_minutes || 5) * 60;
 const app = document.getElementById('app');
 
+const langBar = `<div style="display:flex; justify-content:center; gap:6px; padding:16px 0 4px">
+  ${['th','en','my','km'].map(l=>`<button style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;background:${lang===l?'var(--brand)':'var(--surface)'};color:${lang===l?'#fff':'var(--text)'};cursor:pointer" onclick="localStorage.setItem('lang','${l}');location.reload()">${lb[l]}</button>`).join('')}
+</div>`;
+
 if (!test) {
-  app.innerHTML = `
+  app.innerHTML = langBar + `
     <div style="text-align:center; padding:40px 0">
       <div style="font-size:48px; margin-bottom:16px; opacity:.3">⚠️</div>
-      <h2 style="margin-bottom:8px">ไม่พบข้อมูลการตรวจ</h2>
-      <p class="muted">กรุณาสแกน QR Code ใหม่อีกครั้ง</p>
-      <a href="index.html" class="btn btn-primary" style="margin-top:16px">กลับหน้าหลัก</a>
+      <h2 style="margin-bottom:8px">${isEN ? 'Test record not found' : 'ไม่พบข้อมูลการตรวจ'}</h2>
+      <p class="muted">${isEN ? 'Please scan the QR Code again' : 'กรุณาสแกน QR Code ใหม่อีกครั้ง'}</p>
+      <a href="index.html" class="btn btn-primary" style="margin-top:16px">${T('back_home')}</a>
     </div>`;
 } else {
-  const lvl = getThresholdLevel(test.alcohol_value, test.department);
-  const loc = DB.findLocation(test.location_code);
-
-  app.innerHTML = `
+  app.innerHTML = langBar + `
     <div class="fail-icon">⚠</div>
-    <h1 style="text-align:center; margin-bottom:6px; color:var(--danger)">ผลตรวจไม่ผ่าน</h1>
-    <p class="muted small" style="text-align:center; margin:0 0 20px">ต้องตรวจซ้ำหลังจากรอครบ ${settings.retest_minutes || 5} นาที</p>
+    <h1 style="text-align:center; margin-bottom:6px; color:var(--danger)">${isEN ? 'Test Failed' : 'ผลตรวจไม่ผ่าน'}</h1>
+    <p class="muted small" style="text-align:center; margin:0 0 20px">${isEN ? `Must re-test after ${settings.retest_minutes || 5} minutes` : `ต้องตรวจซ้ำหลังจากรอครบ ${settings.retest_minutes || 5} นาที`}</p>
 
     <div class="result-box">
       <div class="info-row">
-        <span class="muted small">ชื่อ</span>
+        <span class="muted small">${isEN ? 'Name' : 'ชื่อ'}</span>
         <span style="font-weight:600">${test.full_name}</span>
       </div>
       <div class="info-row">
-        <span class="muted small">แผนก</span>
+        <span class="muted small">${isEN ? 'Department' : 'แผนก'}</span>
         <span class="small">${test.department}</span>
       </div>
       <div class="info-row">
-        <span class="muted small">สถานที่</span>
+        <span class="muted small">${isEN ? 'Location' : 'สถานที่'}</span>
         <span class="small">${test.location_name}</span>
       </div>
       <div class="info-row">
-        <span class="muted small">ผลครั้งแรก</span>
+        <span class="muted small">${isEN ? 'First reading' : 'ผลครั้งแรก'}</span>
         <span style="font-weight:700; color:var(--danger)">${test.alcohol_value} mg%</span>
       </div>
       <div class="info-row">
-        <span class="muted small">ระดับ</span>
+        <span class="muted small">${isEN ? 'Level' : 'ระดับ'}</span>
         ${thresholdBadge(test)}
       </div>
       <div class="info-row">
-        <span class="muted small">เวลาตรวจ</span>
+        <span class="muted small">${isEN ? 'Test time' : 'เวลาตรวจ'}</span>
         <span class="small" style="font-family:var(--font-mono)">${formatTime(test.created_at)}</span>
       </div>
     </div>
@@ -82,10 +90,10 @@ if (!test) {
 
     <div class="banner banner-warn" style="margin-bottom:16px">
       <span class="banner-icon">📋</span>
-      <div class="small">ห้ามออกจากบริเวณตรวจ — รอจนนับเวลาครบก่อนตรวจซ้ำ หากตรวจซ้ำยังไม่ผ่านจะถูกบันทึกและแจ้งหัวหน้างาน</div>
+      <div class="small">${isEN ? 'Do not leave the test area — wait for the countdown before re-testing. If the re-test also fails, it will be recorded and your supervisor will be notified.' : 'ห้ามออกจากบริเวณตรวจ — รอจนนับเวลาครบก่อนตรวจซ้ำ หากตรวจซ้ำยังไม่ผ่านจะถูกบันทึกและแจ้งหัวหน้างาน'}</div>
     </div>
 
-    <a href="index.html" class="btn btn-ghost btn-block">กลับหน้าหลัก</a>
+    <a href="index.html" class="btn btn-ghost btn-block">${T('back_home')}</a>
   `;
 
   const createdAt = new Date(test.created_at).getTime();
@@ -102,18 +110,18 @@ if (!test) {
     if (remaining > 0) {
       section.innerHTML = `
         <div class="timer-wrap">
-          <div class="timer-label">เวลาที่ต้องรอ</div>
+          <div class="timer-label">${isEN ? 'WAITING TIME' : 'เวลาที่ต้องรอ'}</div>
           <div class="retest-timer">${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</div>
-          <div class="timer-sub">กรุณารอจนนับถอยหลังครบ</div>
+          <div class="timer-sub">${isEN ? 'Please wait until the countdown ends' : 'กรุณารอจนนับถอยหลังครบ'}</div>
         </div>`;
     } else {
       section.innerHTML = `
         <div class="ready-wrap">
           <div style="font-size:48px; margin-bottom:12px">✅</div>
-          <div style="font-size:18px; font-weight:700; color:var(--success); margin-bottom:8px">พร้อมตรวจซ้ำแล้ว!</div>
-          <div class="small muted" style="margin-bottom:16px">ครบ ${settings.retest_minutes || 5} นาทีแล้ว กดปุ่มด้านล่างเพื่อทำการตรวจซ้ำ</div>
+          <div style="font-size:18px; font-weight:700; color:var(--success); margin-bottom:8px">${isEN ? 'Ready to re-test!' : 'พร้อมตรวจซ้ำแล้ว!'}</div>
+          <div class="small muted" style="margin-bottom:16px">${isEN ? `${settings.retest_minutes || 5} minutes have passed. Press the button below to re-test.` : `ครบ ${settings.retest_minutes || 5} นาทีแล้ว กดปุ่มด้านล่างเพื่อทำการตรวจซ้ำ`}</div>
           <a href="user-form.html?location=${test.location_code}&retest_of=${test.id}" class="btn btn-primary btn-lg btn-block">
-            🔁 ตรวจซ้ำเลย
+            🔁 ${isEN ? 'Re-test now' : 'ตรวจซ้ำเลย'}
           </a>
         </div>`;
     }
@@ -124,7 +132,9 @@ if (!test) {
     updateTimer();
     if (Date.now() >= retestStart) clearInterval(interval);
   }, 1000);
+  window.addEventListener('pagehide', () => clearInterval(interval));
 }
+}); // DB.init
 </script>
 </body>
 </html>

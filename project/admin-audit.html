@@ -21,37 +21,37 @@
   <div class="row between" style="margin-bottom:24px">
     <div>
       <h1>Audit Log</h1>
-      <div class="muted small">บันทึกการดำเนินการทั้งหมดในระบบ (อ่านอย่างเดียว)</div>
+      <div class="muted small" id="page-sub"></div>
     </div>
     <button class="btn" onclick="exportAudit()">📥 Export CSV</button>
   </div>
 
   <div class="banner banner-info" style="margin-bottom:20px">
     <span class="banner-icon">🔒</span>
-    <div class="small">Audit log บันทึกทุกการแก้ไขที่สำคัญ — ไม่สามารถแก้ไขหรือลบได้ ใช้เพื่อตรวจสอบความถูกต้องและ compliance</div>
+    <div class="small" id="banner-text"></div>
   </div>
 
   <div class="card" style="margin-bottom:16px">
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
       <div class="field">
-        <label>ค้นหา</label>
-        <input class="input" id="search" placeholder="ชื่อ / action / รายละเอียด" oninput="render()" />
+        <label id="lbl-search"></label>
+        <input class="input" id="search" id="search-input" oninput="render()" />
       </div>
       <div class="field">
-        <label>ประเภท Action</label>
+        <label id="lbl-action-type"></label>
         <select class="select" id="f-action" onchange="render()">
-          <option value="">ทั้งหมด</option>
-          <option value="delete">ลบ (delete)</option>
-          <option value="update">แก้ไข (update)</option>
-          <option value="add">เพิ่ม (add)</option>
+          <option value="" id="opt-all"></option>
+          <option value="delete" id="opt-delete"></option>
+          <option value="update" id="opt-update"></option>
+          <option value="add" id="opt-add"></option>
         </select>
       </div>
       <div class="field">
-        <label>วันที่เริ่ม</label>
+        <label id="lbl-from"></label>
         <input class="input" type="date" id="f-from" onchange="render()" />
       </div>
       <div class="field">
-        <label>วันที่สิ้นสุด</label>
+        <label id="lbl-to"></label>
         <input class="input" type="date" id="f-to" onchange="render()" />
       </div>
     </div>
@@ -64,12 +64,7 @@
   <div class="table-wrap">
     <table class="table">
       <thead>
-        <tr>
-          <th>เวลา</th>
-          <th>ผู้ดำเนินการ</th>
-          <th>Action</th>
-          <th>เป้าหมาย</th>
-          <th>รายละเอียด</th>
+        <tr id="table-head">
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -77,10 +72,35 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
-if (!requireAdmin()) {} else {
+DB.init().then(() => {
+if (!requireAdmin() || !hasRole('super', 'auditor')) { location.href = 'admin-dashboard.html'; } else {
   document.getElementById('chrome').innerHTML = renderTopbar('audit');
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
+
+  document.getElementById('page-sub').textContent = isEN ? 'All system activity log (read-only)' : 'บันทึกการดำเนินการทั้งหมดในระบบ (อ่านอย่างเดียว)';
+  document.getElementById('banner-text').textContent = isEN
+    ? 'Audit log records all important changes — cannot be edited or deleted. Used for verification and compliance.'
+    : 'Audit log บันทึกทุกการแก้ไขที่สำคัญ — ไม่สามารถแก้ไขหรือลบได้ ใช้เพื่อตรวจสอบความถูกต้องและ compliance';
+  document.getElementById('lbl-search').textContent = isEN ? 'Search' : 'ค้นหา';
+  document.getElementById('search').placeholder = isEN ? 'Name / action / detail' : 'ชื่อ / action / รายละเอียด';
+  document.getElementById('lbl-action-type').textContent = isEN ? 'Action Type' : 'ประเภท Action';
+  document.getElementById('opt-all').textContent = isEN ? 'All' : 'ทั้งหมด';
+  document.getElementById('opt-delete').textContent = isEN ? 'Delete' : 'ลบ (delete)';
+  document.getElementById('opt-update').textContent = isEN ? 'Update' : 'แก้ไข (update)';
+  document.getElementById('opt-add').textContent = isEN ? 'Add' : 'เพิ่ม (add)';
+  document.getElementById('lbl-from').textContent = isEN ? 'Start Date' : 'วันที่เริ่ม';
+  document.getElementById('lbl-to').textContent = isEN ? 'End Date' : 'วันที่สิ้นสุด';
+  document.getElementById('table-head').innerHTML = `
+    <th>${isEN ? 'Time' : 'เวลา'}</th>
+    <th>${isEN ? 'Actor' : 'ผู้ดำเนินการ'}</th>
+    <th>Action</th>
+    <th>${isEN ? 'Target' : 'เป้าหมาย'}</th>
+    <th>${isEN ? 'Detail' : 'รายละเอียด'}</th>
+  `;
 
   function actionTag(action) {
     const cls = action.startsWith('delete') ? 'act-delete' :
@@ -107,7 +127,7 @@ if (!requireAdmin()) {} else {
 
   function render() {
     const entries = filtered();
-    document.getElementById('count').textContent = `${entries.length} รายการ`;
+    document.getElementById('count').textContent = `${entries.length} ${isEN ? 'records' : 'รายการ'}`;
     document.getElementById('rows').innerHTML = entries.length ? entries.map(a => `
       <tr>
         <td class="small" style="font-family:var(--font-mono); white-space:nowrap">${formatDate(a.created_at)}</td>
@@ -123,12 +143,12 @@ if (!requireAdmin()) {} else {
         <td class="small" style="font-family:var(--font-mono); color:var(--text-muted)">${a.target || '—'}</td>
         <td class="small">${a.detail || '—'}</td>
       </tr>
-    `).join('') : '<tr><td colspan="5"><div class="empty"><div class="icon">📋</div>ไม่พบข้อมูล</div></td></tr>';
+    `).join('') : `<tr><td colspan="5"><div class="empty"><div class="icon">📋</div>${isEN ? 'No data found' : 'ไม่พบข้อมูล'}</div></td></tr>`;
   }
 
   function exportAudit() {
     const entries = filtered();
-    const headers = ['เวลา','ผู้ดำเนินการ','Action','เป้าหมาย','รายละเอียด'];
+    const headers = isEN ? ['Time','Actor','Action','Target','Detail'] : ['เวลา','ผู้ดำเนินการ','Action','เป้าหมาย','รายละเอียด'];
     const rows = entries.map(a => [formatDate(a.created_at), a.actor_name || a.actor_id, a.action, a.target || '', a.detail || '']);
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
@@ -136,13 +156,14 @@ if (!requireAdmin()) {} else {
     a.href = URL.createObjectURL(blob);
     a.download = `audit-log-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
-    showToast('Export CSV เรียบร้อย');
+    showToast(isEN ? 'CSV exported' : 'Export CSV เรียบร้อย');
   }
 
   window.render = render;
   window.exportAudit = exportAudit;
   render();
 }
+}); // DB.init
 </script>
 </body>
 </html>
