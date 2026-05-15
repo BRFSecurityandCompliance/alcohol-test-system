@@ -66,34 +66,14 @@ document.getElementById('form').addEventListener('submit', async e => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, password: pw })
     });
-    const isJson = (res.headers.get('content-type') || '').includes('application/json');
-    if (isJson && res.ok) {
+    if (res.ok) {
       const { token } = await res.json();
       setAdminAuth(token);
       location.href = 'admin-dashboard.html';
       return;
     }
-    if (isJson) {
-      // Worker replied with error (wrong credentials)
-      err.style.display = 'block';
-      e.target.password.value = '';
-      btn.disabled = false;
-      btn.textContent = isEN ? 'Login' : 'เข้าสู่ระบบ';
-      return;
-    }
-    // Worker not deployed yet — fall back to local password check
-    if (pw === ADMIN_PASSWORD) {
-      setAdminAuth(true);
-      location.href = 'admin-dashboard.html';
-      return;
-    }
-  } catch {
-    // Network error — fall back to local password check
-    if (pw === ADMIN_PASSWORD) {
-      setAdminAuth(true);
-      location.href = 'admin-dashboard.html';
-      return;
-    }
+  } catch (fetchErr) {
+    console.error('[login] fetch failed', fetchErr);
   }
 
   err.style.display = 'block';

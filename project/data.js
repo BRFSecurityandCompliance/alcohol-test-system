@@ -394,7 +394,8 @@ function _dbClient() {
 }
 
 // ===== Auth =====
-const ADMIN_PASSWORD = 'sc0000'; // fallback for local dev without Worker
+// Password is verified server-side in the Cloudflare Worker (env.ADMIN_PASSWORD secret)
+const ADMIN_PASSWORD = ''; // kept for reference only — not used in login flow
 
 // Session idle timeout — 2 hours of inactivity logs out admin
 (function() {
@@ -412,15 +413,18 @@ const ADMIN_PASSWORD = 'sc0000'; // fallback for local dev without Worker
   ['click','keydown','touchstart','scroll'].forEach(ev => document.addEventListener(ev, _resetIdle, { passive: true }));
   _resetIdle();
 })();
+// UI-gating only — actual auth is enforced server-side in the Cloudflare Worker
 function isAdminAuthed() {
   const token = sessionStorage.getItem('admin_token');
   if (token) {
     try {
       const p = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-      if (p.exp && p.exp > Date.now()) return true;
+      // exp is Unix seconds (standard JWT)
+      if (p.exp && p.exp > Math.floor(Date.now() / 1000)) return true;
     } catch {}
+    return false;
   }
-  return sessionStorage.getItem('admin_auth') === '1'; // legacy fallback
+  return sessionStorage.getItem('admin_auth') === '1'; // legacy flag (no token path)
 }
 function setAdminAuth(v, userId) {
   if (!v) {

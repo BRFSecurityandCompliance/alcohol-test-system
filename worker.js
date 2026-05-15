@@ -1,18 +1,17 @@
 const SUPABASE_URL = 'https://qgkevfikehdoufjcubcm.supabase.co';
 const FORWARD_HDRS = ['content-type','prefer','range','accept','accept-profile','content-profile'];
+const ADMIN_PREFIX = '/api/admin';
+const VALID_PROXY_PREFIXES = ['/rest/v1/', '/storage/v1/'];
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHdrs() });
-    }
     if (url.pathname === '/api/auth' && request.method === 'POST') {
-      return cors(await handleAuth(request, env));
+      return handleAuth(request, env);
     }
-    if (url.pathname.startsWith('/api/admin/')) {
-      return cors(await handleAdminProxy(request, url, env));
+    if (url.pathname.startsWith(ADMIN_PREFIX + '/')) {
+      return handleAdminProxy(request, url, env);
     }
     return env.ASSETS.fetch(request);
   }
@@ -26,17 +25,17 @@ async function handleAuth(request, env) {
     if (!password || password !== env.ADMIN_PASSWORD) {
       return Response.json({ error: 'Invalid credentials' }, { status: 401 });
     }
-    // Look up user by name using service_role key
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/admin_users?name=eq.${encodeURIComponent(name)}&select=id,name,role,sites&limit=1`,
       { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
     );
     const rows = await res.json();
     const user = Array.isArray(rows) ? rows[0] : null;
-    if (!user) return Response.json({ error: 'User not found' }, { status: 404 });
+    // Return same error for wrong password OR unknown user (prevents user enumeration)
+    if (!user) return Response.json({ error: 'Invalid credentials' }, { status: 401 });
 
     const token = await signToken(
-      { uid: user.id, role: user.role, exp: Date.now() + 8 * 3600 * 1000 },
+      { uid: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + 8 * 3600 },
       env.TOKEN_SECRET
     );
     return Response.json({ token, user: { id: user.id, name: user.name, role: user.role } });
@@ -53,9 +52,13 @@ async function handleAdminProxy(request, url, env) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const supabasePath = url.pathname.replace('/api/admin', '');
-  const targetUrl = `${SUPABASE_URL}${supabasePath}${url.search}`;
+  // Validate proxy path — must start with /rest/v1/ or /storage/v1/
+  const supabasePath = url.pathname.slice(ADMIN_PREFIX.length);
+  if (!VALID_PROXY_PREFIXES.some(p => supabasePath.startsWith(p))) {
+    return Response.json({ error: 'Invalid path' }, { status: 400 });
+  }
 
+  const targetUrl = `${SUPABASE_URL}${supabasePath}${url.search}`;
   const hdrs = new Headers({
     apikey: env.SUPABASE_SERVICE_KEY,
     Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
@@ -65,15 +68,11 @@ async function handleAdminProxy(request, url, env) {
     if (v) hdrs.set(h, v);
   }
 
-  const res = await fetch(targetUrl, {
+  return fetch(targetUrl, {
     method: request.method,
     headers: hdrs,
     body: ['GET','HEAD'].includes(request.method) ? null : request.body,
   });
-
-  const outHdrs = new Headers(res.headers);
-  Object.entries(corsHdrs()).forEach(([k, v]) => outHdrs.set(k, v));
-  return new Response(res.body, { status: res.status, headers: outHdrs });
 }
 
 // ── JWT ───────────────────────────────────────────────────────────────────────
@@ -97,7 +96,8 @@ async function verifyToken(token, secret) {
     if (parts.length !== 3) return false;
     const [hdr, body, sig] = parts;
     const payload = JSON.parse(atob(pad(body.replace(/-/g,'+').replace(/_/g,'/'))));
-    if (!payload.exp || payload.exp < Date.now()) return false;
+    // exp is in Unix seconds
+    if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return false;
     const key = await crypto.subtle.importKey(
       'raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
     );
@@ -113,16 +113,3 @@ const enc  = s => new TextEncoder().encode(s);
 const pad  = s => s + '='.repeat((4 - s.length % 4) % 4);
 const b64u = s => btoa(unescape(encodeURIComponent(s)))
   .replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
-
-function corsHdrs() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-Admin-Token,Prefer,Range,Accept-Profile,Content-Profile',
-  };
-}
-function cors(response) {
-  const r = new Response(response.body, response);
-  Object.entries(corsHdrs()).forEach(([k, v]) => r.headers.set(k, v));
-  return r;
-}
