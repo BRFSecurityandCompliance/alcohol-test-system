@@ -35,7 +35,7 @@ async function handleAuth(request, env) {
     if (!user) return Response.json({ error: 'Invalid credentials' }, { status: 401 });
 
     const token = await signToken(
-      { uid: user.id, role: user.role, exp: Math.floor(Date.now() / 1000) + 8 * 3600 },
+      { uid: user.id, role: user.role, sites: user.sites, exp: Math.floor(Date.now() / 1000) + 8 * 3600 },
       env.TOKEN_SECRET
     );
     return Response.json({ token, user: { id: user.id, name: user.name, role: user.role } });

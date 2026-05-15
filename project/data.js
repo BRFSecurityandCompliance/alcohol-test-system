@@ -448,7 +448,17 @@ function setAdminAuth(v, userId) {
 function currentUser() {
   const id = sessionStorage.getItem('admin_user');
   if (!id) return null;
-  return DB.users().find(u => u.id === id) || null;
+  const fromDB = DB.users().find(u => u.id === id);
+  if (fromDB) return fromDB;
+  // Fallback: read role/sites directly from JWT when DB hasn't loaded
+  const token = sessionStorage.getItem('admin_token');
+  if (token) {
+    try {
+      const p = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (p.uid === id && p.role) return { id: p.uid, role: p.role, name: '', sites: p.sites || 'all' };
+    } catch {}
+  }
+  return null;
 }
 function hasRole(...roles) {
   const u = currentUser();
@@ -514,6 +524,8 @@ function renderTopbar(active) {
 }
 function requireAdmin() {
   if (!isAdminAuthed()) { location.href = 'admin-login.html'; return false; }
+  // Legacy session (admin_auth=1 but no JWT token) — anon client can't load admin data after tighten_rls
+  if (!sessionStorage.getItem('admin_token')) { setAdminAuth(false); location.href = 'admin-login.html'; return false; }
   return true;
 }
 
