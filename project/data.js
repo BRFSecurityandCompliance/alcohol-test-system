@@ -711,9 +711,10 @@ DB.upsertLocation = function(loc) {
   if (i >= 0) db.locations[i] = loc; else db.locations.push(loc);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _dbClient().from('locations').upsert(loc, { onConflict: 'code' })
-      .then(({ error }) => { if (error) console.warn('[DB.upsertLocation]', error.message); });
+    return _dbClient().from('locations').upsert(loc, { onConflict: 'code' })
+      .then(({ error }) => { if (error) { console.warn('[DB.upsertLocation]', error.message); throw new Error(error.message); } });
   }
+  return Promise.resolve();
 };
 
 DB.deleteLocation = function(code) {
