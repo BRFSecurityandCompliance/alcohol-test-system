@@ -84,14 +84,14 @@ function getShiftFromDate(iso) {
 
 // ===== FEATURE #13: Devices =====
 const SEED_DEVICES = [
-  { id: 'd1', serial: 'BT-AL7-0001', model: 'AlcoSense AL7000', location_code: 'QR001', last_calibrated: '2026-03-15', next_calibration: '2026-09-15', status: 'active' },
-  { id: 'd2', serial: 'BT-AL7-0002', model: 'AlcoSense AL7000', location_code: 'QR002', last_calibrated: '2026-02-20', next_calibration: '2026-08-20', status: 'active' },
-  { id: 'd3', serial: 'BT-AL7-0003', model: 'AlcoSense AL7000', location_code: 'QR003', last_calibrated: '2025-11-10', next_calibration: '2026-05-10', status: 'due-soon' },
-  { id: 'd4', serial: 'BT-X3-0007',  model: 'Drager X-3',       location_code: 'QR004', last_calibrated: '2026-04-01', next_calibration: '2026-10-01', status: 'active' },
-  { id: 'd5', serial: 'BT-X3-0008',  model: 'Drager X-3',       location_code: 'QR005', last_calibrated: '2025-09-15', next_calibration: '2026-03-15', status: 'overdue' },
-  { id: 'd6', serial: 'BT-AL7-0009', model: 'AlcoSense AL7000', location_code: 'QR006', last_calibrated: '2026-04-20', next_calibration: '2026-10-20', status: 'active' },
-  { id: 'd7', serial: 'BT-AL7-0010', model: 'AlcoSense AL7000', location_code: 'QR007', last_calibrated: '2026-03-30', next_calibration: '2026-09-30', status: 'active' },
-  { id: 'd8', serial: 'BT-X3-0011',  model: 'Drager X-3',       location_code: 'QR008', last_calibrated: '2026-01-10', next_calibration: '2026-07-10', status: 'active' }
+  { id: 'd1', serial: 'BT-AL7-0001', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR001', last_calibrated: '2026-03-15', next_calibration: '2026-09-15', status: 'active' },
+  { id: 'd2', serial: 'BT-AL7-0002', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR002', last_calibrated: '2026-02-20', next_calibration: '2026-08-20', status: 'active' },
+  { id: 'd3', serial: 'BT-AL7-0003', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR003', last_calibrated: '2025-11-10', next_calibration: '2026-05-10', status: 'due-soon' },
+  { id: 'd4', serial: 'BT-X3-0007',  asset_no: '', model: 'Drager X-3',       location_code: 'QR004', last_calibrated: '2026-04-01', next_calibration: '2026-10-01', status: 'active' },
+  { id: 'd5', serial: 'BT-X3-0008',  asset_no: '', model: 'Drager X-3',       location_code: 'QR005', last_calibrated: '2025-09-15', next_calibration: '2026-03-15', status: 'overdue' },
+  { id: 'd6', serial: 'BT-AL7-0009', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR006', last_calibrated: '2026-04-20', next_calibration: '2026-10-20', status: 'active' },
+  { id: 'd7', serial: 'BT-AL7-0010', asset_no: '', model: 'AlcoSense AL7000', location_code: 'QR007', last_calibrated: '2026-03-30', next_calibration: '2026-09-30', status: 'active' },
+  { id: 'd8', serial: 'BT-X3-0011',  asset_no: '', model: 'Drager X-3',       location_code: 'QR008', last_calibrated: '2026-01-10', next_calibration: '2026-07-10', status: 'active' }
 ];
 function getDeviceStatus(nextDate) {
   const days = (new Date(nextDate) - Date.now()) / 86400000;
@@ -135,9 +135,16 @@ function pushOfflineQueue(test) {
 function flushOfflineQueue() {
   const q = getOfflineQueue();
   if (!q.length) return 0;
-  q.forEach(t => { delete t._queued_at; DB.addTest(t); });
-  localStorage.setItem('offline_queue', '[]');
-  return q.length;
+  const failed = [];
+  q.forEach(t => {
+    const queued_at = t._queued_at;
+    delete t._queued_at;
+    // Preserve the original submission time so shift/timestamp are correct
+    if (queued_at && !t.created_at) t.created_at = queued_at;
+    try { DB.addTest(t); } catch (e) { console.warn('[flushOfflineQueue] failed item:', e); failed.push(t); }
+  });
+  localStorage.setItem('offline_queue', failed.length ? JSON.stringify(failed) : '[]');
+  return q.length - failed.length;
 }
 
 // ===== FEATURE #11: Persons (employee directory for quick re-entry) =====
@@ -184,7 +191,6 @@ const SEED_TESTS = (() => {
       shift_id: getShiftFromDate(created.toISOString()).id,
       device_serial: device.serial,
       operator_id: i % 3 === 0 ? 'u2' : 'u1',
-      signature_employee: '',
       signature_operator: '',
       retest_of: null,
       retest_status: null, // null | 'required' | 'completed' | 'failed'
@@ -236,7 +242,8 @@ function loadDB() {
       watchlist_threshold: 2,
       watchlist_window_days: 30,
       thresholds: THRESHOLDS,
-      language: 'th'
+      language: 'th',
+      shifts_enabled: true
     }
   };
   saveDB(fresh);
@@ -298,7 +305,7 @@ const DB = {
     if (i >= 0) {
       const before = JSON.stringify(db.tests[i]);
       db.tests[i] = { ...db.tests[i], ...patch };
-      db.audit.unshift({ id: 'a' + Date.now(), actor_id: actor?.id || 'u1', actor_name: actor?.name || 'Admin', action: 'update_test', target: id, detail: `แก้ไข: ${Object.keys(patch).join(', ')}`, created_at: new Date().toISOString() });
+      db.audit.unshift({ id: 'a' + Date.now(), actor_id: actor?.id || null, actor_name: actor?.name || 'Unknown', action: 'update_test', target: id, detail: `แก้ไข: ${Object.keys(patch).join(', ')}`, created_at: new Date().toISOString() });
       saveDB(db);
     }
   },
@@ -323,23 +330,26 @@ const DB = {
 };
 
 // ===== Helpers =====
+function _uiLang() { return localStorage.getItem('lang') || 'th'; }
+function _loc() { return _uiLang() === 'en' ? 'en-GB' : 'th-TH'; }
 function formatDate(iso) {
   const d = new Date(iso);
-  return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) +
-    ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString(_loc(), { year: 'numeric', month: 'short', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString(_loc(), { hour: '2-digit', minute: '2-digit' });
 }
 function formatDateShort(iso) {
-  return new Date(iso).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+  return new Date(iso).toLocaleDateString(_loc(), { day: '2-digit', month: 'short', year: '2-digit' });
 }
 function formatTime(iso) {
-  return new Date(iso).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(_loc(), { hour: '2-digit', minute: '2-digit' });
 }
 function timeAgo(iso) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return 'เมื่อสักครู่';
-  if (s < 3600) return `${Math.floor(s/60)} นาทีที่แล้ว`;
-  if (s < 86400) return `${Math.floor(s/3600)} ชั่วโมงที่แล้ว`;
-  return `${Math.floor(s/86400)} วันที่แล้ว`;
+  const en = _uiLang() === 'en';
+  if (s < 60) return en ? 'just now' : 'เมื่อสักครู่';
+  if (s < 3600) return en ? `${Math.floor(s/60)}m ago` : `${Math.floor(s/60)} นาทีที่แล้ว`;
+  if (s < 86400) return en ? `${Math.floor(s/3600)}h ago` : `${Math.floor(s/3600)} ชั่วโมงที่แล้ว`;
+  return en ? `${Math.floor(s/86400)}d ago` : `${Math.floor(s/86400)} วันที่แล้ว`;
 }
 function showToast(msg, kind = '') {
   let t = document.querySelector('.toast');
@@ -351,24 +361,104 @@ function showToast(msg, kind = '') {
 
 // ===== FEATURE #12: i18n =====
 const I18N = {
-  th: { lang_name: 'ไทย', full_name: 'ชื่อ-นามสกุล', department: 'แผนก / ตำแหน่ง', company: 'บริษัท', plate: 'ทะเบียนรถ', result: 'ผลการตรวจแอลกอฮอล์', no_alcohol: 'ไม่พบแอลกอฮอล์', has_alcohol: 'ตรวจพบแอลกอฮอล์', value_mg: 'ค่าที่วัดได้ (mg%)', take_photo: 'แตะเพื่อถ่ายรูป', submit: 'ส่งข้อมูล', record: 'บันทึกผลตรวจแอลกอฮอล์', fill_in: 'กรุณากรอกข้อมูลให้ครบถ้วนตามจริง', employee_id: 'รหัสพนักงาน', quick_lookup: 'ค้นหารวดเร็ว' },
-  en: { lang_name: 'English', full_name: 'Full Name', department: 'Department / Position', company: 'Company', plate: 'License Plate', result: 'Alcohol Test Result', no_alcohol: 'No alcohol detected', has_alcohol: 'Alcohol detected', value_mg: 'Reading (mg%)', take_photo: 'Tap to take photo', submit: 'Submit', record: 'Record Alcohol Test', fill_in: 'Please fill in all required fields', employee_id: 'Employee ID', quick_lookup: 'Quick lookup' },
-  my: { lang_name: 'မြန်မာ', full_name: 'အမည်အပြည့်အစုံ', department: 'ဌာန / ရာထူး', company: 'ကုမ္ပဏီ', plate: 'ကားနံပါတ်', result: 'အရက်စစ်ဆေးမှုရလဒ်', no_alcohol: 'အရက်မတွေ့ပါ', has_alcohol: 'အရက်တွေ့ရှိ', value_mg: 'အတိုင်းအတာ (mg%)', take_photo: 'ဓာတ်ပုံရိုက်ရန်နှိပ်ပါ', submit: 'တင်ပြရန်', record: 'အရက်စစ်ဆေးမှုမှတ်တမ်း', fill_in: 'အချက်အလက်အားလုံးဖြည့်ပါ', employee_id: 'ဝန်ထမ်းအိုင်ဒီ', quick_lookup: 'အမြန်ရှာဖွေ' },
-  km: { lang_name: 'ខ្មែរ', full_name: 'ឈ្មោះពេញ', department: 'ផ្នែក / តួនាទី', company: 'ក្រុមហ៊ុន', plate: 'លេខស្លាករថយន្ត', result: 'លទ្ធផលតេស្តគ្រឿងស្រវឹង', no_alcohol: 'មិនមានគ្រឿងស្រវឹង', has_alcohol: 'រកឃើញគ្រឿងស្រវឹង', value_mg: 'តម្លៃវាស់ (mg%)', take_photo: 'ចុចដើម្បីថតរូប', submit: 'ដាក់ស្នើ', record: 'កត់ត្រាការតេស្តគ្រឿងស្រវឹង', fill_in: 'សូមបំពេញព័ត៌មានទាំងអស់', employee_id: 'លេខបុគ្គលិក', quick_lookup: 'ស្វែងរករហ័ស' }
+  th: { lang_name: 'ไทย', full_name: 'ชื่อ-นามสกุล', department: 'แผนก / ตำแหน่ง', company: 'บริษัท', plate: 'ทะเบียนรถ', result: 'ผลการตรวจแอลกอฮอล์', no_alcohol: 'ไม่พบแอลกอฮอล์', has_alcohol: 'ตรวจพบแอลกอฮอล์', value_mg: 'ค่าที่วัดได้ (mg%)', take_photo: 'แตะเพื่อถ่ายรูป', submit: 'ส่งข้อมูล', record: 'บันทึกผลตรวจแอลกอฮอล์', fill_in: 'กรุณากรอกข้อมูลให้ครบถ้วนตามจริง', employee_id: 'รหัสพนักงาน', quick_lookup: 'ค้นหารวดเร็ว', quick_hint: 'เคยลงทะเบียน → ระบบเติมข้อมูลให้อัตโนมัติ', search: 'ค้นหา', photo_label: 'ภาพถ่ายเครื่องตรวจ', camera_only: 'ใช้กล้องเท่านั้น', sig_label: 'ลายเซ็นพนักงาน (ยืนยันผลตรวจ)', sig_hint: 'ใช้นิ้วเซ็นบนกล่อง', clear: 'ล้าง', company_placeholder: 'พิมพ์ชื่อบริษัท...', company_new: 'ไม่พบ — พิมพ์เพื่อเพิ่มใหม่', offline: '⚡ ออฟไลน์ — บันทึกในเครื่อง', online_pre: '✓ ออนไลน์ · sync ', online_suf: ' รายการ', invalid_title: 'ไม่สามารถเข้าใช้งานได้', invalid_msg: 'ไม่พบรหัสสถานที่ (location) ใน URL กรุณาสแกน QR Code ของจุดตรวจอีกครั้ง', back_home: 'กลับหน้าหลัก', qr_locked: '🔒 ระบุจาก QR', device_prefix: 'เครื่อง:', select_dept: '-- เลือก --', tp_pass: 'ผ่านเกณฑ์', tp_caution: 'ห้ามขับยานพาหนะ — แจ้งหัวหน้างาน', tp_nodrive: 'ห้ามขับ ห้ามเข้างาน — แจ้งทันที', tp_illegal: 'เกินกฎหมาย — รายงานทันที', tp_level: 'ระดับ:', stamp_at: 'บันทึกพร้อมตำแหน่ง', shift_at: 'กะ', pdpa: 'นโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA)', emp_not_found: 'ไม่พบรหัสพนักงาน', emp_loaded: 'โหลดข้อมูลแล้ว', company_use: 'ใช้', company_new_badge: 'ใหม่', retest_title: 'ตรวจซ้ำ (Re-test)', retest_for: 'ของ', retest_first: '· ครั้งแรกค่า', retest_time: 'เวลา' },
+  en: { lang_name: 'English', full_name: 'Full Name', department: 'Department / Position', company: 'Company', plate: 'License Plate', result: 'Alcohol Test Result', no_alcohol: 'No alcohol detected', has_alcohol: 'Alcohol detected', value_mg: 'Reading (mg%)', take_photo: 'Tap to take photo', submit: 'Submit', record: 'Record Alcohol Test', fill_in: 'Please fill in all required fields accurately', employee_id: 'Employee ID', quick_lookup: 'Quick Lookup', quick_hint: 'Registered before → auto-fill your details', search: 'Search', photo_label: 'Breathalyser Photo', camera_only: 'Camera only', sig_label: 'Employee Signature (Confirm result)', sig_hint: 'Sign with your finger', clear: 'Clear', company_placeholder: 'Type company name...', company_new: 'Not found — type to add new', offline: '⚡ Offline — saved locally', online_pre: '✓ Online · synced ', online_suf: ' records', invalid_title: 'Cannot Access', invalid_msg: 'Location code not found in URL. Please scan the checkpoint QR Code again.', back_home: 'Back to Home', qr_locked: '🔒 QR Verified', device_prefix: 'Device:', select_dept: '-- Select --', tp_pass: 'Pass', tp_caution: 'No driving — notify supervisor', tp_nodrive: 'No drive, no work — report immediately', tp_illegal: 'Exceeds legal limit — report immediately', tp_level: 'Level:', stamp_at: 'Saved at', shift_at: 'Shift', pdpa: 'Personal Data Protection Policy (PDPA)', emp_not_found: 'Employee ID not found:', emp_loaded: 'Details loaded', company_use: 'Use', company_new_badge: 'New', retest_title: 'Re-test', retest_for: 'for', retest_first: '· first reading', retest_time: 'at' },
+  my: { lang_name: 'မြန်မာ', full_name: 'အမည်အပြည့်အစုံ', department: 'ဌာန / ရာထူး', company: 'ကုမ္ပဏီ', plate: 'ကားနံပါတ်', result: 'အရက်စစ်ဆေးမှုရလဒ်', no_alcohol: 'အရက်မတွေ့ပါ', has_alcohol: 'အရက်တွေ့ရှိ', value_mg: 'အတိုင်းအတာ (mg%)', take_photo: 'ဓာတ်ပုံရိုက်ရန်နှိပ်ပါ', submit: 'တင်ပြရန်', record: 'အရက်စစ်ဆေးမှုမှတ်တမ်း', fill_in: 'အချက်အလက်အားလုံးမှန်ကန်စွာဖြည့်ပါ', employee_id: 'ဝန်ထမ်းအိုင်ဒီ', quick_lookup: 'အမြန်ရှာဖွေ', quick_hint: 'မှတ်ပုံတင်ပြီးသူ → အချက်အလက်အလိုအလျောက်ဖြည့်မည်', search: 'ရှာဖွေ', photo_label: 'စက်ဓာတ်ပုံ', camera_only: 'ကင်မရာသာသုံးပါ', sig_label: 'ဝန်ထမ်းလက်မှတ် (ရလဒ်အတည်ပြု)', sig_hint: 'လက်ချောင်းဖြင့်လက်မှတ်ထိုးပါ', clear: 'ရှင်းပါ', company_placeholder: 'ကုမ္ပဏီအမည်ရိုက်ထည့်ပါ...', company_new: 'မတွေ့ပါ — အသစ်ထည့်ရန်ရိုက်ပါ', offline: '⚡ အင်တာနက်မရှိ — ကိရိယာတွင်သိမ်း', online_pre: '✓ အင်တာနက်ရှိ · ', online_suf: ' ခုပြောင်းပြီး', invalid_title: 'ဝင်ရောက်၍မရပါ', invalid_msg: 'URL တွင် တည်နေရာကုဒ် မတွေ့ပါ။ စစ်ဆေးမှုနေရာ QR Code ကို ထပ်မံစကင်ဖတ်ပါ။', back_home: 'ပင်မစာမျက်နှာသို့ပြန်', qr_locked: '🔒 QR မှတ်ဆိုင်', device_prefix: 'ကိရိယာ:', select_dept: '-- ရွေးချယ်ပါ --', tp_pass: 'ပြေလည်သည်', tp_caution: 'မောင်းခွင့်မရှိ — အကြီးအကဲကိုအသိပေးပါ', tp_nodrive: 'မောင်းခွင့်မရှိ၊ အလုပ်မဝင်ရ — ချက်ချင်းသတင်းပို့ပါ', tp_illegal: 'ဥပဒေကိုကျော်လွန်သည် — ချက်ချင်းသတင်းပို့ပါ', tp_level: 'အဆင့်:', stamp_at: 'တည်နေရာနှင့်သိမ်းဆည်း', shift_at: 'အလုပ်ဆိုင်း', pdpa: 'ကိုယ်ရေးကိုယ်တာဒေတာကာကွယ်ရေးမူဝါဒ (PDPA)', emp_not_found: 'ဝန်ထမ်းအိုင်ဒီမတွေ့ပါ', emp_loaded: 'အချက်အလက်ထည့်သွင်းပြီး', company_use: 'သုံးပါ', company_new_badge: 'အသစ်', retest_title: 'ထပ်မံစစ်ဆေး (Re-test)', retest_for: 'အတွက်', retest_first: '· ပထမတိုင်းတာချက်', retest_time: 'အချိန်' },
+  km: { lang_name: 'ខ្មែរ', full_name: 'ឈ្មោះពេញ', department: 'ផ្នែក / តួនាទី', company: 'ក្រុមហ៊ុន', plate: 'លេខស្លាករថយន្ត', result: 'លទ្ធផលតេស្តគ្រឿងស្រវឹង', no_alcohol: 'មិនមានគ្រឿងស្រវឹង', has_alcohol: 'រកឃើញគ្រឿងស្រវឹង', value_mg: 'តម្លៃវាស់ (mg%)', take_photo: 'ចុចដើម្បីថតរូប', submit: 'ដាក់ស្នើ', record: 'កត់ត្រាការតេស្តគ្រឿងស្រវឹង', fill_in: 'សូមបំពេញព័ត៌មានទាំងអស់ឱ្យបានត្រឹមត្រូវ', employee_id: 'លេខបុគ្គលិក', quick_lookup: 'ស្វែងរករហ័ស', quick_hint: 'បានចុះឈ្មោះរួច → បំពេញព័ត៌មានដោយស្វ័យប្រវត្តិ', search: 'ស្វែងរក', photo_label: 'រូបភាពឧបករណ៍', camera_only: 'ប្រើកាមេរ៉ាតែប៉ុណ្ណោះ', sig_label: 'ហត្ថលេខាបុគ្គលិក (បញ្ជាក់លទ្ធផល)', sig_hint: 'ចុះហត្ថលេខាដោយម្រាមដៃ', clear: 'លុប', company_placeholder: 'វាយបញ្ចូលឈ្មោះក្រុមហ៊ុន...', company_new: 'រកមិនឃើញ — វាយដើម្បីបន្ថែមថ្មី', offline: '⚡ គ្មានអ៊ីនធឺណិត — រក្សាទុកក្នុងឧបករណ៍', online_pre: '✓ អ៊ីនធឺណិតភ្ជាប់ · ', online_suf: ' ការចុះឈ្មោះ', invalid_title: 'មិនអាចចូលប្រើបាន', invalid_msg: 'រកមិនឃើញលេខកូដទីតាំងក្នុង URL ។ សូមស្កេន QR Code នៃចំណុចត្រួតពិនិត្យម្តងទៀត។', back_home: 'ត្រឡប់ទៅទំព័រដើម', qr_locked: '🔒 QR បានផ្ទៀងផ្ទាត់', device_prefix: 'ឧបករណ៍:', select_dept: '-- ជ្រើសរើស --', tp_pass: 'ជាប់', tp_caution: 'ហាមបើកបរ — ជូនដំណឹងអ្នកគ្រប់គ្រង', tp_nodrive: 'ហាមបើកបរ ហាមចូលធ្វើការ — រាយការណ៍ភ្លាម', tp_illegal: 'លើសដែនកំណត់ច្បាប់ — រាយការណ៍ភ្លាម', tp_level: 'កម្រិត:', stamp_at: 'រក្សាទុកនៅទីតាំង', shift_at: 'វេន', pdpa: 'គោលនយោបាយការពារទិន្នន័យផ្ទាល់ខ្លួន (PDPA)', emp_not_found: 'រកមិនឃើញលេខបុគ្គលិក', emp_loaded: 'ព័ត៌មានបានបញ្ចូល', company_use: 'ប្រើ', company_new_badge: 'ថ្មី', retest_title: 'ការតេស្តម្តងទៀត (Re-test)', retest_for: 'សម្រាប់', retest_first: '· ការវាស់ស្ទង់ដំបូង', retest_time: 'នៅ' }
 };
 function t(key, lang) { return (I18N[lang || localStorage.getItem('lang') || 'th'] || I18N.th)[key] || I18N.th[key] || key; }
 
+// ===== Admin Supabase client (routes through Cloudflare Worker with service_role) =====
+let _sbAdmin = null;
+function _getAdminClient() {
+  if (_sbAdmin) return _sbAdmin;
+  _sbAdmin = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: {
+      fetch: (url, opts = {}) => {
+        const path  = String(url).replace(SUPABASE_URL, '');
+        const token = sessionStorage.getItem('admin_token') || '';
+        const hdrs  = new Headers(opts.headers || {});
+        hdrs.delete('apikey');
+        hdrs.delete('Authorization');
+        hdrs.set('X-Admin-Token', token);
+        return fetch('/api/admin' + path, { ...opts, headers: hdrs });
+      }
+    },
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  return _sbAdmin;
+}
+// Returns admin client when logged in, anon client otherwise
+function _dbClient() {
+  return sessionStorage.getItem('admin_token') ? _getAdminClient() : _sb;
+}
+
 // ===== Auth =====
-const ADMIN_PASSWORD = 'admin1234';
-function isAdminAuthed() { return sessionStorage.getItem('admin_auth') === '1'; }
+// Password is verified server-side in the Cloudflare Worker (env.ADMIN_PASSWORD secret)
+const ADMIN_PASSWORD = ''; // kept for reference only — not used in login flow
+
+// Session idle timeout — 2 hours of inactivity logs out admin
+(function() {
+  const IDLE_MS = 2 * 60 * 60 * 1000;
+  let _idleTimer;
+  function _resetIdle() {
+    clearTimeout(_idleTimer);
+    if (isAdminAuthed()) {
+      _idleTimer = setTimeout(() => {
+        setAdminAuth(false);
+        location.href = 'admin-login.html';
+      }, IDLE_MS);
+    }
+  }
+  ['click','keydown','touchstart','scroll'].forEach(ev => document.addEventListener(ev, _resetIdle, { passive: true }));
+  _resetIdle();
+})();
+// UI-gating only — actual auth is enforced server-side in the Cloudflare Worker
+function isAdminAuthed() {
+  const token = sessionStorage.getItem('admin_token');
+  if (token) {
+    try {
+      const p = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      // exp is Unix seconds (standard JWT)
+      if (p.exp && p.exp > Math.floor(Date.now() / 1000)) return true;
+    } catch {}
+    return false;
+  }
+  return sessionStorage.getItem('admin_auth') === '1'; // legacy flag (no token path)
+}
 function setAdminAuth(v, userId) {
-  sessionStorage.setItem('admin_auth', v ? '1' : '0');
-  if (v && userId) sessionStorage.setItem('admin_user', userId);
-  if (!v) sessionStorage.removeItem('admin_user');
+  if (!v) {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
+    sessionStorage.setItem('admin_auth', '0');
+  } else if (typeof v === 'string') {
+    // v is a signed JWT from Worker
+    sessionStorage.setItem('admin_token', v);
+    try {
+      const p = JSON.parse(atob(v.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (p.uid) sessionStorage.setItem('admin_user', p.uid);
+    } catch {}
+    sessionStorage.setItem('admin_auth', '1');
+  } else {
+    // legacy boolean (local dev / fallback)
+    sessionStorage.setItem('admin_auth', '1');
+    if (userId) sessionStorage.setItem('admin_user', userId);
+  }
 }
 function currentUser() {
-  const id = sessionStorage.getItem('admin_user') || 'u1';
-  return DB.users().find(u => u.id === id) || DB.users()[0];
+  const id = sessionStorage.getItem('admin_user');
+  if (!id) return null;
+  const fromDB = DB.users().find(u => u.id === id);
+  if (fromDB) return fromDB;
+  // Fallback: read role/sites directly from JWT when DB hasn't loaded
+  const token = sessionStorage.getItem('admin_token');
+  if (token) {
+    try {
+      const p = JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (p.uid === id && p.role) return { id: p.uid, role: p.role, name: '', sites: p.sites || 'all' };
+    } catch {}
+  }
+  return null;
 }
 function hasRole(...roles) {
   const u = currentUser();
@@ -386,27 +476,31 @@ function canViewSite(code) {
 function renderTopbar(active) {
   const u = currentUser();
   const role = u ? ROLE_LABELS[u.role] : null;
+  const lang = localStorage.getItem('lang') || 'th';
+  const isEN = lang === 'en';
   const links = [
-    { href: 'admin-dashboard.html', label: 'แดชบอร์ด', key: 'dashboard' },
-    { href: 'admin-alerts.html', label: 'แจ้งเตือน', key: 'alerts', roles: ['super','manager','viewer','auditor'] },
-    { href: 'admin-reports.html', label: 'รายงาน', key: 'reports' },
-    { href: 'admin-tests.html', label: 'ผลตรวจ', key: 'tests' },
-    { href: 'admin-persons.html', label: 'พนักงาน', key: 'persons' },
-    { href: 'admin-locations.html', label: 'QR/สถานที่', key: 'locations' },
-    { href: 'admin-companies.html', label: 'บริษัท', key: 'companies' },
-    { href: 'admin-devices.html', label: 'เครื่องตรวจ', key: 'devices' },
-    { href: 'admin-settings.html', label: 'ตั้งค่า', key: 'settings', roles: ['super'] },
-    { href: 'admin-audit.html', label: 'Audit Log', key: 'audit', roles: ['super','auditor'] }
+    { href: 'admin-dashboard.html', label: isEN ? 'Dashboard'    : 'แดชบอร์ด',   key: 'dashboard' },
+    { href: 'admin-alerts.html',    label: isEN ? 'Alerts'       : 'แจ้งเตือน',  key: 'alerts',    roles: ['super','manager','viewer','auditor'] },
+    { href: 'admin-reports.html',   label: isEN ? 'Reports'      : 'รายงาน',     key: 'reports' },
+    { href: 'admin-tests.html',     label: isEN ? 'Test Results' : 'ผลตรวจ',     key: 'tests' },
+    { href: 'admin-persons.html',   label: isEN ? 'Employees'    : 'พนักงาน',    key: 'persons' },
+    { href: 'admin-locations.html', label: isEN ? 'QR / Locations' : 'QR/สถานที่', key: 'locations' },
+    { href: 'admin-companies.html', label: isEN ? 'Companies'    : 'บริษัท',     key: 'companies' },
+    { href: 'admin-devices.html',   label: isEN ? 'Devices'      : 'เครื่องตรวจ', key: 'devices' },
+    { href: 'admin-settings.html',  label: isEN ? 'Settings'     : 'ตั้งค่า',    key: 'settings',  roles: ['super'] },
+    { href: 'admin-audit.html',     label: 'Audit Log',                            key: 'audit',     roles: ['super','auditor'] },
+    { href: 'guide.html',           label: isEN ? 'Guide'        : 'คู่มือ',      key: 'guide' }
   ];
   const visible = links.filter(l => !l.roles || (u && l.roles.includes(u.role)));
   // Pending alerts count
   const pending = DB.tests().filter(x => !x.is_zero && x.action_taken === 'pending').length;
+  const nextLang = isEN ? 'th' : 'en';
   return `
     <div class="topbar">
       <a href="admin-dashboard.html" class="brand">
         <div class="logo">A</div>
         <div>
-          <div style="font-size:15px">ระบบตรวจแอลกอฮอล์</div>
+          <div style="font-size:15px">${isEN ? 'Alcohol Test System' : 'ระบบตรวจแอลกอฮอล์'}</div>
           <div class="tiny muted" style="font-weight:500">Admin Panel</div>
         </div>
       </a>
@@ -421,23 +515,29 @@ function renderTopbar(active) {
             <span class="tiny" style="color:var(--text-muted)">${role?.label || ''}</span>
           </div>
         </div>
-        <a href="index.html" class="btn btn-ghost btn-sm">หน้าหลัก</a>
-        <button class="btn btn-sm" onclick="setAdminAuth(false); location.href='admin-login.html'">ออก</button>
+        <button class="btn btn-ghost btn-sm" onclick="localStorage.setItem('lang','${nextLang}');location.reload()" style="font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;min-width:52px">${isEN ? 'TH | <b>EN</b>' : '<b>TH</b> | EN'}</button>
+        <a href="index.html" class="btn btn-ghost btn-sm">${isEN ? 'Home' : 'หน้าหลัก'}</a>
+        <button class="btn btn-sm" onclick="setAdminAuth(false); location.href='admin-login.html'">${isEN ? 'Logout' : 'ออก'}</button>
       </div>
     </div>
   `;
 }
 function requireAdmin() {
   if (!isAdminAuthed()) { location.href = 'admin-login.html'; return false; }
+  // Legacy session (admin_auth=1 but no JWT token) — anon client can't load admin data after tighten_rls
+  if (!sessionStorage.getItem('admin_token')) { setAdminAuth(false); location.href = 'admin-login.html'; return false; }
   return true;
 }
 
 // ===== Threshold badge =====
 function thresholdBadge(t) {
-  if (t.is_zero) return '<span class="lvl lvl-pass"><span class="lvl-dot"></span>ผ่าน · 0%</span>';
+  const en = _uiLang() === 'en';
+  if (t.is_zero) return `<span class="lvl lvl-pass"><span class="lvl-dot"></span>${en ? 'Pass · 0%' : 'ผ่าน · 0%'}</span>`;
   const lvl = getThresholdLevel(t.alcohol_value, t.department);
   const cls = 'lvl-' + (lvl.color === 'danger-strong' ? 'illegal' : lvl.color);
-  return `<span class="lvl ${cls}"><span class="lvl-dot"></span>${lvl.label} · ${t.alcohol_value} mg%</span>`;
+  const labelEN = { pass: 'Pass', caution: 'Caution', 'no-drive': 'No Drive', illegal: 'Illegal' };
+  const label = en ? (labelEN[lvl.level] || lvl.label) : lvl.label;
+  return `<span class="lvl ${cls}"><span class="lvl-dot"></span>${label} · ${t.alcohol_value} mg%</span>`;
 }
 
 // ===== Confirm modal helper =====
@@ -459,3 +559,313 @@ function confirmDialog(title, msg) {
     wrap.querySelector('[data-yes]').onclick = () => { wrap.remove(); resolve(true); };
   });
 }
+
+// ===== Supabase Integration =====
+
+function _genUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+function _isUUID(id) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ''));
+}
+
+DB._initialized = false;
+
+DB.init = async function() {
+  if (DB._initialized) return;
+  if (typeof _sb === 'undefined') { DB._initialized = true; return; }
+  try {
+    const [
+      { data: locs },  { data: comps },   { data: tests },
+      { data: devs },  { data: users },   { data: persons },
+      { data: channels }, { data: audit }, { data: watchl },
+      { data: sett }
+    ] = await Promise.all([
+      _dbClient().from('locations').select('*').order('code'),
+      _dbClient().from('companies').select('*').order('name'),
+      _dbClient().from('tests').select('*').order('created_at', { ascending: false }),
+      _dbClient().from('devices').select('*'),
+      _dbClient().from('admin_users').select('*'),
+      _dbClient().from('persons').select('*'),
+      _dbClient().from('alert_channels').select('*'),
+      _dbClient().from('audit_log').select('*').order('created_at', { ascending: false }).limit(500),
+      _dbClient().from('watchlist').select('*'),
+      _dbClient().from('settings').select('*').single()
+    ]);
+    const db = {
+      locations: locs || [],
+      companies: (comps || []).map(c => ({ id: c.id, name: c.name })),
+      tests: (tests || []).map(t => ({
+        ...t,
+        level: t.level || getThresholdLevel(t.alcohol_value, t.department).level,
+        shift_id: t.shift_id || getShiftFromDate(t.created_at).id,
+        action_taken: t.action_taken || null
+      })),
+      devices: (devs || []).map(d => ({ ...d, asset_no: d.asset_no || '', status: getDeviceStatus(d.next_calibration) })),
+      users: (users || []).map(u => ({
+        id: u.id, username: u.username, name: u.name,
+        email: u.email, role: u.role, sites: u.sites
+      })),
+      persons: persons || [],
+      channels: channels || [],
+      audit: (audit || []).map(a => ({
+        id: a.id, actor_id: a.actor_id || '', actor_name: a.actor_name,
+        action: a.action, target: a.target || '', detail: a.detail || '',
+        created_at: a.created_at
+      })),
+      watchlist: watchl || [],
+      settings: sett ? {
+        retest_minutes: sett.retest_minutes,
+        watchlist_threshold: sett.watchlist_threshold,
+        watchlist_window_days: sett.watchlist_window_days,
+        language: sett.language,
+        thresholds: THRESHOLDS,
+        shifts_enabled: sett.shifts_enabled !== false
+      } : { retest_minutes: 5, watchlist_threshold: 2, watchlist_window_days: 30, language: 'th', thresholds: THRESHOLDS, shifts_enabled: true }
+    };
+    saveDB(db);
+  } catch (err) {
+    console.warn('[DB.init] Supabase unavailable, using localStorage:', err.message);
+  }
+  DB._initialized = true;
+};
+
+// Replace addTest to use UUID ids and fire-and-forget to Supabase
+const _rawAddTest = DB.addTest.bind(DB);
+DB.addTest = function(t) {
+  const enriched = _rawAddTest({ ...t, id: _genUUID() });
+  enriched._sync = Promise.resolve();
+  if (typeof _sb !== 'undefined') {
+    enriched._sync = _dbClient().from('tests').insert({
+      id: enriched.id,
+      employee_id: enriched.employee_id || '',
+      full_name: enriched.full_name,
+      department: enriched.department,
+      plate_number: enriched.plate_number || '',
+      company: enriched.company,
+      alcohol_value: enriched.alcohol_value,
+      is_zero: enriched.is_zero,
+      level: enriched.level,
+      location_code: enriched.location_code,
+      location_name: enriched.location_name,
+      photo_url: enriched.photo_url || '',
+      shift_id: enriched.shift_id,
+      device_serial: enriched.device_serial || '',
+      retest_of: enriched.retest_of || null,
+      retest_status: enriched.retest_status || null,
+      action_taken: enriched.action_taken || null,
+      action_note: enriched.action_note || '',
+      created_at: enriched.created_at
+    }).then(({ error }) => { if (error) console.warn('[DB.addTest]', error.message); });
+  }
+  return enriched;
+};
+
+const _rawDeleteTest = DB.deleteTest.bind(DB);
+DB.deleteTest = function(id, actor) {
+  _rawDeleteTest(id, actor);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _dbClient().from('tests').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteTest]', error.message); });
+  }
+};
+
+const _rawUpdateTest = DB.updateTest.bind(DB);
+DB.updateTest = function(id, patch, actor) {
+  _rawUpdateTest(id, patch, actor);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    const cols = ['alcohol_value','is_zero','level','retest_status','action_taken','action_note','action_by','operator_id'];
+    const row = {};
+    cols.forEach(k => { if (patch[k] !== undefined) row[k] = patch[k]; });
+    if (Object.keys(row).length) {
+      _dbClient().from('tests').update(row).eq('id', id)
+        .then(({ error }) => { if (error) console.warn('[DB.updateTest]', error.message); });
+    }
+    if (actor) {
+      _dbClient().from('audit_log').insert({
+        id: _genUUID(), actor_id: _isUUID(actor.id) ? actor.id : null,
+        actor_name: actor.name || 'Admin', action: 'update_test',
+        target: id, detail: `แก้ไข: ${Object.keys(patch).join(', ')}`
+      }).then(({ error }) => { if (error) console.warn('[audit updateTest]', error.message); });
+    }
+  }
+};
+
+DB.upsertLocation = function(loc) {
+  const db = loadDB();
+  const i = db.locations.findIndex(l => l.code === loc.code);
+  if (i >= 0) db.locations[i] = loc; else db.locations.push(loc);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _dbClient().from('locations').upsert(loc, { onConflict: 'code' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertLocation]', error.message); });
+  }
+};
+
+DB.deleteLocation = function(code) {
+  const db = loadDB();
+  db.locations = db.locations.filter(l => l.code !== code);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _dbClient().from('locations').delete().eq('code', code)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteLocation]', error.message); });
+  }
+};
+
+DB.upsertCompany = function(c) {
+  const id = _isUUID(c.id) ? c.id : _genUUID();
+  const db = loadDB();
+  const i = db.companies.findIndex(x => x.id === c.id);
+  if (i >= 0) db.companies[i] = { id, name: c.name };
+  else db.companies.push({ id, name: c.name });
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _dbClient().from('companies').upsert({ id, name: c.name }, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertCompany]', error.message); });
+  }
+};
+
+DB.deleteCompany = function(id) {
+  const db = loadDB();
+  db.companies = db.companies.filter(c => c.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _dbClient().from('companies').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteCompany]', error.message); });
+  }
+};
+
+DB.upsertDevice = function(d) {
+  const id = _isUUID(d.id) ? d.id : _genUUID();
+  const db = loadDB();
+  const i = db.devices.findIndex(x => x.id === d.id || x.serial === d.serial);
+  const row = { id, serial: d.serial, asset_no: d.asset_no || '', model: d.model, location_code: d.location_code, last_calibrated: d.last_calibrated, next_calibration: d.next_calibration, status: getDeviceStatus(d.next_calibration) };
+  if (i >= 0) db.devices[i] = row; else db.devices.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    const { status, ...sbRow } = row;
+    _dbClient().from('devices').upsert(sbRow, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertDevice]', error.message); });
+  }
+};
+
+DB.deleteDevice = function(id) {
+  const db = loadDB();
+  db.devices = db.devices.filter(d => d.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _dbClient().from('devices').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteDevice]', error.message); });
+  }
+};
+
+DB.upsertUser = function(u) {
+  const id = _isUUID(u.id) ? u.id : _genUUID();
+  const db = loadDB();
+  const i = db.users.findIndex(x => x.id === u.id || x.username === u.username);
+  const row = { id, username: u.username, name: u.name, email: u.email || '', role: u.role, sites: u.sites };
+  if (i >= 0) db.users[i] = row; else db.users.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _dbClient().from('admin_users').upsert(row, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertUser]', error.message); });
+  }
+};
+
+DB.deleteUser = function(id) {
+  const db = loadDB();
+  db.users = db.users.filter(u => u.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _dbClient().from('admin_users').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteUser]', error.message); });
+  }
+};
+
+DB.upsertChannel = function(c) {
+  const id = _isUUID(c.id) ? c.id : _genUUID();
+  const db = loadDB();
+  const i = db.channels.findIndex(x => x.id === c.id);
+  const row = { id, kind: c.kind, label: c.label, target: c.target, enabled: c.enabled };
+  if (i >= 0) db.channels[i] = row; else db.channels.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _dbClient().from('alert_channels').upsert(row, { onConflict: 'id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertChannel]', error.message); });
+  }
+};
+
+DB.deleteChannel = function(id) {
+  const db = loadDB();
+  db.channels = db.channels.filter(c => c.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _dbClient().from('alert_channels').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deleteChannel]', error.message); });
+  }
+};
+
+const _rawSetSettings = DB.setSettings.bind(DB);
+DB.setSettings = function(s) {
+  _rawSetSettings(s);
+  if (typeof _sb !== 'undefined') {
+    const row = {};
+    if (s.retest_minutes !== undefined) row.retest_minutes = s.retest_minutes;
+    if (s.watchlist_threshold !== undefined) row.watchlist_threshold = s.watchlist_threshold;
+    if (s.watchlist_window_days !== undefined) row.watchlist_window_days = s.watchlist_window_days;
+    if (s.language !== undefined) row.language = s.language;
+    if (s.shifts_enabled !== undefined) row.shifts_enabled = s.shifts_enabled;
+    if (Object.keys(row).length) {
+      _dbClient().from('settings').update(row).eq('id', 1)
+        .then(({ error }) => { if (error) console.warn('[DB.setSettings]', error.message); });
+    }
+  }
+};
+
+const _rawAddAudit = DB.addAudit.bind(DB);
+DB.addAudit = function(entry) {
+  _rawAddAudit(entry);
+  if (typeof _sb !== 'undefined') {
+    _dbClient().from('audit_log').insert({
+      id: _genUUID(),
+      actor_id: _isUUID(entry.actor_id) ? entry.actor_id : null,
+      actor_name: entry.actor_name || 'System',
+      action: entry.action, target: entry.target || '', detail: entry.detail || ''
+    }).then(({ error }) => { if (error) console.warn('[DB.addAudit]', error.message); });
+  }
+};
+
+DB.upsertPerson = function(p) {
+  const id = _isUUID(p.id) ? p.id : _genUUID();
+  const db = loadDB();
+  const i = db.persons.findIndex(x => x.id === p.id || x.employee_id === p.employee_id);
+  const row = { id, employee_id: p.employee_id, full_name: p.full_name, department: p.department || '', company: p.company || '', plate_number: p.plate_number || '', phone: p.phone || '' };
+  if (i >= 0) db.persons[i] = row; else db.persons.push(row);
+  saveDB(db);
+  if (typeof _sb !== 'undefined') {
+    _dbClient().from('persons').upsert(row, { onConflict: 'employee_id' })
+      .then(({ error }) => { if (error) console.warn('[DB.upsertPerson]', error.message); });
+  }
+};
+
+DB.deletePerson = function(id) {
+  const db = loadDB();
+  db.persons = db.persons.filter(p => p.id !== id);
+  saveDB(db);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _dbClient().from('persons').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.deletePerson]', error.message); });
+  }
+};
+
+const _rawRemoveFromWatchlist = DB.removeFromWatchlist.bind(DB);
+DB.removeFromWatchlist = function(id) {
+  _rawRemoveFromWatchlist(id);
+  if (typeof _sb !== 'undefined' && _isUUID(id)) {
+    _dbClient().from('watchlist').delete().eq('id', id)
+      .then(({ error }) => { if (error) console.warn('[DB.removeFromWatchlist]', error.message); });
+  }
+};

@@ -30,8 +30,11 @@
 <div id="net-status"></div>
 <div id="app"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 const params = new URLSearchParams(location.search);
 const locationCode = params.get('location');
 const loc = locationCode ? DB.findLocation(locationCode) : null;
@@ -41,13 +44,15 @@ const retestSource = retestOf ? DB.tests().find(t => t.id === retestOf) : null;
 // Network status
 function updateNet() {
   const el = document.getElementById('net-status');
+  const lang = localStorage.getItem('lang') || 'th';
+  const Tg = (k) => t(k, lang);
   if (!navigator.onLine) {
-    el.innerHTML = '<div class="net-pill offline">⚡ ออฟไลน์ — บันทึกในเครื่อง</div>';
+    el.innerHTML = `<div class="net-pill offline">${Tg('offline')}</div>`;
   } else {
     const q = getOfflineQueue().length;
     if (q > 0) {
       const synced = flushOfflineQueue();
-      el.innerHTML = `<div class="net-pill online">✓ ออนไลน์ · sync ${synced} รายการ</div>`;
+      el.innerHTML = `<div class="net-pill online">${Tg('online_pre')}${synced}${Tg('online_suf')}</div>`;
       setTimeout(() => el.innerHTML = '', 3000);
     } else { el.innerHTML = ''; }
   }
@@ -59,13 +64,19 @@ updateNet();
 const app = document.getElementById('app');
 
 if (!locationCode || !loc) {
+  const lang0 = localStorage.getItem('lang') || 'th';
+  const T0 = (k) => t(k, lang0);
+  const lb = {th:'TH',en:'EN',my:'MM',km:'KH'};
   app.innerHTML = `
     <div class="invalid-screen">
+      <div style="display:flex; justify-content:center; gap:6px; padding:16px 0 0">
+        ${['th','en','my','km'].map(l=>`<button data-l="${l}" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;background:${lang0===l?'var(--brand)':'var(--surface)'};color:${lang0===l?'#fff':'var(--text)'};cursor:pointer" onclick="localStorage.setItem('lang','${l}');location.reload()">${lb[l]}</button>`).join('')}
+      </div>
       <div class="card invalid-card">
         <div class="invalid-icon">⚠</div>
-        <h1 style="margin-bottom:8px">ไม่สามารถเข้าใช้งานได้</h1>
-        <p class="muted" style="margin:0 0 20px">ไม่พบรหัสสถานที่ (location) ใน URL กรุณาสแกน QR Code ของจุดตรวจอีกครั้ง</p>
-        <a href="index.html" class="btn btn-block">กลับหน้าหลัก</a>
+        <h1 style="margin-bottom:8px">${T0('invalid_title')}</h1>
+        <p class="muted" style="margin:0 0 20px">${T0('invalid_msg')}</p>
+        <a href="index.html" class="btn btn-block">${T0('back_home')}</a>
       </div>
     </div>`;
 } else {
@@ -81,8 +92,8 @@ function renderForm() {
     <div class="banner banner-warn" style="margin:12px 16px 0">
       <span class="banner-icon">🔁</span>
       <div>
-        <b>ตรวจซ้ำ (Re-test)</b><br>
-        ของ <b>${retestSource.full_name}</b> · ครั้งแรกค่า ${retestSource.alcohol_value} mg% เวลา ${formatTime(retestSource.created_at)}
+        <b>${T('retest_title')}</b><br>
+        ${T('retest_for')} <b>${retestSource.full_name}</b> ${T('retest_first')} ${retestSource.alcohol_value} mg% ${T('retest_time')} ${formatTime(retestSource.created_at)}
       </div>
     </div>` : '';
 
@@ -90,19 +101,19 @@ function renderForm() {
     <div class="mobile-shell">
       <div class="mobile-header">
         <div class="row between" style="margin-bottom:8px">
-          <span class="lock-pill">🔒 ระบุจาก QR</span>
+          <span class="lock-pill">${T('qr_locked')}</span>
           <span class="tiny" style="color:rgba(255,255,255,.7); font-family:var(--font-mono)">${loc.code}</span>
         </div>
         <h1>${loc.name}</h1>
         <div class="small" style="color:rgba(255,255,255,.8); margin-top:4px">${loc.address || ''}</div>
-        ${device ? `<div class="tiny" style="color:rgba(255,255,255,.65); margin-top:8px; font-family:var(--font-mono)">เครื่อง: ${device.serial}</div>` : ''}
+        ${device ? `<div class="tiny" style="color:rgba(255,255,255,.65); margin-top:8px; font-family:var(--font-mono)">${T('device_prefix')} ${device.serial}</div>` : ''}
       </div>
       ${retestBanner}
       <div class="mobile-body">
         <div class="row between" style="margin-bottom:14px">
           <h2 style="margin:0">${T('record')}</h2>
           <div class="lang-switch" id="lang-switch">
-            ${['th','en','my','km'].map(l => `<button data-l="${l}" class="${lang===l?'active':''}">${l.toUpperCase()}</button>`).join('')}
+            ${(function(){const lb={th:'TH',en:'EN',my:'MM',km:'KH'};return['th','en','my','km'].map(l=>`<button data-l="${l}" class="${lang===l?'active':''}">${lb[l]}</button>`).join('');})()}
           </div>
         </div>
         <p class="muted small" style="margin:0 0 16px">${T('fill_in')}</p>
@@ -115,9 +126,9 @@ function renderForm() {
           </div>
           <div class="row gap-sm">
             <input class="input" id="emp-id" placeholder="${T('employee_id')} (เช่น EMP001)" style="flex:1" value="${retestSource?.employee_id || ''}" />
-            <button class="btn btn-primary" id="emp-lookup">ค้นหา</button>
+            <button class="btn btn-primary" id="emp-lookup">${T('search')}</button>
           </div>
-          <div class="tiny muted" style="margin-top:6px">เคยลงทะเบียน → ระบบเติมข้อมูลให้อัตโนมัติ</div>
+          <div class="tiny muted" style="margin-top:6px">${T('quick_hint')}</div>
         </div>
 
         <form id="form" class="col gap-md">
@@ -129,7 +140,7 @@ function renderForm() {
           <div class="field">
             <label>${T('department')} <span style="color:var(--danger)">*</span></label>
             <select class="select" name="department" required>
-              <option value="">-- เลือก --</option>
+              <option value="">${T('select_dept')}</option>
               ${DEPARTMENTS.map(d => `<option value="${d}" ${retestSource?.department===d?'selected':''}>${d}</option>`).join('')}
             </select>
           </div>
@@ -142,7 +153,7 @@ function renderForm() {
           <div class="field">
             <label>${T('company')} <span style="color:var(--danger)">*</span></label>
             <div class="combo" id="company-combo" style="position:relative">
-              <input class="input" name="company" id="company-input" autocomplete="off" placeholder="พิมพ์ชื่อบริษัท..." required value="${retestSource?.company || ''}" />
+              <input class="input" name="company" id="company-input" autocomplete="off" placeholder="${T('company_placeholder')}" required value="${retestSource?.company || ''}" />
               <div id="company-list" class="combo-list" style="display:none"></div>
             </div>
           </div>
@@ -168,30 +179,24 @@ function renderForm() {
           </div>
 
           <div class="field">
-            <label>ภาพถ่ายเครื่องตรวจ <span style="color:var(--danger)">*</span></label>
+            <label>${T('photo_label')} <span style="color:var(--danger)">*</span></label>
             <div class="photo-slot" id="photo-slot">
               <div class="placeholder">
                 <span class="icon">📷</span>
                 <div>${T('take_photo')}</div>
-                <div class="tiny" style="margin-top:4px">ใช้กล้องเท่านั้น</div>
+                <div class="tiny" style="margin-top:4px">${T('camera_only')}</div>
               </div>
               <input type="file" name="photo" accept="image/*" capture="environment" style="position:absolute; inset:0; opacity:0; cursor:pointer" />
             </div>
           </div>
 
-          <!-- Signature -->
-          <div class="field">
-            <label>ลายเซ็นพนักงาน (ยืนยันผลตรวจ) <span style="color:var(--danger)">*</span></label>
-            <div class="sig-wrap">
-              <canvas class="sig-pad" id="sig-pad" width="600" height="140"></canvas>
-              <button type="button" class="btn btn-sm sig-clear" id="sig-clear">ล้าง</button>
-            </div>
-            <div class="tiny muted">ใช้นิ้วเซ็นบนกล่อง</div>
-          </div>
+          <!-- Signature removed -->
 
           <div class="divider"></div>
           <button type="submit" class="btn btn-primary btn-lg btn-block" disabled id="submit-btn">${T('submit')}</button>
-          <div class="tiny muted" style="text-align:center">บันทึกพร้อมตำแหน่ง <b>${loc.name}</b> · กะ <b>${getShiftFromDate(new Date().toISOString()).label}</b></div>
+          <div style="text-align:center; margin-top:8px">
+            <a href="https://bevchain.co.th/th/pdpa-policy-th/" target="_blank" rel="noopener noreferrer" class="tiny" style="color:var(--text-muted); text-decoration:underline; text-underline-offset:2px">🔐 ${T('pdpa')}</a>
+          </div>
         </form>
       </div>
     </div>`;
@@ -202,7 +207,7 @@ function renderForm() {
     localStorage.setItem('lang', b.dataset.l); location.reload();
   });
 
-  let isZero = retestSource ? null : null;
+  let isZero = retestSource ? retestSource.is_zero : null;
   const form = document.getElementById('form');
   const plateField = document.getElementById('plate-field');
   const valueField = document.getElementById('value-field');
@@ -211,14 +216,13 @@ function renderForm() {
   const photoInput = photoSlot.querySelector('input[type=file]');
   const tpEl = document.getElementById('threshold-preview');
   let photoData = null;
-  let signatureData = null;
 
   // Employee quick lookup
   document.getElementById('emp-lookup').onclick = () => {
     const id = document.getElementById('emp-id').value.trim();
     if (!id) return;
     const p = DB.findPerson(id);
-    if (!p) { showToast('ไม่พบรหัสพนักงาน ' + id); return; }
+    if (!p) { showToast(T('emp_not_found') + ' ' + id); return; }
     form.full_name.value = p.full_name;
     form.department.value = p.department;
     form.company.value = p.company;
@@ -226,28 +230,10 @@ function renderForm() {
       form.plate_number.value = p.plate_number;
       plateField.style.display = 'flex';
     }
-    showToast('โหลดข้อมูล ' + p.full_name + ' แล้ว');
+    showToast(T('emp_loaded') + ': ' + p.full_name);
     updateThresholdPreview();
     validate();
   };
-
-  // Signature pad
-  const sigPad = document.getElementById('sig-pad');
-  const sctx = sigPad.getContext('2d');
-  sctx.lineWidth = 2.5; sctx.lineCap = 'round'; sctx.strokeStyle = '#0f172a';
-  let drawing = false, lastX = 0, lastY = 0, hasInk = false;
-  function getPos(e) {
-    const r = sigPad.getBoundingClientRect();
-    const sx = sigPad.width / r.width, sy = sigPad.height / r.height;
-    const c = e.touches ? e.touches[0] : e;
-    return { x: (c.clientX - r.left) * sx, y: (c.clientY - r.top) * sy };
-  }
-  function down(e) { e.preventDefault(); drawing = true; const p = getPos(e); lastX = p.x; lastY = p.y; }
-  function move(e) { if (!drawing) return; e.preventDefault(); const p = getPos(e); sctx.beginPath(); sctx.moveTo(lastX, lastY); sctx.lineTo(p.x, p.y); sctx.stroke(); lastX = p.x; lastY = p.y; hasInk = true; }
-  function up() { if (drawing && hasInk) { signatureData = sigPad.toDataURL('image/png'); } drawing = false; validate(); }
-  sigPad.addEventListener('mousedown', down); sigPad.addEventListener('mousemove', move); sigPad.addEventListener('mouseup', up); sigPad.addEventListener('mouseleave', up);
-  sigPad.addEventListener('touchstart', down, {passive:false}); sigPad.addEventListener('touchmove', move, {passive:false}); sigPad.addEventListener('touchend', up);
-  document.getElementById('sig-clear').onclick = () => { sctx.clearRect(0,0,sigPad.width,sigPad.height); signatureData = null; hasInk = false; validate(); };
 
   // Toggle 0% / Positive
   document.querySelectorAll('#zero-toggle .seg').forEach(seg => {
@@ -279,34 +265,79 @@ function renderForm() {
     if (!v || isZero) { tpEl.innerHTML = ''; return; }
     const lvl = getThresholdLevel(v, form.department.value);
     const cls = 'tp-' + (lvl.color === 'success' ? 'pass' : lvl.color === 'warn' ? 'warn' : lvl.color === 'danger-strong' ? 'illegal' : 'danger');
-    const advice = lvl.level === 'pass' ? 'ผ่านเกณฑ์' : lvl.level === 'caution' ? 'ห้ามขับยานพาหนะ — แจ้งหัวหน้างาน' : lvl.level === 'no-drive' ? 'ห้ามขับ ห้ามเข้างาน — แจ้งทันที' : 'เกินกฎหมาย — รายงานทันที';
-    tpEl.innerHTML = `<div class="threshold-preview ${cls}"><span style="font-size:18px">${lvl.color==='success'?'✓':'⚠'}</span><div><b>ระดับ: ${lvl.label}</b><br><span class="tiny">${advice}</span></div></div>`;
+    const advice = lvl.level === 'pass' ? T('tp_pass') : lvl.level === 'caution' ? T('tp_caution') : lvl.level === 'no-drive' ? T('tp_nodrive') : T('tp_illegal');
+    tpEl.innerHTML = `<div class="threshold-preview ${cls}"><span style="font-size:18px">${lvl.color==='success'?'✓':'⚠'}</span><div><b>${T('tp_level')} ${lvl.label}</b><br><span class="tiny">${advice}</span></div></div>`;
   }
   form.alcohol_value.addEventListener('input', updateThresholdPreview);
 
   // Photo with stamp
-  function stampPhoto(dataUrl) {
+  async function stampPhoto(dataUrl) {
+    // Ensure fonts are loaded before drawing to canvas
+    await Promise.allSettled([
+      document.fonts.load('bold 28px Sarabun'),
+      document.fonts.load('500 22px Sarabun')
+    ]);
     return new Promise(resolve => {
       const img = new Image();
       img.onload = () => {
         const maxW = 1280, scale = Math.min(1, maxW / img.width);
-        const w = Math.round(img.width*scale), h = Math.round(img.height*scale);
-        const c = document.createElement('canvas'); c.width=w; c.height=h;
-        const ctx = c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
-        const g = ctx.createLinearGradient(0,h-130,0,h); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.75)');
-        ctx.fillStyle = g; ctx.fillRect(0,h-130,w,130);
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // Dark gradient bar at bottom
+        const barH = Math.max(130, Math.round(h * 0.14));
+        const g = ctx.createLinearGradient(0, h - barH, 0, h);
+        g.addColorStop(0, 'rgba(0,0,0,0)');
+        g.addColorStop(1, 'rgba(0,0,0,0.80)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, h - barH, w, barH);
+
+        // Scale font size relative to image width so stamp is readable on any resolution
+        const fs1 = Math.max(20, Math.round(w * 0.022));
+        const fs2 = Math.max(16, Math.round(w * 0.017));
+        const pad = Math.round(w * 0.016);
         const now = new Date();
-        ctx.fillStyle='#fff'; ctx.font='bold 28px Sarabun'; ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=4;
-        ctx.fillText(now.toLocaleString('th-TH',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}), 20, h-60);
-        ctx.font='500 22px Sarabun'; ctx.fillText(`📍 ${loc.name} (${loc.code})`, 20, h-28);
-        ctx.shadowBlur=0;
-        resolve(c.toDataURL('image/jpeg', 0.85));
+        const dateStr = now.toLocaleString('th-TH', {
+          day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = Math.round(w * 0.004);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${fs1}px Sarabun, Arial, sans-serif`;
+        ctx.fillText(dateStr, pad, h - Math.round(barH * 0.45));
+        ctx.font = `${fs2}px Sarabun, Arial, sans-serif`;
+        ctx.fillText(`📍 ${loc.name} (${loc.code})`, pad, h - Math.round(barH * 0.12));
+        ctx.shadowBlur = 0;
+
+        resolve(c.toDataURL('image/jpeg', 0.88));
       };
       img.src = dataUrl;
     });
   }
+  async function uploadPhotoToStorage(dataUrl) {
+    try {
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      const { data, error } = await _sb.storage.from('test-photos').upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
+      if (error) throw error;
+      const { data: urlData } = _sb.storage.from('test-photos').getPublicUrl(data.path);
+      return urlData.publicUrl;
+    } catch {
+      return null; // fall back to base64 on failure
+    }
+  }
+
   photoInput.addEventListener('change', e => {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0];
+    if (!f) {
+      showToast(T('camera_only'));
+      return;
+    }
     const r = new FileReader();
     r.onload = async ev => {
       photoData = await stampPhoto(ev.target.result);
@@ -315,6 +346,7 @@ function renderForm() {
       const img = document.createElement('img'); img.src = photoData; photoSlot.appendChild(img);
       validate();
     };
+    r.onerror = () => showToast(T('camera_only'));
     r.readAsDataURL(f);
   });
 
@@ -324,8 +356,8 @@ function renderForm() {
     const all = DB.companies().map(c => c.name);
     const f = q ? all.filter(n => n.toLowerCase().includes(q.toLowerCase())) : all;
     let html = f.map(n => `<div class="combo-item" data-val="${n.replace(/"/g,'&quot;')}">${n}</div>`).join('');
-    if (q && !all.some(n => n.toLowerCase()===q.toLowerCase())) html += `<div class="combo-item" data-val="${q.replace(/"/g,'&quot;')}">ใช้ "${q}"<span class="new-label">ใหม่</span></div>`;
-    if (!html) html = '<div class="combo-empty">ไม่พบ — พิมพ์เพื่อเพิ่มใหม่</div>';
+    if (q && !all.some(n => n.toLowerCase()===q.toLowerCase())) html += `<div class="combo-item" data-val="${q.replace(/"/g,'&quot;')}">${T('company_use')} "${q}"<span class="new-label">${T('company_new_badge')}</span></div>`;
+    if (!html) html = `<div class="combo-empty">${T('company_new')}</div>`;
     cl.innerHTML = html; cl.style.display='block';
     cl.querySelectorAll('.combo-item').forEach(el => el.addEventListener('mousedown', () => { ci.value = el.dataset.val; cl.style.display='none'; validate(); }));
   }
@@ -336,43 +368,69 @@ function renderForm() {
   ['input','change'].forEach(evt => form.addEventListener(evt, validate));
 
   function validate() {
-    const ok = form.full_name.value && form.department.value && form.company.value && isZero !== null && photoData && signatureData;
+    const ok = form.full_name.value && form.department.value && form.company.value && isZero !== null && photoData;
     const plateOk = !PLATE_REQUIRED_DEPTS.includes(form.department.value) || form.plate_number.value;
     const valueOk = isZero === true || (isZero === false && parseFloat(form.alcohol_value.value) > 0);
     submitBtn.disabled = !(ok && plateOk && valueOk);
   }
 
-  form.addEventListener('submit', e => {
+  form.addEventListener('submit', async e => {
     e.preventDefault();
-    const payload = {
-      employee_id: document.getElementById('emp-id').value || '',
-      full_name: form.full_name.value,
-      department: form.department.value,
-      plate_number: form.plate_number.value || '',
-      company: form.company.value,
-      alcohol_value: isZero ? 0 : parseFloat(form.alcohol_value.value),
-      is_zero: isZero,
-      location_code: loc.code,
-      location_name: loc.name,
-      photo_url: photoData,
-      device_serial: device?.serial || '',
-      signature_employee: signatureData,
-      retest_of: retestOf
-    };
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ ' + T('submit');
+
+    let photoUrl = photoData; // default: base64 (used for offline)
     let savedOffline = false;
+
     if (!navigator.onLine) {
+      // Keep base64 in offline queue — will be stored as-is when flushed
+      const payload = {
+        employee_id: document.getElementById('emp-id').value || '',
+        full_name: form.full_name.value,
+        department: form.department.value,
+        plate_number: form.plate_number.value || '',
+        company: form.company.value,
+        alcohol_value: isZero ? 0 : parseFloat(form.alcohol_value.value),
+        is_zero: isZero,
+        location_code: loc.code,
+        location_name: loc.name,
+        photo_url: photoUrl,
+        device_serial: device?.serial || '',
+        retest_of: retestOf,
+        created_at: new Date().toISOString()
+      };
       pushOfflineQueue(payload);
       savedOffline = true;
     } else {
-      const t = DB.addTest(payload);
+      // Upload photo to Supabase Storage first
+      const uploaded = await uploadPhotoToStorage(photoData);
+      if (uploaded) photoUrl = uploaded;
+
+      const payload = {
+        employee_id: document.getElementById('emp-id').value || '',
+        full_name: form.full_name.value,
+        department: form.department.value,
+        plate_number: form.plate_number.value || '',
+        company: form.company.value,
+        alcohol_value: isZero ? 0 : parseFloat(form.alcohol_value.value),
+        is_zero: isZero,
+        location_code: loc.code,
+        location_name: loc.name,
+        photo_url: photoUrl,
+        device_serial: device?.serial || '',
+        retest_of: retestOf
+      };
+      const newTest = DB.addTest(payload);
+      // Wait for Supabase INSERT to complete (max 5s) before navigating away
+      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 5000))]);
       // Mark original as completed if this was a retest
       if (retestOf) DB.updateTest(retestOf, { retest_status: 'completed' });
       // Trigger retest flow if not zero
       if (!isZero && !retestOf) {
         const lvl = getThresholdLevel(payload.alcohol_value, payload.department);
         if (lvl.level !== 'pass') {
-          DB.updateTest(t.id, { retest_status: 'required' });
-          location.href = `user-retest.html?test_id=${t.id}`;
+          DB.updateTest(newTest.id, { retest_status: 'required' });
+          location.href = `user-retest.html?test_id=${newTest.id}`;
           return;
         }
       }
@@ -380,6 +438,7 @@ function renderForm() {
     location.href = `user-success.html?location=${loc.code}&zero=${isZero}${savedOffline ? '&offline=1' : ''}`;
   });
 }
+}); // DB.init
 </script>
 </body>
 </html>

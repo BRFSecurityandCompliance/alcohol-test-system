@@ -23,18 +23,18 @@
 <div class="page">
   <div class="row between" style="margin-bottom:24px">
     <div>
-      <h1>พนักงาน</h1>
-      <div class="muted small">รายชื่อพนักงาน ประวัติการตรวจ และรายการเฝ้าระวัง</div>
+      <h1 id="page-title"></h1>
+      <div class="muted small" id="page-sub"></div>
     </div>
     <div class="row gap-sm">
-      <input class="input" id="search" placeholder="ค้นหาชื่อ / รหัส" style="max-width:280px" oninput="renderPersons()" />
-      <button class="btn btn-primary" onclick="openModal()">+ เพิ่มพนักงาน</button>
+      <input class="input" id="search" style="max-width:280px" oninput="renderPersons()" />
+      <button class="btn btn-primary" id="add-btn" onclick="openModal()"></button>
     </div>
   </div>
 
   <div class="tabs-page">
-    <button class="active" data-tab="persons" onclick="switchTab('persons')">ทะเบียนพนักงาน</button>
-    <button data-tab="watchlist" onclick="switchTab('watchlist')">Watchlist <span id="wl-count"></span></button>
+    <button class="active" data-tab="persons" onclick="switchTab('persons')" id="tab-btn-persons"></button>
+    <button data-tab="watchlist" onclick="switchTab('watchlist')" id="tab-btn-watchlist">Watchlist <span id="wl-count"></span></button>
   </div>
 
   <div id="tab-persons"></div>
@@ -45,7 +45,7 @@
 <div class="modal-backdrop" id="modal">
   <div class="modal">
     <div class="modal-header">
-      <h2 id="modal-title">เพิ่มพนักงาน</h2>
+      <h2 id="modal-title"></h2>
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
     </div>
     <form id="form" onsubmit="save(event)">
@@ -53,38 +53,38 @@
         <input type="hidden" name="id" />
         <div class="grid-2">
           <div class="field">
-            <label>รหัสพนักงาน <span style="color:var(--danger)">*</span></label>
+            <label id="lbl-emp-id"></label>
             <input class="input" name="employee_id" required placeholder="EMP001" />
           </div>
           <div class="field">
-            <label>ชื่อ-นามสกุล <span style="color:var(--danger)">*</span></label>
+            <label id="lbl-fullname"></label>
             <input class="input" name="full_name" required />
           </div>
         </div>
         <div class="field" style="margin-top:12px">
-          <label>แผนก</label>
+          <label id="lbl-dept"></label>
           <select class="select" name="department">
-            <option value="">-- เลือก --</option>
+            <option value="" id="opt-dept-default"></option>
           </select>
         </div>
         <div class="field" style="margin-top:12px">
-          <label>บริษัท</label>
+          <label id="lbl-company"></label>
           <input class="input" name="company" />
         </div>
         <div class="grid-2" style="margin-top:12px">
           <div class="field">
-            <label>ทะเบียนรถ</label>
+            <label id="lbl-plate"></label>
             <input class="input" name="plate_number" placeholder="70-1234" />
           </div>
           <div class="field">
-            <label>โทรศัพท์</label>
+            <label id="lbl-phone"></label>
             <input class="input" name="phone" placeholder="081-xxx-xxxx" />
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="closeModal()">ยกเลิก</button>
-        <button type="submit" class="btn btn-primary">บันทึก</button>
+        <button type="button" class="btn" id="modal-cancel-btn" onclick="closeModal()"></button>
+        <button type="submit" class="btn btn-primary" id="modal-save-btn"></button>
       </div>
     </form>
   </div>
@@ -94,7 +94,7 @@
 <div class="modal-backdrop" id="history-modal">
   <div class="modal" style="max-width:680px">
     <div class="modal-header">
-      <h2 id="history-title">ประวัติการตรวจ</h2>
+      <h2 id="history-title"></h2>
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('history-modal').classList.remove('show')">✕</button>
     </div>
     <div class="modal-body">
@@ -105,10 +105,33 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
+DB.init().then(() => {
 if (!requireAdmin()) {} else {
   document.getElementById('chrome').innerHTML = renderTopbar('persons');
+  const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const canMutate = hasRole('super', 'manager');
+
+  document.getElementById('page-title').textContent = isEN ? 'Employees' : 'พนักงาน';
+  document.getElementById('page-sub').textContent = isEN ? 'Employee list, test history, and watchlist' : 'รายชื่อพนักงาน ประวัติการตรวจ และรายการเฝ้าระวัง';
+  document.getElementById('search').placeholder = isEN ? 'Search name / ID' : 'ค้นหาชื่อ / รหัส';
+  document.getElementById('add-btn').textContent = isEN ? '+ Add Employee' : '+ เพิ่มพนักงาน';
+  if (!canMutate) document.getElementById('add-btn').style.display = 'none';
+  document.getElementById('tab-btn-persons').textContent = isEN ? 'Employee Registry' : 'ทะเบียนพนักงาน';
+
+  // Modal labels
+  document.getElementById('lbl-emp-id').innerHTML = `${isEN ? 'Employee ID' : 'รหัสพนักงาน'} <span style="color:var(--danger)">*</span>`;
+  document.getElementById('lbl-fullname').innerHTML = `${isEN ? 'Full Name' : 'ชื่อ-นามสกุล'} <span style="color:var(--danger)">*</span>`;
+  document.getElementById('lbl-dept').textContent = isEN ? 'Department' : 'แผนก';
+  document.getElementById('opt-dept-default').textContent = isEN ? '-- Select --' : '-- เลือก --';
+  document.getElementById('lbl-company').textContent = isEN ? 'Company' : 'บริษัท';
+  document.getElementById('lbl-plate').textContent = isEN ? 'License Plate' : 'ทะเบียนรถ';
+  document.getElementById('lbl-phone').textContent = isEN ? 'Phone' : 'โทรศัพท์';
+  document.getElementById('modal-cancel-btn').textContent = isEN ? 'Cancel' : 'ยกเลิก';
+  document.getElementById('modal-save-btn').textContent = isEN ? 'Save' : 'บันทึก';
 
   // Populate department select
   DEPARTMENTS.forEach(d => {
@@ -128,7 +151,7 @@ if (!requireAdmin()) {} else {
     const persons = DB.persons().filter(p => !q || (p.full_name + p.employee_id + p.company).toLowerCase().includes(q));
     const el = document.getElementById('tab-persons');
     if (!persons.length) {
-      el.innerHTML = '<div class="empty"><div class="icon">👤</div>ไม่พบข้อมูลพนักงาน</div>';
+      el.innerHTML = `<div class="empty"><div class="icon">👤</div>${isEN ? 'No employee data found' : 'ไม่พบข้อมูลพนักงาน'}</div>`;
       return;
     }
     const wl = new Set((DB.all.watchlist || []).map(w => w.full_name));
@@ -136,7 +159,7 @@ if (!requireAdmin()) {} else {
       <div class="table-wrap">
         <table class="table">
           <thead>
-            <tr><th>รหัส</th><th>ชื่อ</th><th>แผนก</th><th>บริษัท</th><th>ทะเบียน</th><th>ประวัติ</th><th></th></tr>
+            <tr><th>${isEN ? 'ID' : 'รหัส'}</th><th>${isEN ? 'Name' : 'ชื่อ'}</th><th>${isEN ? 'Department' : 'แผนก'}</th><th>${isEN ? 'Company' : 'บริษัท'}</th><th>${isEN ? 'License Plate' : 'ทะเบียน'}</th><th>${isEN ? 'History' : 'ประวัติ'}</th><th></th></tr>
           </thead>
           <tbody>
             ${persons.map(p => {
@@ -156,13 +179,13 @@ if (!requireAdmin()) {} else {
                   <td class="small">${p.company || '—'}</td>
                   <td class="small" style="font-family:var(--font-mono)">${p.plate_number || '—'}</td>
                   <td>
-                    <span class="small">${tests.length} ครั้ง</span>
-                    ${fails > 0 ? `<span class="badge badge-danger" style="margin-left:4px">${fails} ไม่ผ่าน</span>` : ''}
+                    <span class="small">${tests.length} ${isEN ? 'times' : 'ครั้ง'}</span>
+                    ${fails > 0 ? `<span class="badge badge-danger" style="margin-left:4px">${fails} ${isEN ? 'Fail' : 'ไม่ผ่าน'}</span>` : ''}
                   </td>
                   <td style="text-align:right">
-                    <button class="btn btn-sm" onclick="viewHistory('${p.employee_id}')">ประวัติ</button>
-                    <button class="btn btn-sm" onclick='openModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>แก้ไข</button>
-                    <button class="btn btn-sm btn-danger" onclick="del('${p.id}')">ลบ</button>
+                    <button class="btn btn-sm" onclick="viewHistory('${p.employee_id}')">${isEN ? 'History' : 'ประวัติ'}</button>
+                    ${canMutate ? `<button class="btn btn-sm" onclick='openModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>` : ''}
+                    ${canMutate ? `<button class="btn btn-sm btn-danger" onclick="del('${p.id}')">${isEN ? 'Delete' : 'ลบ'}</button>` : ''}
                   </td>
                 </tr>
               `;
@@ -179,18 +202,18 @@ if (!requireAdmin()) {} else {
     if (wlCount) wlCount.innerHTML = wl.length ? `<span class="pill-dot" style="margin-left:4px">${wl.length}</span>` : '';
     if (!wl.length) {
       el.innerHTML = `
-        <div class="banner banner-success"><span class="banner-icon">✅</span><div>ไม่มีพนักงานในรายการเฝ้าระวัง</div></div>
-        <div class="empty"><div class="icon">👁</div>ระบบจะเพิ่มพนักงานอัตโนมัติเมื่อตรวจไม่ผ่าน ${DB.settings().watchlist_threshold || 2} ครั้ง ใน ${DB.settings().watchlist_window_days || 30} วัน</div>`;
+        <div class="banner banner-success"><span class="banner-icon">✅</span><div>${isEN ? 'No employees on the watchlist' : 'ไม่มีพนักงานในรายการเฝ้าระวัง'}</div></div>
+        <div class="empty"><div class="icon">👁</div>${isEN ? `Employees are added automatically after ${DB.settings().watchlist_threshold || 2} fails within ${DB.settings().watchlist_window_days || 30} days` : `ระบบจะเพิ่มพนักงานอัตโนมัติเมื่อตรวจไม่ผ่าน ${DB.settings().watchlist_threshold || 2} ครั้ง ใน ${DB.settings().watchlist_window_days || 30} วัน`}</div>`;
       return;
     }
     el.innerHTML = `
       <div class="banner banner-warn" style="margin-bottom:16px">
         <span class="banner-icon">⚠️</span>
-        <div class="small">พนักงานในรายการนี้ตรวจพบแอลกอฮอล์ ${DB.settings().watchlist_threshold || 2}+ ครั้ง ใน ${DB.settings().watchlist_window_days || 30} วัน — ต้องเฝ้าระวังพิเศษ</div>
+        <div class="small">${isEN ? `Employees on this list had alcohol detected ${DB.settings().watchlist_threshold || 2}+ times within ${DB.settings().watchlist_window_days || 30} days — requires special monitoring` : `พนักงานในรายการนี้ตรวจพบแอลกอฮอล์ ${DB.settings().watchlist_threshold || 2}+ ครั้ง ใน ${DB.settings().watchlist_window_days || 30} วัน — ต้องเฝ้าระวังพิเศษ`}</div>
       </div>
       <div class="table-wrap">
         <table class="table">
-          <thead><tr><th>ชื่อ</th><th>รหัสพนักงาน</th><th>เหตุผล</th><th>วันที่เพิ่ม</th><th></th></tr></thead>
+          <thead><tr><th>${isEN ? 'Name' : 'ชื่อ'}</th><th>${isEN ? 'Employee ID' : 'รหัสพนักงาน'}</th><th>${isEN ? 'Reason' : 'เหตุผล'}</th><th>${isEN ? 'Date Added' : 'วันที่เพิ่ม'}</th><th></th></tr></thead>
           <tbody>
             ${wl.map(w => `
               <tr>
@@ -204,8 +227,8 @@ if (!requireAdmin()) {} else {
                 <td class="small muted">${w.reason}</td>
                 <td class="small">${formatDateShort(w.added_at)}</td>
                 <td style="text-align:right">
-                  <button class="btn btn-sm" onclick="viewHistory(null, '${w.full_name}')">ดูประวัติ</button>
-                  <button class="btn btn-sm" onclick="removeWL('${w.id}')">นำออก</button>
+                  <button class="btn btn-sm" onclick="viewHistory(null, '${w.full_name}')">${isEN ? 'View History' : 'ดูประวัติ'}</button>
+                  <button class="btn btn-sm" onclick="removeWL('${w.id}')">${isEN ? 'Remove' : 'นำออก'}</button>
                 </td>
               </tr>
             `).join('')}
@@ -223,14 +246,14 @@ if (!requireAdmin()) {} else {
     const total = tests.length;
     const fails = tests.filter(t => !t.is_zero).length;
     const passRate = total ? Math.round((total - fails) / total * 100) : 100;
-    document.getElementById('history-title').textContent = 'ประวัติ: ' + displayName;
+    document.getElementById('history-title').textContent = (isEN ? 'History: ' : 'ประวัติ: ') + displayName;
     document.getElementById('history-stats').innerHTML = `
-      <div class="stat"><div class="label">ตรวจทั้งหมด</div><div class="value" style="font-size:24px">${total}</div></div>
-      <div class="stat accent-green"><div class="label">ผ่าน</div><div class="value" style="font-size:24px">${total - fails}</div></div>
-      <div class="stat accent-red"><div class="label">ไม่ผ่าน</div><div class="value" style="font-size:24px">${fails}</div></div>
+      <div class="stat"><div class="label">${isEN ? 'Total Tests' : 'ตรวจทั้งหมด'}</div><div class="value" style="font-size:24px">${total}</div></div>
+      <div class="stat accent-green"><div class="label">${isEN ? 'Pass' : 'ผ่าน'}</div><div class="value" style="font-size:24px">${total - fails}</div></div>
+      <div class="stat accent-red"><div class="label">${isEN ? 'Fail' : 'ไม่ผ่าน'}</div><div class="value" style="font-size:24px">${fails}</div></div>
     `;
     if (!tests.length) {
-      document.getElementById('history-timeline').innerHTML = '<div class="empty" style="padding:32px 0"><div class="icon">📋</div>ยังไม่มีประวัติการตรวจ</div>';
+      document.getElementById('history-timeline').innerHTML = `<div class="empty" style="padding:32px 0"><div class="icon">📋</div>${isEN ? 'No test history yet' : 'ยังไม่มีประวัติการตรวจ'}</div>`;
     } else {
       document.getElementById('history-timeline').innerHTML = `
         <div class="timeline" style="margin-top:16px">
@@ -244,7 +267,7 @@ if (!requireAdmin()) {} else {
                 ${thresholdBadge(t)}
               </div>
               <div class="tiny muted" style="margin-top:4px">${formatDate(t.created_at)} · ${t.company}</div>
-              ${t.action_taken && t.action_taken !== 'pending' ? `<div class="tiny" style="margin-top:4px">การดำเนินการ: ${{'sent-home':'ส่งกลับบ้าน','suspended':'พักงาน','allowed':'อนุญาต'}[t.action_taken] || t.action_taken}</div>` : ''}
+              ${t.action_taken && t.action_taken !== 'pending' ? `<div class="tiny" style="margin-top:4px">${isEN ? 'Action' : 'การดำเนินการ'}: ${isEN ? {'sent-home':'Sent Home','suspended':'Suspended','allowed':'Allowed'}[t.action_taken] || t.action_taken : {'sent-home':'ส่งกลับบ้าน','suspended':'พักงาน','allowed':'อนุญาต'}[t.action_taken] || t.action_taken}</div>` : ''}
             </div>
           `).join('')}
         </div>`;
@@ -253,14 +276,16 @@ if (!requireAdmin()) {} else {
   }
 
   function removeWL(id) {
-    if (!confirm('นำพนักงานออกจาก Watchlist?')) return;
+    if (!canMutate) return;
+    if (!confirm(isEN ? 'Remove employee from Watchlist?' : 'นำพนักงานออกจาก Watchlist?')) return;
     DB.removeFromWatchlist(id);
-    showToast('นำออกจาก Watchlist แล้ว');
+    showToast(isEN ? 'Removed from Watchlist' : 'นำออกจาก Watchlist แล้ว');
     renderWatchlist();
   }
 
   function openModal(p) {
-    document.getElementById('modal-title').textContent = p ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงาน';
+    if (!canMutate) return;
+    document.getElementById('modal-title').textContent = p ? (isEN ? 'Edit Employee' : 'แก้ไขพนักงาน') : (isEN ? 'Add Employee' : 'เพิ่มพนักงาน');
     const f = document.getElementById('form');
     f.reset();
     if (p) {
@@ -277,22 +302,20 @@ if (!requireAdmin()) {} else {
   function closeModal() { document.getElementById('modal').classList.remove('show'); }
   function save(e) {
     e.preventDefault();
+    if (!canMutate) return;
     const f = e.target;
-    const db = loadDB();
     const p = { employee_id: f.employee_id.value.trim(), full_name: f.full_name.value.trim(), department: f.department.value, company: f.company.value.trim(), plate_number: f.plate_number.value.trim(), phone: f.phone.value.trim() };
     if (f.id.value) p.id = f.id.value;
-    const idx = f.id.value ? db.persons.findIndex(x => x.id === f.id.value) : -1;
-    if (idx >= 0) db.persons[idx] = { ...db.persons[idx], ...p };
-    else db.persons.push({ ...p, id: 'p' + Date.now() });
-    saveDB(db);
-    showToast('บันทึกเรียบร้อย');
+    DB.upsertPerson(p);
+    showToast(isEN ? 'Saved' : 'บันทึกเรียบร้อย');
     closeModal();
     renderPersons();
   }
   function del(id) {
-    if (!confirm('ยืนยันการลบพนักงาน?')) return;
-    const db = loadDB(); db.persons = db.persons.filter(p => p.id !== id); saveDB(db);
-    showToast('ลบเรียบร้อย');
+    if (!canMutate) return;
+    if (!confirm(isEN ? 'Confirm delete this employee?' : 'ยืนยันการลบพนักงาน?')) return;
+    DB.deletePerson(id);
+    showToast(isEN ? 'Deleted' : 'ลบเรียบร้อย');
     renderPersons();
   }
 
@@ -300,6 +323,7 @@ if (!requireAdmin()) {} else {
   renderPersons();
   renderWatchlist();
 }
+}); // DB.init
 </script>
 </body>
 </html>

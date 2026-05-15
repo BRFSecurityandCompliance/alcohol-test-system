@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>เข้าสู่ระบบแอดมิน</title>
+<title id="doc-title">เข้าสู่ระบบแอดมิน</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="shared.css" />
 <style>
@@ -15,35 +15,71 @@
 <body>
 <div class="card login-card">
   <div class="logo-big">A</div>
-  <h1 style="text-align:center; margin-bottom:6px; font-size:22px">เข้าสู่ระบบแอดมิน</h1>
-  <p class="muted small" style="text-align:center; margin:0 0 24px">ระบบตรวจแอลกอฮอล์</p>
+  <h1 id="lbl-title" style="text-align:center; margin-bottom:6px; font-size:22px"></h1>
+  <p class="muted small" style="text-align:center; margin:0 0 24px" id="lbl-sub"></p>
 
   <form id="form" class="col gap-md">
     <div class="field">
-      <label>รหัสผ่าน</label>
-      <input class="input" type="password" name="password" required autofocus />
-      <div class="hint">รหัสตัวอย่าง: <code style="font-family:var(--font-mono)">admin1234</code></div>
+      <label id="lbl-user"></label>
+      <input class="input" type="text" name="username" required autocomplete="username" autofocus placeholder="admin" />
     </div>
-    <div id="err" class="small" style="color:var(--danger); display:none">รหัสผ่านไม่ถูกต้อง</div>
-    <button type="submit" class="btn btn-primary btn-lg btn-block">เข้าสู่ระบบ</button>
+    <div class="field">
+      <label id="lbl-pw"></label>
+      <input class="input" type="password" name="password" required autocomplete="current-password" />
+    </div>
+    <div id="err" class="small" style="color:var(--danger); display:none"></div>
+    <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-login"></button>
   </form>
 
   <div class="divider"></div>
-  <a href="index.html" class="btn btn-ghost btn-block">← กลับหน้าหลัก</a>
+  <a href="index.html" class="btn btn-ghost btn-block" id="btn-back"></a>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase.js"></script>
 <script src="data.js"></script>
 <script>
-document.getElementById('form').addEventListener('submit', e => {
+const isEN = (localStorage.getItem('lang')||'th') === 'en';
+document.getElementById('doc-title').textContent  = isEN ? 'Admin Login' : 'เข้าสู่ระบบแอดมิน';
+document.getElementById('lbl-title').textContent  = isEN ? 'Admin Login' : 'เข้าสู่ระบบแอดมิน';
+document.getElementById('lbl-sub').textContent    = isEN ? 'Alcohol Test System' : 'ระบบตรวจแอลกอฮอล์';
+document.getElementById('lbl-user').textContent   = isEN ? 'Username' : 'ชื่อผู้ใช้';
+document.getElementById('lbl-pw').textContent     = isEN ? 'Password' : 'รหัสผ่าน';
+document.getElementById('err').textContent        = isEN ? 'Incorrect username or password' : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+document.getElementById('btn-login').textContent  = isEN ? 'Login' : 'เข้าสู่ระบบ';
+document.getElementById('btn-back').textContent   = isEN ? '← Back to Home' : '← กลับหน้าหลัก';
+
+document.getElementById('form').addEventListener('submit', async e => {
   e.preventDefault();
-  const pw = e.target.password.value;
-  if (pw === ADMIN_PASSWORD) {
-    setAdminAuth(true);
-    location.href = 'admin-dashboard.html';
-  } else {
-    document.getElementById('err').style.display = 'block';
-    e.target.password.value = '';
+  const btn = document.getElementById('btn-login');
+  const err = document.getElementById('err');
+  btn.disabled = true;
+  btn.textContent = '⏳...';
+  err.style.display = 'none';
+
+  const username = e.target.username.value.trim();
+  const pw       = e.target.password.value;
+
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password: pw })
+    });
+    if (res.ok) {
+      const { token } = await res.json();
+      setAdminAuth(token);
+      location.href = 'admin-dashboard.html';
+      return;
+    }
+  } catch (fetchErr) {
+    console.error('[login] fetch failed', fetchErr);
   }
+
+  err.style.display = 'block';
+  e.target.password.value = '';
+  btn.disabled = false;
+  btn.textContent = isEN ? 'Login' : 'เข้าสู่ระบบ';
 });
 </script>
 </body>
