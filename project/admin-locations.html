@@ -364,6 +364,7 @@ if (requireAdmin()) {
         showToast(isEN ? `Import complete: added ${added}, updated ${updated}` : `นำเข้าเรียบร้อย: เพิ่ม ${added}, อัพเดต ${updated}`);
       } catch (err) {
         alert((isEN ? 'Import failed: ' : 'นำเข้าไม่สำเร็จ: ') + err.message);
+        e.target.value = '';
       }
     };
     reader.readAsText(file, 'UTF-8');
