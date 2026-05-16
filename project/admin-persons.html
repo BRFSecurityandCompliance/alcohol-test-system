@@ -114,7 +114,7 @@
 <script src="data.js"></script>
 <script>
 DB.init().then(() => {
-if (!requireAdmin()) {} else {
+if (requireAdmin()) {
   document.getElementById('chrome').innerHTML = renderTopbar('persons');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
   const canMutate = hasRole('super', 'manager');
@@ -164,7 +164,7 @@ if (!requireAdmin()) {} else {
       el.innerHTML = `<div class="empty"><div class="icon">👤</div>${isEN ? 'No employee data found' : 'ไม่พบข้อมูลพนักงาน'}</div>`;
       return;
     }
-    const wl = new Set((DB.all.watchlist || []).map(w => w.full_name));
+    const wl = new Set(DB.watchlist().map(w => w.full_name));
     el.innerHTML = `
       <div class="table-wrap">
         <table class="table">
