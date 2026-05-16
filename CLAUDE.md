@@ -8,6 +8,18 @@ QR-based alcohol test recording system for Thai workplaces. Employees scan a QR 
 
 ---
 
+## Security Baseline
+
+- **Never** commit `SUPABASE_SERVICE_KEY`, `ADMIN_PASSWORD`, or any `sk-*` / `ghp_*` secret
+- Supabase anon key in `supabase.js` is intentionally public — it has RLS restrictions
+- Service-role operations must go through the Cloudflare Worker proxy (`/api/admin/*`)
+- User input (form fields, CSV rows) must be trimmed and validated before DB write
+- SQL injections are prevented by Supabase's parameterised PostgREST API — never string-concat raw SQL
+- XSS: always set `textContent` or use template literals — never `innerHTML` with unsanitised user data
+- The Cloudflare Worker validates `X-Admin-Token` (JWT) before proxying any admin request
+
+---
+
 ## Key Files
 
 | File | Purpose |
@@ -30,7 +42,7 @@ QR-based alcohol test recording system for Thai workplaces. Employees scan a QR 
 Languages: `th` (Thai), `en` (English), `my` (Myanmar/MM), `km` (Cambodia/KH)  
 Stored in: `localStorage.getItem('lang')` — default `'th'`
 
-**In user-form.html:**
+**In user-facing pages:**
 ```javascript
 const lang = localStorage.getItem('lang') || 'th';
 const T = (k) => t(k, lang);   // translate key
@@ -112,10 +124,71 @@ Defined in `THRESHOLDS` in `data.js`. Department-specific overrides:
 
 ---
 
-## Development Branch
+## Supabase Patterns
 
-Active branch: `claude/new-session-A4YNx`  
-All changes must be committed and pushed to this branch. A draft PR (#3) is open against `main`.
+### Client selection
+```javascript
+// Always use _dbClient() — returns admin proxy when logged in, anon client otherwise
+_dbClient().from('table').select('*')
+
+// Admin proxy routes: /api/admin/rest/v1/* → Supabase with service_role key
+// Anon client: direct Supabase with anon key (RLS enforced)
+```
+
+### Fire-and-forget vs. awaited writes
+```javascript
+// Fire-and-forget (UI already updated via localStorage):
+_dbClient().from('locations').upsert(loc).then(({ error }) => {
+  if (error) console.warn('[DB.upsertLocation]', error.message);
+});
+
+// Awaited (CSV import, critical paths — must confirm persistence):
+const { error } = await _dbClient().from('locations').upsert(loc, { onConflict: 'code' });
+if (error) throw new Error(error.message);
+```
+
+### Force re-sync after bulk writes
+```javascript
+// After bulk import, reset the init guard to re-fetch from Supabase:
+DB._initialized = false;
+await DB.init();
+render();
+```
+
+### RLS rules (tighten_rls migration)
+- Anon: INSERT tests, SELECT locations/companies/settings only
+- Admin (service role via Worker): full access to all tables
+- Employee lookup: Worker endpoint `/api/lookup-person?id=EMP001`
+
+---
+
+## Polling Pattern
+
+```javascript
+// Set up 5-second auto-refresh on admin pages:
+function render() { /* build UI from DB.* */ }
+render();
+DB.startPolling(render, 5000);
+
+// startPolling calls DB.init().then(render) on interval.
+// DB.init() is guarded by DB._initialized — re-fetches only once per page load.
+// To force a re-fetch: DB._initialized = false; await DB.init();
+```
+
+---
+
+## CSV Import Pattern
+
+All admin CSV imports follow this pattern:
+1. Parse with `parseCSV(text)` (handles BOM, quoted fields, CRLF)
+2. Map headers with `headers.indexOf(key)`
+3. Validate required columns; alert and return on failure
+4. Collect upsert promises: `promises.push(DB.upsert*(row))`
+5. `await Promise.all(promises)` — never fire-and-forget for imports
+6. `DB._initialized = false; await DB.init(); render()` to confirm persistence
+7. `showToast(...)` with counts
+
+CSV export uses UTF-8 BOM (`﻿`) for Excel compatibility.
 
 ---
 
@@ -138,3 +211,41 @@ supabase/migrations/YYYYMMDDHHMMSS_description.sql
 ```
 
 **Photo stamp**: `stampPhoto(photoDataUrl, metadata)` in `data.js` — async, requires font preload before canvas draw.
+
+---
+
+## Code Quality Rules
+
+- No `console.log` in production code — use `console.warn('[context]', msg)` for real errors only
+- No inline secrets — all env vars live in Cloudflare Worker secrets (`env.SUPABASE_SERVICE_KEY`, `env.ADMIN_PASSWORD`, `env.JWT_SECRET`)
+- No `innerHTML` with user-controlled data — use `textContent` or escape first
+- Async operations that must persist: await and catch, never fire-and-forget
+- After any bulk write: reset `DB._initialized = false` and re-init to confirm
+- SQL migrations: no `DROP TABLE` or `TRUNCATE` without explicit user confirmation
+
+---
+
+## Anti-Patterns to Avoid
+
+| Anti-pattern | Why | Fix |
+|---|---|---|
+| `DB.upsertX()` fire-and-forget in import loops | Silent failure reverts on reload | Collect promises, `await Promise.all(...)` |
+| `base64` photo stored in Supabase INSERT | Payload too large → timeout on mobile | Upload to Storage, store URL only |
+| `DB.init()` called without resetting `_initialized` | Returns stale cache forever | Set `DB._initialized = false` first |
+| `innerHTML` with user input | XSS | Use `textContent` or sanitise |
+| Hardcoded `service_role` key in frontend | Security breach | Route via Cloudflare Worker |
+
+---
+
+## Agent Delegation Guide
+
+For complex multi-file investigations, spawn an **Explore** subagent.  
+For multi-step implementations, use the **Plan** subagent first, then implement.  
+Always include: file paths, relevant function names, and the exact change needed in the prompt.
+
+---
+
+## Development Branch
+
+Active branch: `claude/new-session-A4YNx`  
+All changes must be committed and pushed to this branch. Create draft PRs against `main`.
