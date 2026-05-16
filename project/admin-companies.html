@@ -274,6 +274,7 @@ if (requireAdmin()) {
         showToast(isEN ? `Import complete: added ${added} companies` : `นำเข้าเรียบร้อย: เพิ่ม ${added} บริษัท`);
       } catch (err) {
         alert((isEN ? 'Import failed: ' : 'นำเข้าไม่สำเร็จ: ') + (err.message || err));
+        e.target.value = '';
       }
     };
     reader.readAsText(file, 'UTF-8');

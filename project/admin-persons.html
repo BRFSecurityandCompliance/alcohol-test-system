@@ -405,6 +405,7 @@ if (requireAdmin()) {
         showToast(isEN ? `Imported ${imported} records${skipped ? `, skipped ${skipped}` : ''}` : `Import ${imported} รายการ${skipped ? ` (ข้าม ${skipped})` : ''} เสร็จแล้ว`);
       } catch (err) {
         showToast((isEN ? 'Import failed: ' : 'นำเข้าไม่สำเร็จ: ') + (err.message || err));
+        input.value = '';
       }
     };
     reader.readAsText(input.files[0], 'UTF-8');
