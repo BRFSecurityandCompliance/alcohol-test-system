@@ -108,7 +108,7 @@
 <script src="data.js"></script>
 <script>
 DB.init().then(() => {
-if (!requireAdmin()) {} else {
+if (requireAdmin()) {
   document.getElementById('chrome').innerHTML = renderTopbar('locations');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
   const canMutate = hasRole('super', 'manager');

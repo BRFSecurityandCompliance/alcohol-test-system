@@ -121,7 +121,7 @@
 <script src="data.js"></script>
 <script>
 DB.init().then(() => {
-if (!requireAdmin()) {} else {
+if (requireAdmin()) {
   document.getElementById('chrome').innerHTML = renderTopbar('alerts');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
   const canAct = hasRole('super', 'manager');
