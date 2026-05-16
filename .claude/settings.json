@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\n# Warn about console.log left in JS files\nFILE=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"\n[[ \"$FILE\" != *.js ]] && exit 0\nMATCHES=$(grep -n 'console\\.log' \"$FILE\" 2>/dev/null || true)\n[ -z \"$MATCHES\" ] && exit 0\necho \"[Hook] console.log found in $FILE — remove before shipping:\" >&2\necho \"$MATCHES\" >&2\nexit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\n# Detect hardcoded secrets in JS/HTML files\nFILE=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"\n[[ \"$FILE\" != *.js && \"$FILE\" != *.html ]] && exit 0\nPATTERNS='(SUPABASE_SERVICE_KEY|service_role|sk-ant-|ghp_|AKIA[A-Z0-9])'\nMATCHES=$(grep -nE \"$PATTERNS\" \"$FILE\" 2>/dev/null || true)\n[ -z \"$MATCHES\" ] && exit 0\necho \"[Hook][SECURITY] Possible hardcoded secret in $FILE:\" >&2\necho \"$MATCHES\" >&2\nexit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\n# Warn about destructive SQL in migration files\nFILE=\"${CLAUDE_TOOL_INPUT_FILE_PATH:-}\"\n[[ \"$FILE\" != *.sql ]] && exit 0\nMATCHES=$(grep -inE '(DROP TABLE|TRUNCATE|DELETE FROM [a-z])' \"$FILE\" 2>/dev/null || true)\n[ -z \"$MATCHES\" ] && exit 0\necho \"[Hook][WARN] Destructive SQL in migration $FILE — double-check intent:\" >&2\necho \"$MATCHES\" >&2\nexit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "#!/bin/bash\n# Remind to create PR after push\nCMD=\"${CLAUDE_TOOL_INPUT_COMMAND:-}\"\n[[ \"$CMD\" != *\"git push\"* ]] && exit 0\necho \"[Hook] After pushing, remember: create/update the draft PR on the claude/new-session-A4YNx branch.\" >&2\nexit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
