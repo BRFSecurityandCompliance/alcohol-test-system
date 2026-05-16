@@ -273,7 +273,7 @@ if (requireAdmin()) {
   function importCSV(input) {
     if (!canMutate || !input.files[0]) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const lines = e.target.result.replace(/\r/g,'').split('\n').filter(l => l.trim());
         const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,'').toLowerCase());
@@ -292,24 +292,30 @@ if (requireAdmin()) {
         };
         const get = (cols, key) => { const i = header.indexOf(key); return i >= 0 ? (cols[i]||'').trim() : ''; };
         let imported = 0, skipped = 0;
+        const promises = [];
         for (let i = 1; i < lines.length; i++) {
           const cols = parse(lines[i]);
           const serial = get(cols, 'serial');
           const model = get(cols, 'model');
           if (!serial) { skipped++; continue; }
           const existing = DB.devices().find(d => d.serial === serial);
-          DB.upsertDevice({
+          promises.push(DB.upsertDevice({
             ...(existing ? { id: existing.id } : {}),
             serial, model: model || existing?.model || '', asset_no: get(cols,'asset_no'),
             location_code: get(cols,'location_code'), last_calibrated: get(cols,'last_calibrated'),
             next_calibration: get(cols,'next_calibration')
-          });
+          }));
           imported++;
         }
-        showToast(isEN ? `Imported ${imported} devices${skipped?`, skipped ${skipped}`:''}` : `Import ${imported} เครื่อง${skipped?` (ข้าม ${skipped})`:''}  เสร็จแล้ว`);
+        await Promise.all(promises);
+        input.value = '';
+        DB._initialized = false;
+        await DB.init();
         render();
-      } catch { showToast(isEN ? 'Failed to parse CSV' : 'ไม่สามารถอ่านไฟล์ CSV ได้'); }
-      input.value = '';
+        showToast(isEN ? `Imported ${imported} devices${skipped?`, skipped ${skipped}`:''}` : `Import ${imported} เครื่อง${skipped?` (ข้าม ${skipped})`:''}  เสร็จแล้ว`);
+      } catch (err) {
+        showToast((isEN ? 'Import failed: ' : 'นำเข้าไม่สำเร็จ: ') + (err.message || err));
+      }
     };
     reader.readAsText(input.files[0], 'UTF-8');
   }

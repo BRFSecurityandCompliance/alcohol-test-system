@@ -735,9 +735,10 @@ DB.upsertCompany = function(c) {
   else db.companies.push({ id, name: c.name });
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _dbClient().from('companies').upsert({ id, name: c.name }, { onConflict: 'id' })
-      .then(({ error }) => { if (error) console.warn('[DB.upsertCompany]', error.message); });
+    return _dbClient().from('companies').upsert({ id, name: c.name }, { onConflict: 'id' })
+      .then(({ error }) => { if (error) { console.warn('[DB.upsertCompany]', error.message); throw new Error(error.message); } });
   }
+  return Promise.resolve();
 };
 
 DB.deleteCompany = function(id) {
@@ -759,9 +760,10 @@ DB.upsertDevice = function(d) {
   saveDB(db);
   if (typeof _sb !== 'undefined') {
     const { status, ...sbRow } = row;
-    _dbClient().from('devices').upsert(sbRow, { onConflict: 'id' })
-      .then(({ error }) => { if (error) console.warn('[DB.upsertDevice]', error.message); });
+    return _dbClient().from('devices').upsert(sbRow, { onConflict: 'id' })
+      .then(({ error }) => { if (error) { console.warn('[DB.upsertDevice]', error.message); throw new Error(error.message); } });
   }
+  return Promise.resolve();
 };
 
 DB.deleteDevice = function(id) {
@@ -858,9 +860,10 @@ DB.upsertPerson = function(p) {
   if (i >= 0) db.persons[i] = row; else db.persons.push(row);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    _dbClient().from('persons').upsert(row, { onConflict: 'employee_id' })
-      .then(({ error }) => { if (error) console.warn('[DB.upsertPerson]', error.message); });
+    return _dbClient().from('persons').upsert(row, { onConflict: 'employee_id' })
+      .then(({ error }) => { if (error) { console.warn('[DB.upsertPerson]', error.message); throw new Error(error.message); } });
   }
+  return Promise.resolve();
 };
 
 DB.deletePerson = function(id) {

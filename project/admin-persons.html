@@ -359,7 +359,7 @@ if (requireAdmin()) {
   function importCSV(input) {
     if (!canMutate || !input.files[0]) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const lines = e.target.result.replace(/\r/g, '').split('\n').filter(l => l.trim());
         const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
@@ -383,22 +383,29 @@ if (requireAdmin()) {
         };
         const getCol = (cols, key) => { const i = header.indexOf(key); return i >= 0 ? (cols[i] || '').trim() : ''; };
         let imported = 0, skipped = 0;
+        const promises = [];
         for (let i = 1; i < lines.length; i++) {
           const cols = parseRow(lines[i]);
           const empId = getCol(cols, 'employee_id');
           const fullName = getCol(cols, 'full_name');
           if (!empId || !fullName) { skipped++; continue; }
-          DB.upsertPerson({
+          promises.push(DB.upsertPerson({
             employee_id: empId, full_name: fullName,
             department: getCol(cols, 'department'), company: getCol(cols, 'company'),
             plate_number: getCol(cols, 'plate_number'), phone: getCol(cols, 'phone')
-          });
+          }));
           imported++;
         }
-        showToast(isEN ? `Imported ${imported} records${skipped ? `, skipped ${skipped}` : ''}` : `Import ${imported} รายการ${skipped ? ` (ข้าม ${skipped})` : ''} เสร็จแล้ว`);
+        await Promise.all(promises);
+        input.value = '';
+        DB._initialized = false;
+        await DB.init();
         renderPersons();
-      } catch { showToast(isEN ? 'Failed to parse CSV' : 'ไม่สามารถอ่านไฟล์ CSV ได้'); }
-      input.value = '';
+        renderWatchlist();
+        showToast(isEN ? `Imported ${imported} records${skipped ? `, skipped ${skipped}` : ''}` : `Import ${imported} รายการ${skipped ? ` (ข้าม ${skipped})` : ''} เสร็จแล้ว`);
+      } catch (err) {
+        showToast((isEN ? 'Import failed: ' : 'นำเข้าไม่สำเร็จ: ') + (err.message || err));
+      }
     };
     reader.readAsText(input.files[0], 'UTF-8');
   }

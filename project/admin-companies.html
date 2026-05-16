@@ -249,24 +249,32 @@ if (requireAdmin()) {
   function importCSV(e) {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      const rows = parseCSV(reader.result);
-      if (rows.length < 2) { alert(isEN ? 'File is empty' : 'ไฟล์ว่าง'); return; }
-      const headers = rows[0].map(h => h.trim().toLowerCase());
-      const ni = headers.indexOf('name');
-      if (ni < 0) { alert(isEN ? 'CSV must have a "name" column (see Template)' : 'CSV ต้องมีคอลัมน์ name (ดู Template)'); return; }
-      let added = 0;
-      const existing = new Set(DB.companies().map(c => c.name));
-      for (let r = 1; r < rows.length; r++) {
-        const name = (rows[r][ni] || '').trim();
-        if (!name || existing.has(name)) continue;
-        DB.upsertCompany({ name });
-        existing.add(name);
-        added++;
+    reader.onload = async () => {
+      try {
+        const rows = parseCSV(reader.result);
+        if (rows.length < 2) { alert(isEN ? 'File is empty' : 'ไฟล์ว่าง'); return; }
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        const ni = headers.indexOf('name');
+        if (ni < 0) { alert(isEN ? 'CSV must have a "name" column (see Template)' : 'CSV ต้องมีคอลัมน์ name (ดู Template)'); return; }
+        let added = 0;
+        const existing = new Set(DB.companies().map(c => c.name));
+        const promises = [];
+        for (let r = 1; r < rows.length; r++) {
+          const name = (rows[r][ni] || '').trim();
+          if (!name || existing.has(name)) continue;
+          promises.push(DB.upsertCompany({ name }));
+          existing.add(name);
+          added++;
+        }
+        await Promise.all(promises);
+        e.target.value = '';
+        DB._initialized = false;
+        await DB.init();
+        render();
+        showToast(isEN ? `Import complete: added ${added} companies` : `นำเข้าเรียบร้อย: เพิ่ม ${added} บริษัท`);
+      } catch (err) {
+        alert((isEN ? 'Import failed: ' : 'นำเข้าไม่สำเร็จ: ') + (err.message || err));
       }
-      showToast(isEN ? `Import complete: added ${added} companies` : `นำเข้าเรียบร้อย: เพิ่ม ${added} บริษัท`);
-      e.target.value = '';
-      render();
     };
     reader.readAsText(file, 'UTF-8');
   }
