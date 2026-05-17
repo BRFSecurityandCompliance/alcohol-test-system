@@ -40,6 +40,7 @@ const locationCode = params.get('location');
 const loc = locationCode ? DB.findLocation(locationCode) : null;
 const retestOf = params.get('retest_of') || null;
 const retestSource = retestOf ? DB.tests().find(t => t.id === retestOf) : null;
+const settings = DB.settings();
 
 // Network status
 function updateNet() {
@@ -80,7 +81,6 @@ if (!locationCode || !loc) {
       </div>
     </div>`;
 } else {
-  const settings = DB.settings();
   if (settings.location_enforcement_enabled && loc.lat != null && loc.lng != null) {
     checkGpsAndRender();
   } else {
@@ -325,11 +325,25 @@ function renderForm() {
   // Threshold preview
   function updateThresholdPreview() {
     const v = parseFloat(form.alcohol_value.value);
-    if (!v || isZero) { tpEl.innerHTML = ''; return; }
+    tpEl.textContent = '';
+    if (!v || isZero) return;
     const lvl = getThresholdLevel(v, form.department.value);
     const cls = 'tp-' + (lvl.color === 'success' ? 'pass' : lvl.color === 'warn' ? 'warn' : lvl.color === 'danger-strong' ? 'illegal' : 'danger');
     const advice = lvl.level === 'pass' ? T('tp_pass') : lvl.level === 'caution' ? T('tp_caution') : lvl.level === 'no-drive' ? T('tp_nodrive') : T('tp_illegal');
-    tpEl.innerHTML = `<div class="threshold-preview ${cls}"><span style="font-size:18px">${lvl.color==='success'?'✓':'⚠'}</span><div><b>${T('tp_level')} ${lvl.label}</b><br><span class="tiny">${advice}</span></div></div>`;
+    const box = document.createElement('div');
+    box.className = 'threshold-preview ' + cls;
+    const icon = document.createElement('span');
+    icon.style.fontSize = '18px';
+    icon.textContent = lvl.color === 'success' ? '✓' : '⚠';
+    const txt = document.createElement('div');
+    const head = document.createElement('b');
+    head.textContent = `${T('tp_level')} ${lvl.label}`;
+    const sub = document.createElement('span');
+    sub.className = 'tiny';
+    sub.textContent = advice;
+    txt.append(head, document.createElement('br'), sub);
+    box.append(icon, txt);
+    tpEl.appendChild(box);
   }
   form.alcohol_value.addEventListener('input', updateThresholdPreview);
 
@@ -384,10 +398,16 @@ function renderForm() {
   }
   async function uploadPhotoToStorage(dataUrl) {
     try {
-      const res = await fetch(dataUrl);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(dataUrl, { signal: controller.signal });
       const blob = await res.blob();
+      clearTimeout(timer);
       const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-      const { data, error } = await _sb.storage.from('test-photos').upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
+      const { data, error } = await Promise.race([
+        _sb.storage.from('test-photos').upload(filename, blob, { contentType: 'image/jpeg', upsert: false }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('upload timeout')), 10000))
+      ]);
       if (error) throw error;
       const { data: urlData } = _sb.storage.from('test-photos').getPublicUrl(data.path);
       return urlData.publicUrl;
@@ -422,11 +442,33 @@ function renderForm() {
   function rL(q) {
     const all = DB.companies().map(c => c.name);
     const f = q ? all.filter(n => n.toLowerCase().includes(q.toLowerCase())) : all;
-    let html = f.map(n => `<div class="combo-item" data-val="${n.replace(/"/g,'&quot;')}">${n}</div>`).join('');
-    if (q && !all.some(n => n.toLowerCase()===q.toLowerCase())) html += `<div class="combo-item" data-val="${q.replace(/"/g,'&quot;')}">${T('company_use')} "${q}"<span class="new-label">${T('company_new_badge')}</span></div>`;
-    if (!html) html = `<div class="combo-empty">${T('company_new')}</div>`;
-    cl.innerHTML = html; cl.style.display='block';
-    cl.querySelectorAll('.combo-item').forEach(el => el.addEventListener('mousedown', () => { ci.value = el.dataset.val; cl.style.display='none'; validate(); }));
+    cl.textContent = '';
+    const pick = (val) => { ci.value = val; cl.style.display = 'none'; validate(); };
+    f.forEach(n => {
+      const div = document.createElement('div');
+      div.className = 'combo-item';
+      div.textContent = n;
+      div.addEventListener('mousedown', () => pick(n));
+      cl.appendChild(div);
+    });
+    if (q && !all.some(n => n.toLowerCase() === q.toLowerCase())) {
+      const div = document.createElement('div');
+      div.className = 'combo-item';
+      div.append(document.createTextNode(`${T('company_use')} "${q}"`));
+      const badge = document.createElement('span');
+      badge.className = 'new-label';
+      badge.textContent = T('company_new_badge');
+      div.appendChild(badge);
+      div.addEventListener('mousedown', () => pick(q));
+      cl.appendChild(div);
+    }
+    if (!cl.childNodes.length) {
+      const empty = document.createElement('div');
+      empty.className = 'combo-empty';
+      empty.textContent = T('company_new');
+      cl.appendChild(empty);
+    }
+    cl.style.display = 'block';
   }
   ci.addEventListener('focus', () => rL(ci.value));
   ci.addEventListener('input', () => rL(ci.value));
@@ -453,7 +495,7 @@ function renderForm() {
         navigator.geolocation.getCurrentPosition(
           pos => resolve(gpsDistance(pos.coords.latitude, pos.coords.longitude, loc.lat, loc.lng) <= 100),
           () => resolve(false),
-          { timeout: 8000, maximumAge: 0 }
+          { timeout: 5000, maximumAge: 60000 }
         );
       });
       if (!gpsOk) {
@@ -517,8 +559,8 @@ function renderForm() {
         retest_of: retestOf
       };
       const newTest = DB.addTest(payload);
-      // Wait for Supabase INSERT to complete (max 5s) before navigating away
-      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 20000))]);
+      // Wait for Supabase INSERT to complete (max 8s) before navigating away
+      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 8000))]);
       // Mark original as completed if this was a retest
       if (retestOf) DB.updateTest(retestOf, { retest_status: 'completed' });
       // Trigger retest flow if not zero
