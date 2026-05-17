@@ -33,6 +33,13 @@ DB.init().then(() => {
 const lang = localStorage.getItem('lang') || 'th';
 const T = (k) => t(k, lang);
 const lb = {th:'TH',en:'EN',my:'MM',km:'KH'};
+
+// Back-button trap — push a dummy entry so "back" stays on this page
+history.pushState(null, '', location.href);
+window.addEventListener('popstate', () => history.pushState(null, '', location.href));
+
+function blockUnload(e) { e.preventDefault(); e.returnValue = ''; }
+window.addEventListener('beforeunload', blockUnload);
 const params = new URLSearchParams(location.search);
 const testId = params.get('test_id');
 const test = testId ? DB.tests().find(t => t.id === testId) : null;
@@ -113,6 +120,7 @@ if (!test) {
           <div class="timer-sub">${T('rt_wait_sub')}</div>
         </div>`;
     } else {
+      window.removeEventListener('beforeunload', blockUnload);
       section.innerHTML = `
         <div class="ready-wrap">
           <div style="font-size:48px; margin-bottom:12px">✅</div>

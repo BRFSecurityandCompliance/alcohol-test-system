@@ -3,18 +3,19 @@ const DB_KEY = 'alcohol_test_db_v2';
 
 // ----- Seed: Locations -----
 const SEED_LOCATIONS = [
-  { code: 'QR001', name: 'ปทุมธานี', address: '123 ถ.รังสิต-ปทุมธานี', contact: 'คุณสมชาย', phone: '02-111-1111' },
-  { code: 'QR002', name: 'บางเลน', address: '45 ถ.บางเลน นครปฐม', contact: 'คุณวิภา', phone: '02-222-2222' },
-  { code: 'QR003', name: 'นครปฐม', address: '88 ถ.เพชรเกษม', contact: 'คุณอรุณ', phone: '02-333-3333' },
-  { code: 'QR004', name: 'สมุทรสาคร', address: '12 ถ.พระราม 2', contact: 'คุณชัย', phone: '02-444-4444' },
-  { code: 'QR005', name: 'สมุทรปราการ', address: '99 ถ.บางนา-ตราด', contact: 'คุณนภา', phone: '02-555-5555' },
-  { code: 'QR006', name: 'นนทบุรี', address: '7 ถ.รัตนาธิเบศร์', contact: 'คุณอาทิตย์', phone: '02-666-6666' },
-  { code: 'QR007', name: 'อยุธยา', address: '34 ถ.โรจนะ', contact: 'คุณพลอย', phone: '035-111-111' },
-  { code: 'QR008', name: 'ฉะเชิงเทรา', address: '56 ถ.สุวินทวงศ์', contact: 'คุณธนา', phone: '038-222-222' },
-  { code: 'QR009', name: 'ระยอง', address: '21 ถ.สุขุมวิท', contact: 'คุณสุดา', phone: '038-333-333' },
-  { code: 'QR010', name: 'ชลบุรี', address: '67 ถ.บางแสน', contact: 'คุณกฤษ', phone: '038-444-444' },
-  { code: 'QR011', name: 'ราชบุรี', address: '13 ถ.เพชรเกษม', contact: 'คุณมาลี', phone: '032-555-555' },
-  { code: 'QR012', name: 'กาญจนบุรี', address: '78 ถ.แสงชูโต', contact: 'คุณวีระ', phone: '034-666-666' }
+  { code: 'QR001', name: 'ปทุมธานี', address: '123 ถ.รังสิต-ปทุมธานี', contact: 'คุณสมชาย', phone: '02-111-1111', lat: null, lng: null },
+  { code: 'QR002', name: 'บางเลน', address: '45 ถ.บางเลน นครปฐม', contact: 'คุณวิภา', phone: '02-222-2222', lat: null, lng: null },
+  { code: 'QR003', name: 'นครปฐม', address: '88 ถ.เพชรเกษม', contact: 'คุณอรุณ', phone: '02-333-3333', lat: null, lng: null },
+  { code: 'QR004', name: 'สมุทรสาคร', address: '12 ถ.พระราม 2', contact: 'คุณชัย', phone: '02-444-4444', lat: null, lng: null },
+  { code: 'QR005', name: 'สมุทรปราการ', address: '99 ถ.บางนา-ตราด', contact: 'คุณนภา', phone: '02-555-5555', lat: null, lng: null },
+  { code: 'QR006', name: 'นนทบุรี', address: '7 ถ.รัตนาธิเบศร์', contact: 'คุณอาทิตย์', phone: '02-666-6666', lat: null, lng: null },
+  { code: 'QR007', name: 'อยุธยา', address: '34 ถ.โรจนะ', contact: 'คุณพลอย', phone: '035-111-111', lat: null, lng: null },
+  { code: 'QR008', name: 'ฉะเชิงเทรา', address: '56 ถ.สุวินทวงศ์', contact: 'คุณธนา', phone: '038-222-222', lat: null, lng: null },
+  { code: 'QR009', name: 'ระยอง', address: '21 ถ.สุขุมวิท', contact: 'คุณสุดา', phone: '038-333-333', lat: null, lng: null },
+  { code: 'QR010', name: 'ชลบุรี', address: '67 ถ.บางแสน', contact: 'คุณกฤษ', phone: '038-444-444', lat: null, lng: null },
+  { code: 'QR011', name: 'ราชบุรี', address: '13 ถ.เพชรเกษม', contact: 'คุณมาลี', phone: '032-555-555', lat: null, lng: null },
+  { code: 'QR012', name: 'กาญจนบุรี', address: '78 ถ.แสงชูโต', contact: 'คุณวีระ', phone: '034-666-666', lat: null, lng: null },
+  { code: 'QR013', name: 'จุดทดสอบ GPS (Test)', address: 'ทดสอบระบบตรวจสอบพิกัด GPS', contact: 'Admin', phone: '000-000-0000', lat: 13.7563, lng: 100.5018 }
 ];
 
 const SEED_COMPANIES = [
@@ -612,7 +613,7 @@ DB.init = async function() {
     const serverIds = new Set(serverTests.map(t => t.id));
     const localExtra = (loadDB().tests || []).filter(t => !serverIds.has(t.id));
     const db = {
-      locations: locs || [],
+      locations: (locs || []).map(l => ({ ...l, lat: l.lat ?? null, lng: l.lng ?? null })),
       companies: (comps || []).map(c => ({ id: c.id, name: c.name })),
       tests: [...localExtra, ...serverTests],
       devices: (devs || []).map(d => ({ ...d, asset_no: d.asset_no || '', status: getDeviceStatus(d.next_calibration) })),
@@ -634,8 +635,9 @@ DB.init = async function() {
         watchlist_window_days: sett.watchlist_window_days,
         language: sett.language,
         thresholds: THRESHOLDS,
-        shifts_enabled: sett.shifts_enabled !== false
-      } : { retest_minutes: 5, watchlist_threshold: 2, watchlist_window_days: 30, language: 'th', thresholds: THRESHOLDS, shifts_enabled: true }
+        shifts_enabled: sett.shifts_enabled !== false,
+        location_enforcement_enabled: sett.location_enforcement_enabled === true
+      } : { retest_minutes: 5, watchlist_threshold: 2, watchlist_window_days: 30, language: 'th', thresholds: THRESHOLDS, shifts_enabled: true, location_enforcement_enabled: false }
     };
     saveDB(db);
   } catch (err) {
@@ -711,7 +713,13 @@ DB.upsertLocation = function(loc) {
   if (i >= 0) db.locations[i] = loc; else db.locations.push(loc);
   saveDB(db);
   if (typeof _sb !== 'undefined') {
-    return _dbClient().from('locations').upsert(loc, { onConflict: 'code' })
+    const row = {
+      code: loc.code, name: loc.name,
+      address: loc.address || '', contact: loc.contact || '', phone: loc.phone || '',
+      lat: loc.lat != null ? parseFloat(loc.lat) : null,
+      lng: loc.lng != null ? parseFloat(loc.lng) : null
+    };
+    return _dbClient().from('locations').upsert(row, { onConflict: 'code' })
       .then(({ error }) => { if (error) { console.warn('[DB.upsertLocation]', error.message); throw new Error(error.message); } });
   }
   return Promise.resolve();
@@ -832,6 +840,7 @@ DB.setSettings = function(s) {
     if (s.watchlist_window_days !== undefined) row.watchlist_window_days = s.watchlist_window_days;
     if (s.language !== undefined) row.language = s.language;
     if (s.shifts_enabled !== undefined) row.shifts_enabled = s.shifts_enabled;
+    if (s.location_enforcement_enabled !== undefined) row.location_enforcement_enabled = s.location_enforcement_enabled;
     if (Object.keys(row).length) {
       _dbClient().from('settings').update(row).eq('id', 1)
         .then(({ error }) => { if (error) console.warn('[DB.setSettings]', error.message); });

@@ -80,7 +80,64 @@ if (!locationCode || !loc) {
       </div>
     </div>`;
 } else {
-  renderForm();
+  const settings = DB.settings();
+  if (settings.location_enforcement_enabled && loc.lat != null && loc.lng != null) {
+    checkGpsAndRender();
+  } else {
+    renderForm();
+  }
+}
+
+function gpsDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function checkGpsAndRender() {
+  const lang0 = localStorage.getItem('lang') || 'th';
+  const T0 = (k) => t(k, lang0);
+  const lb = {th:'TH',en:'EN',my:'MM',km:'KH'};
+  const langBar = `<div style="display:flex; justify-content:center; gap:6px; padding:16px 0 0">${['th','en','my','km'].map(l=>`<button style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;background:${lang0===l?'var(--brand)':'var(--surface)'};color:${lang0===l?'#fff':'var(--text)'};cursor:pointer" onclick="localStorage.setItem('lang','${l}');location.reload()">${lb[l]}</button>`).join('')}</div>`;
+
+  app.innerHTML = `<div class="invalid-screen"><div class="card invalid-card">${langBar}<div style="font-size:48px; margin:16px 0 8px">📍</div><p class="muted" style="margin:8px 0">${lang0==='en'?'Checking your location...':'กำลังตรวจสอบตำแหน่ง...'}</p></div></div>`;
+
+  if (!navigator.geolocation) {
+    showGpsError(lang0, langBar, lang0==='en'?'GPS not supported on this device':'อุปกรณ์ไม่รองรับ GPS');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const dist = gpsDistance(pos.coords.latitude, pos.coords.longitude, loc.lat, loc.lng);
+      if (dist <= 100) {
+        renderForm();
+      } else {
+        const m = Math.round(dist);
+        showGpsError(lang0, langBar, lang0==='en'?`You are ${m} m away from this checkpoint. Move within 100 m to record your test.`:`คุณอยู่ห่างจากจุดตรวจ ${m} เมตร กรุณาเข้ามาในรัศมี 100 เมตร`);
+      }
+    },
+    (err) => {
+      const msg = err.code === 1
+        ? (lang0==='en'?'Location permission denied. Please allow GPS access and try again.':'ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง กรุณาเปิดสิทธิ์ GPS แล้วลองใหม่')
+        : (lang0==='en'?'Unable to get location. Please try again.':'ไม่สามารถรับตำแหน่งได้ กรุณาลองใหม่');
+      showGpsError(lang0, langBar, msg);
+    },
+    { timeout: 10000, maximumAge: 0 }
+  );
+}
+
+function showGpsError(lang0, langBar, msg) {
+  app.innerHTML = `
+    <div class="invalid-screen">
+      <div class="card invalid-card">
+        ${langBar}
+        <div class="invalid-icon" style="margin-top:16px">📍</div>
+        <h1 style="margin-bottom:8px">${lang0==='en'?'Location Check Failed':'ตรวจสอบตำแหน่งไม่ผ่าน'}</h1>
+        <p class="muted" style="margin:0 0 20px">${msg}</p>
+        <button class="btn btn-primary btn-block" onclick="location.reload()">${lang0==='en'?'Try Again':'ลองอีกครั้ง'}</button>
+      </div>
+    </div>`;
 }
 
 function renderForm() {

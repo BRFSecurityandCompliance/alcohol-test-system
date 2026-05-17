@@ -198,6 +198,23 @@ if (!requireAdmin() || !hasRole('super')) { location.href = 'admin-dashboard.htm
         </div>
       </div>
 
+      <div class="card" style="margin-bottom:16px">
+        <h2 style="margin-bottom:4px">${isEN ? 'GPS Location Enforcement' : 'บังคับตรวจสอบตำแหน่ง GPS'}</h2>
+        <div class="muted small" style="margin-bottom:16px">${isEN ? 'When enabled, users can only submit the test form within 100 m of the QR site coordinates (set per location in QR/Locations).' : 'เมื่อเปิดใช้งาน ผู้ใช้จะส่งฟอร์มได้เฉพาะในรัศมี 100 เมตรจากพิกัด QR ที่ตั้งค่าไว้ในเมนู QR/สถานที่'}</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <div class="name">${isEN ? 'Enable GPS Enforcement' : 'เปิดการบังคับพิกัด GPS'}</div>
+            <div class="desc">${isEN ? 'Locations without lat/lng set are not affected.' : 'สถานที่ที่ยังไม่ได้ตั้งพิกัดจะไม่ถูกบังคับ'}</div>
+          </div>
+          <div class="setting-ctrl">
+            <label class="switch">
+              <input type="checkbox" id="geo-enforce-toggle" ${s.location_enforcement_enabled ? 'checked' : ''} />
+              <span class="slide"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div style="text-align:right">
         <button class="btn btn-primary" onclick="saveSystem()">💾 ${isEN ? 'Save Settings' : 'บันทึกการตั้งค่า'}</button>
       </div>
@@ -209,7 +226,8 @@ if (!requireAdmin() || !hasRole('super')) { location.href = 'admin-dashboard.htm
       retest_minutes: parseInt(document.getElementById('retest-min').value) || 5,
       watchlist_threshold: parseInt(document.getElementById('wl-threshold').value) || 2,
       watchlist_window_days: parseInt(document.getElementById('wl-days').value) || 30,
-      language: document.getElementById('lang-default').value
+      language: document.getElementById('lang-default').value,
+      location_enforcement_enabled: document.getElementById('geo-enforce-toggle').checked
     });
     DB.addAudit({ actor_id: currentUser()?.id, actor_name: currentUser()?.name, action: 'update_settings', target: 'system', detail: 'แก้ไขการตั้งค่าระบบ' });
     showToast(isEN ? 'Settings saved' : 'บันทึกการตั้งค่าเรียบร้อย', 'success');
