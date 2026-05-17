@@ -71,6 +71,20 @@
               <input class="input" name="phone" />
             </div>
           </div>
+          <div style="background:var(--brand-soft); border:1px solid #c7d2fe; border-radius:var(--r-md); padding:14px">
+            <div style="font-weight:600; color:var(--brand); font-size:13px; margin-bottom:10px" id="lbl-gps-section">📍 GPS Enforcement</div>
+            <div class="grid-2">
+              <div class="field">
+                <label id="lbl-lat"></label>
+                <input class="input" name="lat" type="number" step="any" placeholder="e.g. 13.7563" />
+              </div>
+              <div class="field">
+                <label id="lbl-lng"></label>
+                <input class="input" name="lng" type="number" step="any" placeholder="e.g. 100.5018" />
+              </div>
+            </div>
+            <div class="hint" id="hint-gps"></div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -131,6 +145,10 @@ if (requireAdmin()) {
   document.getElementById('lbl-address').textContent = isEN ? 'Address' : 'ที่อยู่';
   document.getElementById('lbl-contact').textContent = isEN ? 'Contact Person' : 'ผู้ติดต่อ';
   document.getElementById('lbl-phone').textContent = isEN ? 'Phone' : 'โทรศัพท์';
+  document.getElementById('lbl-gps-section').textContent = isEN ? '📍 GPS Enforcement (optional)' : '📍 บังคับตำแหน่ง GPS (ไม่บังคับ)';
+  document.getElementById('lbl-lat').textContent = isEN ? 'Latitude' : 'ละติจูด';
+  document.getElementById('lbl-lng').textContent = isEN ? 'Longitude' : 'ลองจิจูด';
+  document.getElementById('hint-gps').textContent = isEN ? 'Set coordinates to restrict access within 100 m. Leave blank to disable enforcement for this location.' : 'ตั้งพิกัดเพื่อจำกัดการเข้าถึงในรัศมี 100 เมตร หากเว้นว่างไม่มีการบังคับพิกัด';
   document.getElementById('modal-cancel-btn').textContent = isEN ? 'Cancel' : 'ยกเลิก';
   document.getElementById('modal-save-btn').textContent = isEN ? 'Save' : 'บันทึก';
   document.getElementById('copy-link-btn').textContent = isEN ? '📋 Copy Link' : '📋 คัดลอกลิงก์';
@@ -177,6 +195,7 @@ if (requireAdmin()) {
         <div class="name">${l.name}</div>
         <div class="code">${l.code}</div>
         ${l.address ? `<div class="tiny muted" style="margin-top:6px">${l.address}</div>` : ''}
+        ${l.lat != null ? `<div class="tiny" style="margin-top:4px; color:var(--brand); font-family:var(--font-mono)">📍 ${l.lat.toFixed(4)}, ${l.lng.toFixed(4)}</div>` : ''}
         <div class="row gap-sm" style="margin-top:14px; justify-content:center">
           <button class="btn btn-sm" onclick="openQRDetail('${l.code}')">${isEN ? 'View QR' : 'ดู QR'}</button>
           <button class="btn btn-sm" onclick="openModal('${l.code}')">${isEN ? 'Edit' : 'แก้ไข'}</button>
@@ -200,6 +219,8 @@ if (requireAdmin()) {
       form.address.value = l.address || '';
       form.contact.value = l.contact || '';
       form.phone.value = l.phone || '';
+      form.lat.value = l.lat != null ? l.lat : '';
+      form.lng.value = l.lng != null ? l.lng : '';
       form.code.setAttribute('readonly', '');
     } else {
       form.code.removeAttribute('readonly');
@@ -213,12 +234,16 @@ if (requireAdmin()) {
     e.preventDefault();
     if (!canMutate) return;
     const form = e.target;
+    const latVal = form.lat.value.trim();
+    const lngVal = form.lng.value.trim();
     DB.upsertLocation({
       code: form.code.value.trim().toUpperCase(),
       name: form.name.value.trim(),
       address: form.address.value.trim(),
       contact: form.contact.value.trim(),
-      phone: form.phone.value.trim()
+      phone: form.phone.value.trim(),
+      lat: latVal !== '' ? parseFloat(latVal) : null,
+      lng: lngVal !== '' ? parseFloat(lngVal) : null
     });
     showToast(editingCode ? (isEN ? 'Updated' : 'แก้ไขเรียบร้อย') : (isEN ? 'Added' : 'เพิ่มเรียบร้อย'));
     closeModal();
@@ -295,10 +320,10 @@ if (requireAdmin()) {
 
   // CSV Import / Template
   function downloadTemplate() {
-    const headers = ['code','name','address','contact','phone'];
+    const headers = ['code','name','address','contact','phone','lat','lng'];
     const sample = [
-      ['QR013','ตัวอย่างไซต์ A','123 ถนนตัวอย่าง','คุณตัวอย่าง','02-000-0000'],
-      ['QR014','ตัวอย่างไซต์ B','456 ถนนตัวอย่าง','คุณทดสอบ','02-111-1111']
+      ['QR014','ตัวอย่างไซต์ A','123 ถนนตัวอย่าง','คุณตัวอย่าง','02-000-0000','13.7563','100.5018'],
+      ['QR015','ตัวอย่างไซต์ B','456 ถนนตัวอย่าง','คุณทดสอบ','02-111-1111','','']
     ];
     const csv = [headers, ...sample].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
@@ -348,11 +373,15 @@ if (requireAdmin()) {
           const name = (row[nameI] || '').trim();
           if (!code || !name) continue;
           const existing = DB.findLocation(code);
+          const latStr = (row[idx('lat')] || '').trim();
+          const lngStr = (row[idx('lng')] || '').trim();
           promises.push(DB.upsertLocation({
             code, name,
             address: (row[idx('address')] || '').trim(),
             contact: (row[idx('contact')] || '').trim(),
-            phone: (row[idx('phone')] || '').trim()
+            phone: (row[idx('phone')] || '').trim(),
+            lat: latStr !== '' ? parseFloat(latStr) : null,
+            lng: lngStr !== '' ? parseFloat(lngStr) : null
           }));
           if (existing) updated++; else added++;
         }
