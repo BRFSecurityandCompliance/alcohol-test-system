@@ -40,6 +40,7 @@ const locationCode = params.get('location');
 const loc = locationCode ? DB.findLocation(locationCode) : null;
 const retestOf = params.get('retest_of') || null;
 const retestSource = retestOf ? DB.tests().find(t => t.id === retestOf) : null;
+const settings = DB.settings();
 
 // Network status
 function updateNet() {
@@ -80,7 +81,6 @@ if (!locationCode || !loc) {
       </div>
     </div>`;
 } else {
-  const settings = DB.settings();
   if (settings.location_enforcement_enabled && loc.lat != null && loc.lng != null) {
     checkGpsAndRender();
   } else {
