@@ -349,15 +349,18 @@ function renderForm() {
 
   // Photo with stamp
   async function stampPhoto(dataUrl) {
-    // Ensure fonts are loaded before drawing to canvas
-    await Promise.allSettled([
-      document.fonts.load('bold 28px Sarabun'),
-      document.fonts.load('500 22px Sarabun')
-    ]);
+    // Ensure fonts are loaded before drawing to canvas; ignore errors and fall back to system fonts
+    try {
+      await Promise.all([
+        document.fonts.load('bold 28px Sarabun'),
+        document.fonts.load('500 22px Sarabun')
+      ]);
+    } catch { /* system fonts will be used */ }
     return new Promise(resolve => {
       const img = new Image();
       img.onload = () => {
-        const maxW = 1280, scale = Math.min(1, maxW / img.width);
+        const maxW = 1280, maxH = 1920;
+        const scale = Math.min(1, maxW / img.width, maxH / img.height);
         const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
         const c = document.createElement('canvas'); c.width = w; c.height = h;
         const ctx = c.getContext('2d');
@@ -539,10 +542,14 @@ function renderForm() {
       savedOffline = true;
     } else {
       // Upload photo to Supabase Storage first
-      // If storage upload fails, use empty string — avoids storing a huge base64 blob
-      // in the INSERT payload which can cause the request to time out on mobile networks
       const uploaded = await uploadPhotoToStorage(photoData);
-      photoUrl = uploaded || '';
+      if (!uploaded) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = T('submit');
+        showToast(lang === 'en' ? 'Photo upload failed — please try again' : lang === 'my' ? 'ဓာတ်ပုံတင်မရပါ — ထပ်မံကြိုးစားပါ' : lang === 'km' ? 'ការផ្ទុករូបភាពបរាជ័យ — សូមព្យាយាមម្តងទៀត' : 'อัปโหลดรูปภาพไม่สำเร็จ — กรุณาลองใหม่อีกครั้ง');
+        return;
+      }
+      photoUrl = uploaded;
 
       const payload = {
         employee_id: document.getElementById('emp-id').value || '',

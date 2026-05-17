@@ -395,9 +395,18 @@ function _getAdminClient() {
   });
   return _sbAdmin;
 }
-// Returns admin client when logged in, anon client otherwise
+// Returns admin client when logged in, anon client otherwise.
+// Redirects to login if the stored JWT has expired.
 function _dbClient() {
-  return sessionStorage.getItem('admin_token') ? _getAdminClient() : _sb;
+  if (sessionStorage.getItem('admin_token')) {
+    if (!isAdminAuthed()) {
+      setAdminAuth(false);
+      location.href = 'admin-login.html';
+      return _sb; // unreachable but satisfies return type
+    }
+    return _getAdminClient();
+  }
+  return _sb;
 }
 
 // ===== Auth =====
