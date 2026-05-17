@@ -446,6 +446,33 @@ function renderForm() {
     submitBtn.disabled = true;
     submitBtn.textContent = '⏳ ' + T('submit');
 
+    // Re-verify GPS position on every submit attempt when enforcement is active
+    if (settings.location_enforcement_enabled && loc.lat != null && loc.lng != null) {
+      const gpsOk = await new Promise(resolve => {
+        if (!navigator.geolocation) { resolve(false); return; }
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve(gpsDistance(pos.coords.latitude, pos.coords.longitude, loc.lat, loc.lng) <= 100),
+          () => resolve(false),
+          { timeout: 8000, maximumAge: 0 }
+        );
+      });
+      if (!gpsOk) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = T('submit');
+        const errDiv = document.getElementById('gps-submit-err') || (() => {
+          const d = document.createElement('div');
+          d.id = 'gps-submit-err';
+          d.className = 'banner banner-danger';
+          d.style.margin = '12px 0 0';
+          submitBtn.parentNode.insertBefore(d, submitBtn);
+          return d;
+        })();
+        errDiv.innerHTML = `<span class="banner-icon">📍</span><div class="small">${lang === 'en' ? 'Submission blocked — you are outside the 100 m zone. Move closer to the checkpoint.' : lang === 'my' ? 'တင်ပြ၍မရပါ — စစ်ဆေးမှုနေရာမှ ၁၀၀မီတာကျော်နေသည်' : lang === 'km' ? 'មិនអាចដាក់ស្នើ — អ្នកនៅខាងក្រៅ 100 ម' : 'ส่งฟอร์มไม่ได้ — คุณอยู่นอกรัศมี 100 เมตรจากจุดตรวจ'}</div>`;
+        return;
+      }
+      const errDiv = document.getElementById('gps-submit-err');
+      if (errDiv) errDiv.remove();
+    }
     let photoUrl = photoData; // default: base64 (used for offline)
     let savedOffline = false;
 
