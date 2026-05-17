@@ -402,7 +402,7 @@ function _dbClient() {
     if (!isAdminAuthed()) {
       setAdminAuth(false);
       location.href = 'admin-login.html';
-      return _sb; // unreachable but satisfies return type
+      throw new Error('Admin session expired');
     }
     return _getAdminClient();
   }
