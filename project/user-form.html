@@ -398,10 +398,16 @@ function renderForm() {
   }
   async function uploadPhotoToStorage(dataUrl) {
     try {
-      const res = await fetch(dataUrl);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(dataUrl, { signal: controller.signal });
       const blob = await res.blob();
+      clearTimeout(timer);
       const filename = `${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-      const { data, error } = await _sb.storage.from('test-photos').upload(filename, blob, { contentType: 'image/jpeg', upsert: false });
+      const { data, error } = await Promise.race([
+        _sb.storage.from('test-photos').upload(filename, blob, { contentType: 'image/jpeg', upsert: false }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('upload timeout')), 10000))
+      ]);
       if (error) throw error;
       const { data: urlData } = _sb.storage.from('test-photos').getPublicUrl(data.path);
       return urlData.publicUrl;
@@ -489,7 +495,7 @@ function renderForm() {
         navigator.geolocation.getCurrentPosition(
           pos => resolve(gpsDistance(pos.coords.latitude, pos.coords.longitude, loc.lat, loc.lng) <= 100),
           () => resolve(false),
-          { timeout: 8000, maximumAge: 0 }
+          { timeout: 5000, maximumAge: 60000 }
         );
       });
       if (!gpsOk) {
@@ -553,8 +559,8 @@ function renderForm() {
         retest_of: retestOf
       };
       const newTest = DB.addTest(payload);
-      // Wait for Supabase INSERT to complete (max 5s) before navigating away
-      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 20000))]);
+      // Wait for Supabase INSERT to complete (max 8s) before navigating away
+      await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 8000))]);
       // Mark original as completed if this was a retest
       if (retestOf) DB.updateTest(retestOf, { retest_status: 'completed' });
       // Trigger retest flow if not zero
