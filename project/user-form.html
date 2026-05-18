@@ -192,7 +192,7 @@ function renderForm() {
             <b>${T('quick_lookup')}</b>
           </div>
           <div class="row gap-sm">
-            <input class="input" id="emp-id" placeholder="${T('employee_id')} (เช่น EMP001)" style="flex:1" value="${retestSource?.employee_id || ''}" />
+            <input class="input" id="emp-id" placeholder="${T('employee_id')} (${T('eg')} EMP001)" style="flex:1" value="${retestSource?.employee_id || ''}" />
             <button class="btn btn-primary" id="emp-lookup">${T('search')}</button>
           </div>
           <div class="tiny muted" style="margin-top:6px">${T('quick_hint')}</div>
@@ -201,7 +201,7 @@ function renderForm() {
         <form id="form" class="col gap-md">
           <div class="field">
             <label>${T('full_name')} <span style="color:var(--danger)">*</span></label>
-            <input class="input" name="full_name" required value="${retestSource?.full_name || ''}" placeholder="เช่น สมชาย ใจดี" />
+            <input class="input" name="full_name" required value="${retestSource?.full_name || ''}" placeholder="${T('name_eg')}" />
           </div>
 
           <div class="field">
@@ -214,7 +214,7 @@ function renderForm() {
 
           <div class="field" id="plate-field" style="display:${retestSource && PLATE_REQUIRED_DEPTS.includes(retestSource.department) ? 'flex':'none'}">
             <label>${T('plate')} <span style="color:var(--danger)">*</span></label>
-            <input class="input" name="plate_number" placeholder="เช่น 1กก-1234" value="${retestSource?.plate_number || ''}" />
+            <input class="input" name="plate_number" placeholder="${T('plate_eg')}" value="${retestSource?.plate_number || ''}" />
           </div>
 
           <div class="field">
@@ -241,7 +241,7 @@ function renderForm() {
 
           <div class="field" id="value-field" style="display:none">
             <label>${T('value_mg')} <span style="color:var(--danger)">*</span></label>
-            <input class="input" name="alcohol_value" type="number" step="0.1" min="0.1" placeholder="เช่น 25" />
+            <input class="input" name="alcohol_value" type="number" step="0.1" min="0.1" placeholder="${T('value_eg')}" />
             <div id="threshold-preview"></div>
           </div>
 
