@@ -164,6 +164,11 @@ function renderForm() {
         <h1>${loc.name}</h1>
         <div class="small" style="color:rgba(255,255,255,.8); margin-top:4px">${loc.address || ''}</div>
         ${device ? `<div class="tiny" style="color:rgba(255,255,255,.65); margin-top:8px; font-family:var(--font-mono)">${T('device_prefix')} ${device.serial}</div>` : ''}
+        <div style="margin-top:12px">
+          <button type="button" id="help-open-btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;letter-spacing:.02em">
+            📋 ${T('help_btn')}
+          </button>
+        </div>
       </div>
       <div style="background:var(--brand-soft); border-bottom:1px solid #c7d2fe; padding:10px 20px; display:flex; align-items:center; justify-content:space-between">
         <span class="tiny" style="color:var(--brand); font-weight:500">${T('fill_in')}</span>
