@@ -164,6 +164,11 @@ function renderForm() {
         <h1>${loc.name}</h1>
         <div class="small" style="color:rgba(255,255,255,.8); margin-top:4px">${loc.address || ''}</div>
         ${device ? `<div class="tiny" style="color:rgba(255,255,255,.65); margin-top:8px; font-family:var(--font-mono)">${T('device_prefix')} ${device.serial}</div>` : ''}
+        <div style="margin-top:12px">
+          <button type="button" id="help-open-btn" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:20px;font-size:12px;font-weight:600;padding:5px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;letter-spacing:.02em">
+            📋 ${T('help_btn')}
+          </button>
+        </div>
       </div>
       ${retestBanner}
       <div class="mobile-body">
@@ -257,6 +262,38 @@ function renderForm() {
         </form>
       </div>
     </div>`;
+
+  // ── Help modal ────────────────────────────────────────────────────────────
+  const helpSteps = [T('help_s1'), T('help_s2'), T('help_s3'), T('help_s4'), T('help_s5')];
+  const helpModal = document.createElement('div');
+  helpModal.id = 'help-modal';
+  helpModal.className = 'modal-backdrop';
+  helpModal.innerHTML = `
+    <div class="modal" style="max-width:440px">
+      <div class="modal-header">
+        <h2 style="margin:0;font-size:17px">📋 ${T('help_title')}</h2>
+        <button id="help-close-btn" class="btn btn-ghost btn-sm" style="font-size:18px;line-height:1;padding:4px 10px">✕</button>
+      </div>
+      <div class="modal-body" style="padding:20px 24px">
+        <ol style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:14px">
+          ${helpSteps.map((s, i) => `
+            <li style="font-size:14px;line-height:1.6">
+              <span style="font-weight:700;color:var(--brand)">${T('help_title').split(' ')[0]} ${i+1}</span><br>
+              <span style="color:var(--text)">${s}</span>
+            </li>`).join('')}
+        </ol>
+      </div>
+      <div class="modal-footer">
+        <button id="help-close-btn2" class="btn btn-primary">${T('help_close')}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(helpModal);
+  function openHelp() { helpModal.classList.add('show'); }
+  function closeHelp() { helpModal.classList.remove('show'); }
+  document.getElementById('help-open-btn').addEventListener('click', openHelp);
+  document.getElementById('help-close-btn').addEventListener('click', closeHelp);
+  document.getElementById('help-close-btn2').addEventListener('click', closeHelp);
+  helpModal.addEventListener('click', e => { if (e.target === helpModal) closeHelp(); });
 
   // Lang switcher
   document.getElementById('lang-switch').addEventListener('click', e => {
