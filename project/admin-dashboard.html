@@ -262,20 +262,15 @@ if (requireAdmin()) {
   const days = isEN
     ? ['Today','Yesterday','2 days ago','3 days ago','4 days ago','5 days ago','6 days ago']
     : ['วันนี้','เมื่อวาน','2 วันก่อน','3 วันก่อน','4 วันก่อน','5 วันก่อน','6 วันก่อน'];
-  const hmData = [];
-  for (let d = 0; d < 7; d++) {
-    const date = new Date(); date.setDate(date.getDate() - d); date.setHours(0,0,0,0);
-    const next = new Date(date); next.setDate(next.getDate() + 1);
-    const row = [];
-    for (let h = 0; h < 24; h++) {
-      const count = tests.filter(t => {
-        if (t.is_zero) return false;
-        const td = new Date(t.created_at);
-        return td >= date && td < next && td.getHours() === h;
-      }).length;
-      row.push(count);
-    }
-    hmData.push(row);
+  const hmData = Array.from({ length: 7 }, () => new Array(24).fill(0));
+  const hmToday = new Date(); hmToday.setHours(0, 0, 0, 0);
+  const hmTodayMs = hmToday.getTime();
+  for (const t of tests) {
+    if (t.is_zero) continue;
+    const td = new Date(t.created_at);
+    const tdDay = new Date(td); tdDay.setHours(0, 0, 0, 0);
+    const dayIdx = Math.round((hmTodayMs - tdDay.getTime()) / 86400000);
+    if (dayIdx >= 0 && dayIdx < 7) hmData[dayIdx][td.getHours()]++;
   }
   const maxHm = Math.max(...hmData.flat(), 1);
   function hmLevel(v) { if (!v) return 0; const r = v/maxHm; return r < .25 ? 1 : r < .5 ? 2 : r < .75 ? 3 : 4; }
