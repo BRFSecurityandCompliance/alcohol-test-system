@@ -171,18 +171,12 @@ function renderForm() {
           📋 ${T('help_btn')}
         </button>
       </div>
-      <div style="background:var(--brand-soft); border-bottom:1px solid #c7d2fe; padding:10px 20px; display:flex; align-items:center; justify-content:space-between">
-        <span class="tiny" style="color:var(--brand); font-weight:500">${T('fill_in')}</span>
-        <button type="button" id="help-open-btn" style="background:var(--brand);color:#fff;border:none;border-radius:20px;font-size:12px;font-weight:700;padding:6px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0">
-          📋 ${T('help_btn')}
-        </button>
-      </div>
       ${retestBanner}
       <div class="mobile-body">
         <div class="row between" style="margin-bottom:14px">
           <h2 style="margin:0">${T('record')}</h2>
           <div class="lang-switch" id="lang-switch">
-            ${(function(){const lb={th:'TH',en:'EN',my:'MM',km:'KH'};return['th','en','my','km'].map(l=>`<button data-l="${l}" class="${lang===l?'active':''}">${lb[l]}</button>`).join('');})()}
+            ${(function(){const lb={th:'TH',en:'EN',my:'MM',km:'KH'};return['th','en','my','km'].map(l=>`<button data-l="${l}" class="${lang===l?'active':'''}">${lb[l]}</button>`).join('');})()}
           </div>
         </div>
         <!-- Quick employee lookup -->
@@ -499,7 +493,7 @@ function renderForm() {
     if (q && !all.some(n => n.toLowerCase() === q.toLowerCase())) {
       const div = document.createElement('div');
       div.className = 'combo-item';
-      div.append(document.createTextNode(`${T('company_use')} "${q}"`));
+      div.append(document.createTextNode(`${T('company_use')} "${q}"`))
       const badge = document.createElement('span');
       badge.className = 'new-label';
       badge.textContent = T('company_new_badge');
