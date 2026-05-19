@@ -223,10 +223,34 @@ const SEED_AUDIT = [
 ];
 
 // ===== Storage =====
+let _dbCache = null;
+let _dbIndices = { locationByCode: new Map(), userByUsername: new Map(), personByEmpId: new Map(), watchlistByName: new Map() };
+
+function _sortTests(db) {
+  if (db && Array.isArray(db.tests)) {
+    db.tests.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
+}
+function _buildIndices(db) {
+  _dbIndices = {
+    locationByCode: new Map((db.locations || []).map(l => [l.code, l])),
+    userByUsername: new Map((db.users || []).map(u => [u.username, u])),
+    personByEmpId: new Map((db.persons || []).map(p => [p.employee_id, p])),
+    watchlistByName: new Map((db.watchlist || []).map(w => [w.full_name, w]))
+  };
+}
+
 function loadDB() {
+  if (_dbCache) return _dbCache;
   try {
     const raw = localStorage.getItem(DB_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      _sortTests(parsed);
+      _dbCache = parsed;
+      _buildIndices(parsed);
+      return _dbCache;
+    }
   } catch (e) {}
   const fresh = {
     locations: SEED_LOCATIONS,
@@ -248,26 +272,31 @@ function loadDB() {
     }
   };
   saveDB(fresh);
-  return fresh;
+  return _dbCache;
 }
-function saveDB(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
-function resetDB() { localStorage.removeItem(DB_KEY); localStorage.removeItem('offline_queue'); return loadDB(); }
+function saveDB(db) {
+  _sortTests(db);
+  localStorage.setItem(DB_KEY, JSON.stringify(db));
+  _dbCache = db;
+  _buildIndices(db);
+}
+function resetDB() { localStorage.removeItem(DB_KEY); localStorage.removeItem('offline_queue'); _dbCache = null; return loadDB(); }
 
 // ===== DB API =====
 const DB = {
   get all() { return loadDB(); },
   locations() { return loadDB().locations; },
   companies() { return loadDB().companies; },
-  tests() { return loadDB().tests.slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); },
+  tests() { return loadDB().tests; },
   devices() { return loadDB().devices; },
   users() { return loadDB().users; },
   persons() { return loadDB().persons; },
   channels() { return loadDB().channels; },
   audit() { return loadDB().audit; },
   settings() { return loadDB().settings; },
-  findLocation(code) { return loadDB().locations.find(l => l.code === code); },
-  findPerson(empId) { return loadDB().persons.find(p => p.employee_id === empId); },
-  findUser(username) { return loadDB().users.find(u => u.username === username); },
+  findLocation(code) { loadDB(); return _dbIndices.locationByCode.get(code); },
+  findPerson(empId) { loadDB(); return _dbIndices.personByEmpId.get(empId); },
+  findUser(username) { loadDB(); return _dbIndices.userByUsername.get(username); },
 
   addTest(t) {
     const db = loadDB();
@@ -286,7 +315,7 @@ const DB = {
       if (!db.watchlist) db.watchlist = [];
       const cutoff = Date.now() - db.settings.watchlist_window_days * 86400000;
       const recent = db.tests.filter(x => x.full_name === enriched.full_name && !x.is_zero && new Date(x.created_at).getTime() >= cutoff);
-      if (recent.length >= db.settings.watchlist_threshold && !db.watchlist.find(w => w.full_name === enriched.full_name)) {
+      if (recent.length >= db.settings.watchlist_threshold && !_dbIndices.watchlistByName.has(enriched.full_name)) {
         db.watchlist.push({ id: 'w' + Date.now(), full_name: enriched.full_name, employee_id: enriched.employee_id, reason: `ตรวจพบ ${recent.length} ครั้งใน ${db.settings.watchlist_window_days} วัน`, added_at: new Date().toISOString() });
       }
     }
@@ -689,7 +718,7 @@ DB.addTest = function(t) {
   const enriched = _rawAddTest({ ...t, id: _genUUID() });
   enriched._sync = Promise.resolve();
   if (typeof _sb !== 'undefined') {
-    enriched._sync = _dbClient().from('tests').insert({
+    const row = {
       id: enriched.id,
       employee_id: enriched.employee_id || '',
       full_name: enriched.full_name,
@@ -709,7 +738,23 @@ DB.addTest = function(t) {
       action_taken: enriched.action_taken || null,
       action_note: enriched.action_note || '',
       created_at: enriched.created_at
-    }).then(({ error }) => { if (error) console.warn('[DB.addTest]', error.message); });
+    };
+    enriched._sync = (async () => {
+      // One retry with backoff guards against a transient network/Supabase
+      // hiccup so a "success" screen does not silently hide a server write
+      // that never persisted. Escalate to console.error if it still fails.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { error } = await _dbClient().from('tests').insert(row);
+        if (!error) return;
+        if (attempt === 0) {
+          console.warn('[DB.addTest] insert failed, retrying:', error.message);
+          await new Promise(r => setTimeout(r, 1500));
+        } else {
+          console.error('[DB.addTest] insert failed after retry — record not persisted server-side:', error.message);
+          enriched._syncFailed = true;
+        }
+      }
+    })();
   }
   return enriched;
 };

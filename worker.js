@@ -106,14 +106,22 @@ async function signToken(payload, secret) {
   return `${data}.${sigB}`;
 }
 
+// Caches the result of the expensive HMAC signature check per token within
+// an isolate. Expiry is always re-checked fresh below, so a cached token
+// still stops working the moment it expires.
+const _sigCache = new Map();
+
 async function verifyToken(token, secret) {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return false;
     const [hdr, body, sig] = parts;
     const payload = JSON.parse(atob(pad(body.replace(/-/g,'+').replace(/_/g,'/'))));
-    // exp is in Unix seconds
+    // exp is in Unix seconds — checked on every call, never cached
     if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return false;
+
+    if (_sigCache.has(token)) return _sigCache.get(token);
+
     const key = await crypto.subtle.importKey(
       'raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
     );
@@ -121,7 +129,13 @@ async function verifyToken(token, secret) {
       atob(pad(sig.replace(/-/g,'+').replace(/_/g,'/'))),
       c => c.charCodeAt(0)
     );
-    return await crypto.subtle.verify('HMAC', key, sigBytes, enc(`${hdr}.${body}`));
+    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, enc(`${hdr}.${body}`));
+    if (valid) {
+      // Bound memory: a token signature is immutable, so only cache valid ones
+      if (_sigCache.size > 500) _sigCache.clear();
+      _sigCache.set(token, true);
+    }
+    return valid;
   } catch { return false; }
 }
 
