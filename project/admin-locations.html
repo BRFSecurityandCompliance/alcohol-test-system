@@ -191,10 +191,10 @@ if (requireAdmin()) {
       const card = document.createElement('div');
       card.className = 'qr-card';
       card.innerHTML = `
-        <div class="qr-img"><canvas data-code="${l.code}"></canvas></div>
-        <div class="name">${l.name}</div>
-        <div class="code">${l.code}</div>
-        ${l.address ? `<div class="tiny muted" style="margin-top:6px">${l.address}</div>` : ''}
+        <div class="qr-img"><canvas data-code="${esc(l.code)}"></canvas></div>
+        <div class="name">${esc(l.name)}</div>
+        <div class="code">${esc(l.code)}</div>
+        ${l.address ? `<div class="tiny muted" style="margin-top:6px">${esc(l.address)}</div>` : ''}
         ${l.lat != null ? `<div class="tiny" style="margin-top:4px; color:var(--brand); font-family:var(--font-mono)">📍 ${l.lat.toFixed(4)}, ${l.lng.toFixed(4)}</div>` : ''}
         <div class="row gap-sm" style="margin-top:14px; justify-content:center">
           <button class="btn btn-sm" onclick="openQRDetail('${l.code}')">${isEN ? 'View QR' : 'ดู QR'}</button>

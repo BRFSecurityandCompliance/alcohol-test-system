@@ -139,7 +139,7 @@ if (requireAdmin()) {
   // Populate location select
   DB.locations().forEach(l => {
     document.querySelector('[name=location_code]').insertAdjacentHTML('beforeend',
-      `<option value="${l.code}">${l.name} (${l.code})</option>`);
+      `<option value="${esc(l.code)}">${esc(l.name)} (${esc(l.code)})</option>`);
   });
 
   function statusBadge(status) {

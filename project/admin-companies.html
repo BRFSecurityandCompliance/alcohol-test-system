@@ -131,7 +131,7 @@ if (requireAdmin()) {
       return `
         <tr class="${isOn ? 'selected' : ''}">
           <td><div class="check ${isOn ? 'on' : ''}" onclick="toggleOne('${c.id}')"></div></td>
-          <td><div style="font-weight:600">${c.name}</div></td>
+          <td><div style="font-weight:600">${esc(c.name)}</div></td>
           <td class="small muted">${count} ${isEN ? 'records' : 'รายการ'}</td>
           <td style="text-align:right">
             <button class="btn btn-sm" onclick='openModal(${JSON.stringify(c)})'>${isEN ? 'Edit' : 'แก้ไข'}</button>

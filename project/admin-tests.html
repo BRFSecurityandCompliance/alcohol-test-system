@@ -71,10 +71,10 @@ if (requireAdmin()) {
     document.getElementById('rows').innerHTML = tests.length ? tests.map(t => `
       <tr>
         <td class="small">${formatDateShort(t.created_at)}</td>
-        <td><div style="font-weight:600">${t.full_name}</div>${t.plate_number ? `<div class="tiny muted">${isEN ? 'License Plate' : 'ทะเบียน'} ${t.plate_number}</div>` : ''}</td>
-        <td class="small">${t.department}</td>
-        <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${t.location_code}</span> ${t.location_name}</td>
-        <td class="small">${t.company}</td>
+        <td><div style="font-weight:600">${esc(t.full_name)}</div>${t.plate_number ? `<div class="tiny muted">${isEN ? 'License Plate' : 'ทะเบียน'} ${esc(t.plate_number)}</div>` : ''}</td>
+        <td class="small">${esc(t.department)}</td>
+        <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${esc(t.location_code)}</span> ${esc(t.location_name)}</td>
+        <td class="small">${esc(t.company)}</td>
         <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
         <td style="text-align:right">
           <button class="btn btn-sm" onclick="viewDetail('${t.id}')">${isEN ? 'View' : 'ดู'}</button>
@@ -95,18 +95,18 @@ if (requireAdmin()) {
     };
     document.getElementById('detail').innerHTML = `
       <div class="col gap-md">
-        <div class="row between"><span class="muted small">${isEN ? 'Name' : 'ชื่อ'}</span><span style="font-weight:600">${t.full_name}</span></div>
-        <div class="row between"><span class="muted small">${isEN ? 'Employee ID' : 'รหัสพนักงาน'}</span><span style="font-family:var(--font-mono);font-size:13px">${t.employee_id || '—'}</span></div>
-        <div class="row between"><span class="muted small">${isEN ? 'Department' : 'แผนก'}</span><span>${t.department}</span></div>
-        <div class="row between"><span class="muted small">${isEN ? 'Company' : 'บริษัท'}</span><span>${t.company}</span></div>
-        <div class="row between"><span class="muted small">${isEN ? 'License Plate' : 'ทะเบียนรถ'}</span><span>${t.plate_number || '—'}</span></div>
-        <div class="row between"><span class="muted small">${isEN ? 'Location' : 'สถานที่'}</span><span>${t.location_name} (${t.location_code})</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Name' : 'ชื่อ'}</span><span style="font-weight:600">${esc(t.full_name)}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Employee ID' : 'รหัสพนักงาน'}</span><span style="font-family:var(--font-mono);font-size:13px">${esc(t.employee_id) || '—'}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Department' : 'แผนก'}</span><span>${esc(t.department)}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Company' : 'บริษัท'}</span><span>${esc(t.company)}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'License Plate' : 'ทะเบียนรถ'}</span><span>${esc(t.plate_number) || '—'}</span></div>
+        <div class="row between"><span class="muted small">${isEN ? 'Location' : 'สถานที่'}</span><span>${esc(t.location_name)} (${esc(t.location_code)})</span></div>
         <div class="row between"><span class="muted small">${isEN ? 'Time' : 'เวลา'}</span><span>${formatDate(t.created_at)}</span></div>
         ${shift && DB.settings().shifts_enabled !== false ? `<div class="row between"><span class="muted small">${isEN ? 'Shift' : 'กะ'}</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
-        ${t.device_serial ? `<div class="row between"><span class="muted small">${isEN ? 'Device' : 'เครื่องตรวจ'}</span><span style="font-family:var(--font-mono);font-size:13px">${t.device_serial}</span></div>` : ''}
+        ${t.device_serial ? `<div class="row between"><span class="muted small">${isEN ? 'Device' : 'เครื่องตรวจ'}</span><span style="font-family:var(--font-mono);font-size:13px">${esc(t.device_serial)}</span></div>` : ''}
         <div class="row between"><span class="muted small">${isEN ? 'Test Result' : 'ผลตรวจ'}</span>${thresholdBadge(t)}</div>
         ${!t.is_zero && t.action_taken ? `<div class="row between"><span class="muted small">${isEN ? 'Action Taken' : 'การดำเนินการ'}</span><span class="action-chip action-${t.action_taken}">${actionMap[t.action_taken] || t.action_taken}</span></div>` : ''}
-        ${t.action_note ? `<div class="row between"><span class="muted small">${isEN ? 'Notes' : 'หมายเหตุ'}</span><span class="small">${t.action_note}</span></div>` : ''}
+        ${t.action_note ? `<div class="row between"><span class="muted small">${isEN ? 'Notes' : 'หมายเหตุ'}</span><span class="small">${esc(t.action_note)}</span></div>` : ''}
         ${t.retest_of ? `<div class="row between"><span class="muted small">${isEN ? 'Type' : 'ประเภท'}</span><span class="badge badge-warn">${isEN ? 'Re-test' : 'ตรวจซ้ำ'}</span></div>` : ''}
         <div class="divider"></div>
         <div class="muted small">${isEN ? 'Device Photo' : 'ภาพถ่ายเครื่องตรวจ'}</div>
