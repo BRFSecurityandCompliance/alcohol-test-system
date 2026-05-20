@@ -202,9 +202,9 @@ if (requireAdmin()) {
                     ${fails > 0 ? `<span class="badge badge-danger" style="margin-left:4px">${fails} ${isEN ? 'Fail' : 'ไม่ผ่าน'}</span>` : ''}
                   </td>
                   <td style="text-align:right">
-                    <button class="btn btn-sm" onclick="viewHistory('${p.employee_id}')">${isEN ? 'History' : 'ประวัติ'}</button>
-                    ${canMutate ? `<button class="btn btn-sm" onclick='openModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>` : ''}
-                    ${canMutate ? `<button class="btn btn-sm btn-danger" onclick="del('${p.id}')">${isEN ? 'Delete' : 'ลบ'}</button>` : ''}
+                    <button class="btn btn-sm" data-history-emp="${esc(p.employee_id)}">${isEN ? 'History' : 'ประวัติ'}</button>
+                    ${canMutate ? `<button class="btn btn-sm" data-edit-id="${esc(p.id)}">${isEN ? 'Edit' : 'แก้ไข'}</button>` : ''}
+                    ${canMutate ? `<button class="btn btn-sm btn-danger" data-del-id="${esc(p.id)}">${isEN ? 'Delete' : 'ลบ'}</button>` : ''}
                   </td>
                 </tr>
               `;
@@ -212,6 +212,15 @@ if (requireAdmin()) {
           </tbody>
         </table>
       </div>`;
+    // Wire row-action buttons via data-* attributes — avoids JSON.stringify
+    // into onclick='openModal(${...})', where any apostrophe in user data
+    // breaks out of the JS string (was a stored-XSS hole).
+    el.querySelectorAll('button[data-history-emp]').forEach(b => b.addEventListener('click', () => viewHistory(b.getAttribute('data-history-emp'))));
+    el.querySelectorAll('button[data-edit-id]').forEach(b => b.addEventListener('click', () => {
+      const p = DB.persons().find(x => x.id === b.getAttribute('data-edit-id'));
+      if (p) openModal(p);
+    }));
+    el.querySelectorAll('button[data-del-id]').forEach(b => b.addEventListener('click', () => del(b.getAttribute('data-del-id'))));
   }
 
   function renderWatchlist() {
@@ -246,7 +255,7 @@ if (requireAdmin()) {
                 <td class="small muted">${esc(w.reason)}</td>
                 <td class="small">${formatDateShort(w.added_at)}</td>
                 <td style="text-align:right">
-                  <button class="btn btn-sm" onclick="viewHistory(null, '${w.full_name}')">${isEN ? 'View History' : 'ดูประวัติ'}</button>
+                  <button class="btn btn-sm" data-wl-id="${esc(w.id)}">${isEN ? 'View History' : 'ดูประวัติ'}</button>
                   <button class="btn btn-sm" onclick="removeWL('${w.id}')">${isEN ? 'Remove' : 'นำออก'}</button>
                 </td>
               </tr>
@@ -254,6 +263,15 @@ if (requireAdmin()) {
           </tbody>
         </table>
       </div>`;
+    // Resolve View-History clicks via watchlist id rather than injecting
+    // w.full_name into an inline onclick (was a JS-string-escape XSS hole —
+    // esc() only escapes for the HTML context, not for the inner JS string).
+    el.querySelectorAll('button[data-wl-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const w = (DB.watchlist() || []).find(x => x.id === btn.getAttribute('data-wl-id'));
+        if (w) viewHistory(w.employee_id || null, w.full_name);
+      });
+    });
   }
 
   function viewHistory(empId, name) {

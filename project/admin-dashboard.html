@@ -243,7 +243,7 @@ if (requireAdmin()) {
     if (!items.length) { document.getElementById(containerId).innerHTML = `<div class="muted small" style="padding:12px 0">${isEN ? 'Insufficient data (at least 3 results per group required)' : 'ข้อมูลไม่เพียงพอ (ต้องมีอย่างน้อย 3 ผลต่อกลุ่ม)'}</div>`; return; }
     document.getElementById(containerId).innerHTML = items.map((item, i) => `
       <div class="rank-bar-row">
-        <div class="rank-name" title="${item.label}"><span class="muted small" style="margin-right:4px">${i+1}.</span>${item.label}</div>
+        <div class="rank-name" title="${esc(item.label)}"><span class="muted small" style="margin-right:4px">${i+1}.</span>${esc(item.label)}</div>
         <div class="rank-bar-bg">
           <div class="rank-bar-fill" style="width:${maxRate ? item.rate/maxRate*100 : item.rate}%"></div>
         </div>
@@ -335,10 +335,10 @@ if (requireAdmin()) {
   const latest = tests.slice(0, 6);
   document.getElementById('latest').innerHTML = latest.length ? latest.map(t => `
     <div class="latest-row">
-      <div class="avatar ${!t.is_zero ? 'red' : ''}">${t.full_name.charAt(0)}</div>
+      <div class="avatar ${!t.is_zero ? 'red' : ''}">${esc(t.full_name.charAt(0))}</div>
       <div style="flex:1">
-        <div style="font-weight:600">${t.full_name}</div>
-        <div class="tiny muted">${t.department} · ${t.location_name} · ${formatDate(t.created_at)}</div>
+        <div style="font-weight:600">${esc(t.full_name)}</div>
+        <div class="tiny muted">${esc(t.department)} · ${esc(t.location_name)} · ${formatDate(t.created_at)}</div>
       </div>
       ${thresholdBadge(t)}
     </div>
@@ -350,10 +350,10 @@ if (requireAdmin()) {
     document.getElementById('alert-card').style.display = 'block';
     document.getElementById('pending-alerts').innerHTML = pendingTests.map(t => `
       <div class="latest-row">
-        <div class="avatar red">${t.full_name.charAt(0)}</div>
+        <div class="avatar red">${esc(t.full_name.charAt(0))}</div>
         <div style="flex:1">
-          <div style="font-weight:600">${t.full_name}</div>
-          <div class="tiny muted">${t.location_name} · ${timeAgo(t.created_at)}</div>
+          <div style="font-weight:600">${esc(t.full_name)}</div>
+          <div class="tiny muted">${esc(t.location_name)} · ${timeAgo(t.created_at)}</div>
         </div>
         ${thresholdBadge(t)}
         <a href="admin-alerts.html" class="btn btn-sm btn-danger">${isEN ? 'Take Action' : 'ดำเนินการ'}</a>

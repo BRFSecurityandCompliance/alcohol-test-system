@@ -134,12 +134,20 @@ if (requireAdmin()) {
           <td><div style="font-weight:600">${esc(c.name)}</div></td>
           <td class="small muted">${count} ${isEN ? 'records' : 'รายการ'}</td>
           <td style="text-align:right">
-            <button class="btn btn-sm" onclick='openModal(${JSON.stringify(c)})'>${isEN ? 'Edit' : 'แก้ไข'}</button>
-            <button class="btn btn-sm btn-danger" onclick="del('${c.id}')">${isEN ? 'Delete' : 'ลบ'}</button>
+            <button class="btn btn-sm" data-edit-id="${esc(c.id)}">${isEN ? 'Edit' : 'แก้ไข'}</button>
+            <button class="btn btn-sm btn-danger" data-del-id="${esc(c.id)}">${isEN ? 'Delete' : 'ลบ'}</button>
           </td>
         </tr>
       `;
     }).join('') : `<tr><td colspan="4"><div class="empty"><div class="icon">🏢</div>${isEN ? 'No companies yet' : 'ยังไม่มีบริษัท'}</div></td></tr>`;
+    // data-* + delegation avoids JSON.stringify into onclick='openModal(${...})',
+    // where unescaped " or ' in a company name would inject JS.
+    const rows = document.getElementById('rows');
+    rows.querySelectorAll('button[data-edit-id]').forEach(b => b.addEventListener('click', () => {
+      const c = DB.companies().find(x => x.id === b.getAttribute('data-edit-id'));
+      if (c) openModal(c);
+    }));
+    rows.querySelectorAll('button[data-del-id]').forEach(b => b.addEventListener('click', () => del(b.getAttribute('data-del-id'))));
     renderBulk();
     updateCheckAll();
   }
