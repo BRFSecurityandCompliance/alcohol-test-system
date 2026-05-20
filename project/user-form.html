@@ -101,10 +101,10 @@ function checkGpsAndRender() {
   const lb = {th:'TH',en:'EN',my:'MM',km:'KH'};
   const langBar = `<div style="display:flex; justify-content:center; gap:6px; padding:16px 0 0">${['th','en','my','km'].map(l=>`<button style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;background:${lang0===l?'var(--brand)':'var(--surface)'};color:${lang0===l?'#fff':'var(--text)'};cursor:pointer" onclick="localStorage.setItem('lang','${l}');location.reload()">${lb[l]}</button>`).join('')}</div>`;
 
-  app.innerHTML = `<div class="invalid-screen"><div class="card invalid-card">${langBar}<div style="font-size:48px; margin:16px 0 8px">📍</div><p class="muted" style="margin:8px 0">${lang0==='en'?'Checking your location...':'กำลังตรวจสอบตำแหน่ง...'}</p></div></div>`;
+  app.innerHTML = `<div class="invalid-screen"><div class="card invalid-card">${langBar}<div style="font-size:48px; margin:16px 0 8px">📍</div><p class="muted" style="margin:8px 0">${T0('gps_checking')}</p></div></div>`;
 
   if (!navigator.geolocation) {
-    showGpsError(lang0, langBar, lang0==='en'?'GPS not supported on this device':'อุปกรณ์ไม่รองรับ GPS');
+    showGpsError(T0, langBar, T0('gps_no_support'));
     return;
   }
   navigator.geolocation.getCurrentPosition(
@@ -114,28 +114,26 @@ function checkGpsAndRender() {
         renderForm();
       } else {
         const m = Math.round(dist);
-        showGpsError(lang0, langBar, lang0==='en'?`You are ${m} m away from this checkpoint. Move within 100 m to record your test.`:`คุณอยู่ห่างจากจุดตรวจ ${m} เมตร กรุณาเข้ามาในรัศมี 100 เมตร`);
+        showGpsError(T0, langBar, T0('gps_too_far').replace('{m}', m));
       }
     },
     (err) => {
-      const msg = err.code === 1
-        ? (lang0==='en'?'Location permission denied. Please allow GPS access and try again.':'ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง กรุณาเปิดสิทธิ์ GPS แล้วลองใหม่')
-        : (lang0==='en'?'Unable to get location. Please try again.':'ไม่สามารถรับตำแหน่งได้ กรุณาลองใหม่');
-      showGpsError(lang0, langBar, msg);
+      const msg = err.code === 1 ? T0('gps_denied') : T0('gps_error');
+      showGpsError(T0, langBar, msg);
     },
     { timeout: 10000, maximumAge: 0 }
   );
 }
 
-function showGpsError(lang0, langBar, msg) {
+function showGpsError(T0, langBar, msg) {
   app.innerHTML = `
     <div class="invalid-screen">
       <div class="card invalid-card">
         ${langBar}
         <div class="invalid-icon" style="margin-top:16px">📍</div>
-        <h1 style="margin-bottom:8px">${lang0==='en'?'Location Check Failed':'ตรวจสอบตำแหน่งไม่ผ่าน'}</h1>
+        <h1 style="margin-bottom:8px">${T0('gps_fail_title')}</h1>
         <p class="muted" style="margin:0 0 20px">${msg}</p>
-        <button class="btn btn-primary btn-block" onclick="location.reload()">${lang0==='en'?'Try Again':'ลองอีกครั้ง'}</button>
+        <button class="btn btn-primary btn-block" onclick="location.reload()">${T0('gps_try_again')}</button>
       </div>
     </div>`;
 }
