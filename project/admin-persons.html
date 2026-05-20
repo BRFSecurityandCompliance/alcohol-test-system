@@ -165,6 +165,15 @@ if (requireAdmin()) {
       return;
     }
     const wl = new Set(DB.watchlist().map(w => w.full_name));
+    // Pre-bucket tests by employee_id once — avoids an O(n) scan per person
+    // (which was O(persons × tests) per render on a 5s poll).
+    const testsByEmp = new Map();
+    for (const t of DB.tests()) {
+      const key = t.employee_id;
+      if (!key) continue;
+      const arr = testsByEmp.get(key);
+      if (arr) arr.push(t); else testsByEmp.set(key, [t]);
+    }
     el.innerHTML = `
       <div class="table-wrap">
         <table class="table">
@@ -173,29 +182,29 @@ if (requireAdmin()) {
           </thead>
           <tbody>
             ${persons.map(p => {
-              const tests = DB.testsByEmployee(p.employee_id);
+              const tests = testsByEmp.get(p.employee_id) || [];
               const fails = tests.filter(t => !t.is_zero).length;
               const inWl = wl.has(p.full_name);
               return `
                 <tr>
-                  <td class="small" style="font-family:var(--font-mono)">${p.employee_id}</td>
+                  <td class="small" style="font-family:var(--font-mono)">${esc(p.employee_id)}</td>
                   <td>
-                    <div style="font-weight:600">${p.full_name}
+                    <div style="font-weight:600">${esc(p.full_name)}
                       ${inWl ? '<span class="badge badge-danger" style="margin-left:6px; font-size:10px">⚠ Watchlist</span>' : ''}
                     </div>
-                    ${p.phone ? `<div class="tiny muted">${p.phone}</div>` : ''}
+                    ${p.phone ? `<div class="tiny muted">${esc(p.phone)}</div>` : ''}
                   </td>
-                  <td class="small">${p.department || '—'}</td>
-                  <td class="small">${p.company || '—'}</td>
-                  <td class="small" style="font-family:var(--font-mono)">${p.plate_number || '—'}</td>
+                  <td class="small">${esc(p.department) || '—'}</td>
+                  <td class="small">${esc(p.company) || '—'}</td>
+                  <td class="small" style="font-family:var(--font-mono)">${esc(p.plate_number) || '—'}</td>
                   <td>
                     <span class="small">${tests.length} ${isEN ? 'times' : 'ครั้ง'}</span>
                     ${fails > 0 ? `<span class="badge badge-danger" style="margin-left:4px">${fails} ${isEN ? 'Fail' : 'ไม่ผ่าน'}</span>` : ''}
                   </td>
                   <td style="text-align:right">
-                    <button class="btn btn-sm" onclick="viewHistory('${p.employee_id}')">${isEN ? 'History' : 'ประวัติ'}</button>
-                    ${canMutate ? `<button class="btn btn-sm" onclick='openModal(${JSON.stringify(p).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>` : ''}
-                    ${canMutate ? `<button class="btn btn-sm btn-danger" onclick="del('${p.id}')">${isEN ? 'Delete' : 'ลบ'}</button>` : ''}
+                    <button class="btn btn-sm" data-history-emp="${esc(p.employee_id)}">${isEN ? 'History' : 'ประวัติ'}</button>
+                    ${canMutate ? `<button class="btn btn-sm" data-edit-id="${esc(p.id)}">${isEN ? 'Edit' : 'แก้ไข'}</button>` : ''}
+                    ${canMutate ? `<button class="btn btn-sm btn-danger" data-del-id="${esc(p.id)}">${isEN ? 'Delete' : 'ลบ'}</button>` : ''}
                   </td>
                 </tr>
               `;
@@ -203,6 +212,15 @@ if (requireAdmin()) {
           </tbody>
         </table>
       </div>`;
+    // Wire row-action buttons via data-* attributes — avoids JSON.stringify
+    // into onclick='openModal(${...})', where any apostrophe in user data
+    // breaks out of the JS string (was a stored-XSS hole).
+    el.querySelectorAll('button[data-history-emp]').forEach(b => b.addEventListener('click', () => viewHistory(b.getAttribute('data-history-emp'))));
+    el.querySelectorAll('button[data-edit-id]').forEach(b => b.addEventListener('click', () => {
+      const p = DB.persons().find(x => x.id === b.getAttribute('data-edit-id'));
+      if (p) openModal(p);
+    }));
+    el.querySelectorAll('button[data-del-id]').forEach(b => b.addEventListener('click', () => del(b.getAttribute('data-del-id'))));
   }
 
   function renderWatchlist() {
@@ -229,15 +247,15 @@ if (requireAdmin()) {
               <tr>
                 <td>
                   <div class="row gap-sm">
-                    <div class="av red">${w.full_name.charAt(0)}</div>
-                    <span style="font-weight:600">${w.full_name}</span>
+                    <div class="av red">${esc(w.full_name.charAt(0))}</div>
+                    <span style="font-weight:600">${esc(w.full_name)}</span>
                   </div>
                 </td>
-                <td class="small" style="font-family:var(--font-mono)">${w.employee_id || '—'}</td>
-                <td class="small muted">${w.reason}</td>
+                <td class="small" style="font-family:var(--font-mono)">${esc(w.employee_id) || '—'}</td>
+                <td class="small muted">${esc(w.reason)}</td>
                 <td class="small">${formatDateShort(w.added_at)}</td>
                 <td style="text-align:right">
-                  <button class="btn btn-sm" onclick="viewHistory(null, '${w.full_name}')">${isEN ? 'View History' : 'ดูประวัติ'}</button>
+                  <button class="btn btn-sm" data-wl-id="${esc(w.id)}">${isEN ? 'View History' : 'ดูประวัติ'}</button>
                   <button class="btn btn-sm" onclick="removeWL('${w.id}')">${isEN ? 'Remove' : 'นำออก'}</button>
                 </td>
               </tr>
@@ -245,6 +263,15 @@ if (requireAdmin()) {
           </tbody>
         </table>
       </div>`;
+    // Resolve View-History clicks via watchlist id rather than injecting
+    // w.full_name into an inline onclick (was a JS-string-escape XSS hole —
+    // esc() only escapes for the HTML context, not for the inner JS string).
+    el.querySelectorAll('button[data-wl-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const w = (DB.watchlist() || []).find(x => x.id === btn.getAttribute('data-wl-id'));
+        if (w) viewHistory(w.employee_id || null, w.full_name);
+      });
+    });
   }
 
   function viewHistory(empId, name) {
@@ -271,12 +298,12 @@ if (requireAdmin()) {
             <div class="timeline-item${!t.is_zero ? ' danger' : ''}">
               <div class="row between">
                 <div>
-                  <span style="font-weight:600">${t.location_name}</span>
-                  <span class="muted small" style="margin-left:8px">${t.department}</span>
+                  <span style="font-weight:600">${esc(t.location_name)}</span>
+                  <span class="muted small" style="margin-left:8px">${esc(t.department)}</span>
                 </div>
                 ${thresholdBadge(t)}
               </div>
-              <div class="tiny muted" style="margin-top:4px">${formatDate(t.created_at)} · ${t.company}</div>
+              <div class="tiny muted" style="margin-top:4px">${formatDate(t.created_at)} · ${esc(t.company)}</div>
               ${t.action_taken && t.action_taken !== 'pending' ? `<div class="tiny" style="margin-top:4px">${isEN ? 'Action' : 'การดำเนินการ'}: ${isEN ? {'sent-home':'Sent Home','suspended':'Suspended','allowed':'Allowed'}[t.action_taken] || t.action_taken : {'sent-home':'ส่งกลับบ้าน','suspended':'พักงาน','allowed':'อนุญาต'}[t.action_taken] || t.action_taken}</div>` : ''}
             </div>
           `).join('')}

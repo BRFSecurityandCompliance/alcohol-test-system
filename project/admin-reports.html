@@ -101,9 +101,9 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
   const fLoc = document.getElementById('f-location');
   const fDept = document.getElementById('f-department');
   const fCo = document.getElementById('f-company');
-  DB.locations().forEach(l => fLoc.insertAdjacentHTML('beforeend', `<option value="${l.code}">${l.name} (${l.code})</option>`));
-  DEPARTMENTS.forEach(d => fDept.insertAdjacentHTML('beforeend', `<option value="${d}">${d}</option>`));
-  DB.companies().forEach(c => fCo.insertAdjacentHTML('beforeend', `<option value="${c.name}">${c.name}</option>`));
+  DB.locations().forEach(l => fLoc.insertAdjacentHTML('beforeend', `<option value="${esc(l.code)}">${esc(l.name)} (${esc(l.code)})</option>`));
+  DEPARTMENTS.forEach(d => fDept.insertAdjacentHTML('beforeend', `<option value="${esc(d)}">${esc(d)}</option>`));
+  DB.companies().forEach(c => fCo.insertAdjacentHTML('beforeend', `<option value="${esc(c.name)}">${esc(c.name)}</option>`));
 
   let filtered = DB.tests().filter(t => canViewSite(t.location_code));
   function apply() {
@@ -133,11 +133,11 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
     document.getElementById('rows').innerHTML = filtered.length ? filtered.map(t => `
       <tr>
         <td class="small">${formatDateShort(t.created_at)}</td>
-        <td><div style="font-weight:600">${t.full_name}</div></td>
-        <td class="small">${t.department}</td>
-        <td class="small">${t.company}</td>
-        <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${t.location_code}</span> ${t.location_name}</td>
-        <td class="small">${t.plate_number || '—'}</td>
+        <td><div style="font-weight:600">${esc(t.full_name)}</div></td>
+        <td class="small">${esc(t.department)}</td>
+        <td class="small">${esc(t.company)}</td>
+        <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${esc(t.location_code)}</span> ${esc(t.location_name)}</td>
+        <td class="small">${esc(t.plate_number) || '—'}</td>
         <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
       </tr>
     `).join('') : `<tr><td colspan="7"><div class="empty"><div class="icon">🔍</div>${isEN ? 'No data found' : 'ไม่พบข้อมูล'}</div></td></tr>`;

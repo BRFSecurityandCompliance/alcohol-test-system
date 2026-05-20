@@ -139,7 +139,7 @@ if (requireAdmin()) {
   // Populate location select
   DB.locations().forEach(l => {
     document.querySelector('[name=location_code]').insertAdjacentHTML('beforeend',
-      `<option value="${l.code}">${l.name} (${l.code})</option>`);
+      `<option value="${esc(l.code)}">${esc(l.name)} (${esc(l.code)})</option>`);
   });
 
   function statusBadge(status) {
@@ -177,11 +177,11 @@ if (requireAdmin()) {
     const banners = document.getElementById('banners');
     let b = '';
     if (overdue.length) b += isEN
-      ? `<div class="banner banner-danger" style="margin-bottom:12px"><span class="banner-icon">🚨</span><div><b>${overdue.length} device(s) overdue for calibration</b><br><span class="small">${overdue.map(d => d.serial).join(', ')} — must be sent for calibration immediately, do not use</span></div></div>`
-      : `<div class="banner banner-danger" style="margin-bottom:12px"><span class="banner-icon">🚨</span><div><b>เครื่องตรวจ ${overdue.length} เครื่องเกินกำหนดสอบเทียบ</b><br><span class="small">${overdue.map(d => d.serial).join(', ')} — ต้องส่งสอบเทียบทันที ห้ามใช้งาน</span></div></div>`;
+      ? `<div class="banner banner-danger" style="margin-bottom:12px"><span class="banner-icon">🚨</span><div><b>${overdue.length} device(s) overdue for calibration</b><br><span class="small">${overdue.map(d => esc(d.serial)).join(', ')} — must be sent for calibration immediately, do not use</span></div></div>`
+      : `<div class="banner banner-danger" style="margin-bottom:12px"><span class="banner-icon">🚨</span><div><b>เครื่องตรวจ ${overdue.length} เครื่องเกินกำหนดสอบเทียบ</b><br><span class="small">${overdue.map(d => esc(d.serial)).join(', ')} — ต้องส่งสอบเทียบทันที ห้ามใช้งาน</span></div></div>`;
     if (dueSoon.length) b += isEN
-      ? `<div class="banner banner-warn" style="margin-bottom:12px"><span class="banner-icon">⚠️</span><div><b>${dueSoon.length} device(s) calibration expiring soon</b><br><span class="small">${dueSoon.map(d => `${d.serial} (${daysUntil(d.next_calibration)} days left)`).join(', ')}</span></div></div>`
-      : `<div class="banner banner-warn" style="margin-bottom:12px"><span class="banner-icon">⚠️</span><div><b>เครื่องตรวจ ${dueSoon.length} เครื่องใกล้หมดอายุสอบเทียบ</b><br><span class="small">${dueSoon.map(d => `${d.serial} (อีก ${daysUntil(d.next_calibration)} วัน)`).join(', ')}</span></div></div>`;
+      ? `<div class="banner banner-warn" style="margin-bottom:12px"><span class="banner-icon">⚠️</span><div><b>${dueSoon.length} device(s) calibration expiring soon</b><br><span class="small">${dueSoon.map(d => `${esc(d.serial)} (${daysUntil(d.next_calibration)} days left)`).join(', ')}</span></div></div>`
+      : `<div class="banner banner-warn" style="margin-bottom:12px"><span class="banner-icon">⚠️</span><div><b>เครื่องตรวจ ${dueSoon.length} เครื่องใกล้หมดอายุสอบเทียบ</b><br><span class="small">${dueSoon.map(d => `${esc(d.serial)} (อีก ${daysUntil(d.next_calibration)} วัน)`).join(', ')}</span></div></div>`;
     banners.innerHTML = b;
 
     const locs = DB.locations().reduce((m, l) => { m[l.code] = l.name; return m; }, {});
@@ -190,10 +190,10 @@ if (requireAdmin()) {
       const daysLeft = daysUntil(d.next_calibration);
       return `
         <tr>
-          <td style="font-family:var(--font-mono); font-size:13px; font-weight:600">${d.serial}</td>
-          <td class="small" style="font-family:var(--font-mono); font-size:12px">${d.asset_no || '<span class="muted">—</span>'}</td>
-          <td class="small">${d.model}</td>
-          <td class="small">${d.location_code ? `<span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${d.location_code}</span> ${locs[d.location_code] || ''}` : '<span class="muted">—</span>'}</td>
+          <td style="font-family:var(--font-mono); font-size:13px; font-weight:600">${esc(d.serial)}</td>
+          <td class="small" style="font-family:var(--font-mono); font-size:12px">${d.asset_no ? esc(d.asset_no) : '<span class="muted">—</span>'}</td>
+          <td class="small">${esc(d.model)}</td>
+          <td class="small">${d.location_code ? `<span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${esc(d.location_code)}</span> ${esc(locs[d.location_code] || '')}` : '<span class="muted">—</span>'}</td>
           <td class="small">${d.last_calibrated || '—'}</td>
           <td class="small">
             ${d.next_calibration || '—'}
@@ -201,12 +201,20 @@ if (requireAdmin()) {
           </td>
           <td>${statusBadge(st)}</td>
           <td style="text-align:right">
-            <button class="btn btn-sm" onclick='openModal(${JSON.stringify(d).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>
-            <button class="btn btn-sm btn-danger" onclick="del('${d.id}')">${isEN ? 'Delete' : 'ลบ'}</button>
+            <button class="btn btn-sm" data-edit-id="${esc(d.id)}">${isEN ? 'Edit' : 'แก้ไข'}</button>
+            <button class="btn btn-sm btn-danger" data-del-id="${esc(d.id)}">${isEN ? 'Delete' : 'ลบ'}</button>
           </td>
         </tr>
       `;
     }).join('') : `<tr><td colspan="8"><div class="empty"><div class="icon">🔬</div>${isEN ? 'No devices yet' : 'ยังไม่มีเครื่องตรวจ'}</div></td></tr>`;
+    // data-* + delegation avoids JSON.stringify into onclick='openModal(${...})',
+    // where an apostrophe in user data would break out of the JS string.
+    const rows = document.getElementById('rows');
+    rows.querySelectorAll('button[data-edit-id]').forEach(b => b.addEventListener('click', () => {
+      const d = DB.devices().find(x => x.id === b.getAttribute('data-edit-id'));
+      if (d) openModal(d);
+    }));
+    rows.querySelectorAll('button[data-del-id]').forEach(b => b.addEventListener('click', () => del(b.getAttribute('data-del-id'))));
   }
 
   function openModal(d) {

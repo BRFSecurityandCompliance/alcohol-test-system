@@ -131,8 +131,13 @@ async function verifyToken(token, secret) {
     );
     const valid = await crypto.subtle.verify('HMAC', key, sigBytes, enc(`${hdr}.${body}`));
     if (valid) {
-      // Bound memory: a token signature is immutable, so only cache valid ones
-      if (_sigCache.size > 500) _sigCache.clear();
+      // Bound memory: evict the oldest entry one-at-a-time (LRU-ish via Map
+      // insertion order) instead of clearing the whole map, which would cause
+      // a re-verification stampede across all logged-in admins.
+      if (_sigCache.size >= 500) {
+        const oldest = _sigCache.keys().next().value;
+        if (oldest !== undefined) _sigCache.delete(oldest);
+      }
       _sigCache.set(token, true);
     }
     return valid;

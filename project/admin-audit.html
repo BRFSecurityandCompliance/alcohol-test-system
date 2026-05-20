@@ -107,7 +107,7 @@ if (!requireAdmin() || !hasRole('super', 'auditor')) { location.href = 'admin-da
                 action.startsWith('update') ? 'act-update' :
                 action.startsWith('add') || action.startsWith('create') ? 'act-add' :
                 action.includes('login') ? 'act-login' : 'act-other';
-    return `<span class="action-tag ${cls}">${action}</span>`;
+    return `<span class="action-tag ${cls}">${esc(action)}</span>`;
   }
 
   function filtered() {
@@ -133,15 +133,15 @@ if (!requireAdmin() || !hasRole('super', 'auditor')) { location.href = 'admin-da
         <td class="small" style="font-family:var(--font-mono); white-space:nowrap">${formatDate(a.created_at)}</td>
         <td>
           <div class="row gap-sm">
-            <div class="avatar-sm">${(a.actor_name||'?').charAt(0)}</div>
+            <div class="avatar-sm">${esc((a.actor_name||'?').charAt(0))}</div>
             <div>
-              <div style="font-weight:600; font-size:14px">${a.actor_name || a.actor_id || '?'}</div>
+              <div style="font-weight:600; font-size:14px">${esc(a.actor_name || a.actor_id || '?')}</div>
             </div>
           </div>
         </td>
         <td>${actionTag(a.action)}</td>
-        <td class="small" style="font-family:var(--font-mono); color:var(--text-muted)">${a.target || '—'}</td>
-        <td class="small">${a.detail || '—'}</td>
+        <td class="small" style="font-family:var(--font-mono); color:var(--text-muted)">${esc(a.target) || '—'}</td>
+        <td class="small">${esc(a.detail) || '—'}</td>
       </tr>
     `).join('') : `<tr><td colspan="5"><div class="empty"><div class="icon">📋</div>${isEN ? 'No data found' : 'ไม่พบข้อมูล'}</div></td></tr>`;
   }

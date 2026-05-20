@@ -122,7 +122,7 @@ if (!requireAdmin() || !hasRole('super')) { location.href = 'admin-dashboard.htm
   // Populate sites select
   DB.locations().forEach(l => {
     document.getElementById('sites-select').insertAdjacentHTML('beforeend',
-      `<option value="${l.code}">${l.name} (${l.code})</option>`);
+      `<option value="${esc(l.code)}">${esc(l.name)} (${esc(l.code)})</option>`);
   });
 
   function switchTab(tab) {
@@ -251,19 +251,19 @@ if (!requireAdmin() || !hasRole('super')) { location.href = 'admin-dashboard.htm
             <tbody>
               ${users.map(u => `
                 <tr>
-                  <td style="font-family:var(--font-mono); font-size:13px; font-weight:600">${u.username}</td>
+                  <td style="font-family:var(--font-mono); font-size:13px; font-weight:600">${esc(u.username)}</td>
                   <td>
                     <div class="row gap-sm">
-                      <div class="avatar-sm">${u.name.charAt(0)}</div>
-                      <span style="font-weight:500">${u.name}</span>
+                      <div class="avatar-sm">${esc(u.name.charAt(0))}</div>
+                      <span style="font-weight:500">${esc(u.name)}</span>
                     </div>
                   </td>
                   <td><span class="role-badge role-${u.role}">${ROLE_LABELS[u.role]?.label || u.role}</span></td>
-                  <td class="small muted">${u.sites === 'all' ? (isEN ? 'All locations' : 'ทุกสถานที่') : Array.isArray(u.sites) ? u.sites.join(', ') : u.sites}</td>
-                  <td class="small muted">${u.email || '—'}</td>
+                  <td class="small muted">${u.sites === 'all' ? (isEN ? 'All locations' : 'ทุกสถานที่') : Array.isArray(u.sites) ? esc(u.sites.join(', ')) : esc(u.sites)}</td>
+                  <td class="small muted">${esc(u.email) || '—'}</td>
                   <td style="text-align:right">
-                    <button class="btn btn-sm" onclick='openUserModal(${JSON.stringify(u).replace(/"/g,"&quot;")})'>${isEN ? 'Edit' : 'แก้ไข'}</button>
-                    <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')" ${u.id === 'u1' ? `disabled title="${isEN ? 'Cannot delete the primary Super Admin' : 'ไม่สามารถลบ Super Admin หลัก'}"` : ''}>${isEN ? 'Delete' : 'ลบ'}</button>
+                    <button class="btn btn-sm" data-edit-uid="${esc(u.id)}">${isEN ? 'Edit' : 'แก้ไข'}</button>
+                    <button class="btn btn-sm btn-danger" data-del-uid="${esc(u.id)}" ${u.id === 'u1' ? `disabled title="${isEN ? 'Cannot delete the primary Super Admin' : 'ไม่สามารถลบ Super Admin หลัก'}"` : ''}>${isEN ? 'Delete' : 'ลบ'}</button>
                   </td>
                 </tr>
               `).join('')}
@@ -276,6 +276,14 @@ if (!requireAdmin() || !hasRole('super')) { location.href = 'admin-dashboard.htm
         <div class="small">${isEN ? 'In production, connect a real authentication system (e.g. Supabase Auth) instead of hardcoded passwords.' : 'ใน production ให้เชื่อมระบบ Authentication จริง (เช่น Supabase Auth) แทนการใช้รหัสผ่าน hardcoded'}</div>
       </div>
     `;
+    // data-* + delegation avoids JSON.stringify into onclick='openUserModal(${...})'
+    // — an apostrophe in u.name or u.email would otherwise break out of the JS string.
+    const root = document.getElementById('tab-users');
+    root.querySelectorAll('button[data-edit-uid]').forEach(b => b.addEventListener('click', () => {
+      const u = DB.users().find(x => x.id === b.getAttribute('data-edit-uid'));
+      if (u) openUserModal(u);
+    }));
+    root.querySelectorAll('button[data-del-uid]').forEach(b => b.addEventListener('click', () => delUser(b.getAttribute('data-del-uid'))));
   }
 
   function openUserModal(u) {

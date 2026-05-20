@@ -534,7 +534,7 @@ function renderForm() {
         navigator.geolocation.getCurrentPosition(
           pos => resolve(gpsDistance(pos.coords.latitude, pos.coords.longitude, loc.lat, loc.lng) <= 100),
           () => resolve(false),
-          { timeout: 5000, maximumAge: 60000 }
+          { timeout: 5000, maximumAge: 0 }
         );
       });
       if (!gpsOk) {

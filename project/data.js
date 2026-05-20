@@ -300,7 +300,9 @@ const DB = {
 
   addTest(t) {
     const db = loadDB();
-    const created = new Date();
+    // Preserve the original timestamp when replaying queued/offline tests, so
+    // shift_id matches when the test actually happened, not when it synced.
+    const created = t.created_at ? new Date(t.created_at) : new Date();
     const enriched = {
       ...t,
       id: t.id || ('t' + Date.now()),
@@ -372,6 +374,19 @@ function formatDate(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString(_loc(), { year: 'numeric', month: 'short', day: 'numeric' }) +
     ' ' + d.toLocaleTimeString(_loc(), { hour: '2-digit', minute: '2-digit' });
+}
+// Escape user-controlled strings before interpolating them into innerHTML.
+// Admin pages render data sourced from Supabase (full_name, company, location
+// names, action notes) inside template literals — without escaping, a crafted
+// submission would be stored XSS for every admin viewing the table.
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 function formatDateShort(iso) {
   return new Date(iso).toLocaleDateString(_loc(), { day: '2-digit', month: 'short', year: '2-digit' });
@@ -468,7 +483,6 @@ function _dbClient() {
 
 // ===== Auth =====
 // Password is verified server-side in the Cloudflare Worker (env.ADMIN_PASSWORD secret)
-const ADMIN_PASSWORD = ''; // kept for reference only — not used in login flow
 
 // Session idle timeout — 2 hours of inactivity logs out admin
 (function() {
@@ -581,11 +595,11 @@ function renderTopbar(active) {
         ${visible.map(l => `<a href="${l.href}" class="${active === l.key ? 'active' : ''}">${l.label}${l.key === 'alerts' && pending ? ` <span class="pill-dot">${pending}</span>` : ''}</a>`).join('')}
       </div>
       <div class="row gap-sm">
-        <div class="user-pill" title="${role?.desc || ''}">
-          <div class="avatar-sm">${(u?.name||'?').charAt(0)}</div>
+        <div class="user-pill" title="${esc(role?.desc || '')}">
+          <div class="avatar-sm">${esc((u?.name||'?').charAt(0))}</div>
           <div style="display:flex; flex-direction:column; line-height:1.15">
-            <span style="font-size:13px; font-weight:600">${u?.name || ''}</span>
-            <span class="tiny" style="color:var(--text-muted)">${role?.label || ''}</span>
+            <span style="font-size:13px; font-weight:600">${esc(u?.name || '')}</span>
+            <span class="tiny" style="color:var(--text-muted)">${esc(role?.label || '')}</span>
           </div>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="localStorage.setItem('lang','${nextLang}');location.reload()" style="font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;min-width:52px">${isEN ? 'TH | <b>EN</b>' : '<b>TH</b> | EN'}</button>
@@ -615,21 +629,38 @@ function thresholdBadge(t) {
 
 // ===== Confirm modal helper =====
 function confirmDialog(title, msg) {
+  const isEN = (localStorage.getItem('lang') || 'th') === 'en';
   return new Promise(resolve => {
     const wrap = document.createElement('div');
     wrap.className = 'modal-backdrop show';
-    wrap.innerHTML = `
-      <div class="modal" style="max-width:420px">
-        <div class="modal-header"><h2>${title}</h2></div>
-        <div class="modal-body">${msg}</div>
-        <div class="modal-footer">
-          <button class="btn" data-no>ยกเลิก</button>
-          <button class="btn btn-danger" data-yes>ยืนยัน</button>
-        </div>
-      </div>`;
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.maxWidth = '420px';
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    const h2 = document.createElement('h2');
+    h2.textContent = title;
+    header.appendChild(h2);
+    const body = document.createElement('div');
+    body.className = 'modal-body';
+    body.textContent = msg;
+    const footer = document.createElement('div');
+    footer.className = 'modal-footer';
+    const noBtn = document.createElement('button');
+    noBtn.className = 'btn';
+    noBtn.textContent = isEN ? 'Cancel' : 'ยกเลิก';
+    const yesBtn = document.createElement('button');
+    yesBtn.className = 'btn btn-danger';
+    yesBtn.textContent = isEN ? 'Confirm' : 'ยืนยัน';
+    footer.appendChild(noBtn);
+    footer.appendChild(yesBtn);
+    modal.appendChild(header);
+    modal.appendChild(body);
+    modal.appendChild(footer);
+    wrap.appendChild(modal);
     document.body.appendChild(wrap);
-    wrap.querySelector('[data-no]').onclick = () => { wrap.remove(); resolve(false); };
-    wrap.querySelector('[data-yes]').onclick = () => { wrap.remove(); resolve(true); };
+    noBtn.onclick = () => { wrap.remove(); resolve(false); };
+    yesBtn.onclick = () => { wrap.remove(); resolve(true); };
   });
 }
 

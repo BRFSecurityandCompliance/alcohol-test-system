@@ -187,16 +187,16 @@ if (requireAdmin()) {
     }
     el.innerHTML = tests.map(t => `
       <div class="alert-row pending" id="ar-${t.id}">
-        <div class="alert-avatar">${t.full_name.charAt(0)}</div>
+        <div class="alert-avatar">${esc(t.full_name.charAt(0))}</div>
         <div style="flex:1">
           <div class="row between">
             <div>
-              <span style="font-weight:700">${t.full_name}</span>
-              <span class="muted small" style="margin-left:8px">${t.department}</span>
+              <span style="font-weight:700">${esc(t.full_name)}</span>
+              <span class="muted small" style="margin-left:8px">${esc(t.department)}</span>
             </div>
             <span class="tiny muted">${timeAgo(t.created_at)}</span>
           </div>
-          <div class="tiny muted" style="margin:4px 0">${t.location_name} (${t.location_code}) · ${t.company}</div>
+          <div class="tiny muted" style="margin:4px 0">${esc(t.location_name)} (${esc(t.location_code)}) · ${esc(t.company)}</div>
           <div style="margin:8px 0">${thresholdBadge(t)}</div>
           <div class="action-row">
             <button class="btn btn-sm" onclick="openActionModal('${t.id}')">✍ ${isEN ? 'Log Action' : 'บันทึกการดำเนินการ'}</button>
@@ -224,12 +224,12 @@ if (requireAdmin()) {
               <tr>
                 <td class="small">${formatDateShort(t.created_at)}</td>
                 <td>
-                  <div style="font-weight:600">${t.full_name}</div>
-                  <div class="tiny muted">${t.location_name}</div>
+                  <div style="font-weight:600">${esc(t.full_name)}</div>
+                  <div class="tiny muted">${esc(t.location_name)}</div>
                 </td>
                 <td>${thresholdBadge(t)}</td>
                 <td><span class="action-chip action-${t.action_taken}">${actionLabel(t.action_taken)}</span></td>
-                <td class="small muted">${t.action_note || '—'}</td>
+                <td class="small muted">${esc(t.action_note) || '—'}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -254,8 +254,8 @@ if (requireAdmin()) {
             <div class="row gap-md">
               <div class="channel-icon" style="background:${chColor(c.kind)}">${chIcon(c.kind)}</div>
               <div>
-                <div style="font-weight:600">${c.label}</div>
-                <div class="tiny muted" style="font-family:var(--font-mono)">${c.target}</div>
+                <div style="font-weight:600">${esc(c.label)}</div>
+                <div class="tiny muted" style="font-family:var(--font-mono)">${esc(c.target)}</div>
               </div>
             </div>
             <div class="row gap-sm">
@@ -294,8 +294,8 @@ if (requireAdmin()) {
     const t = DB.tests().find(x => x.id === id);
     document.getElementById('action-test-info').innerHTML = `
       <div style="background:var(--surface-2); padding:12px; border-radius:var(--r-md)">
-        <div style="font-weight:600; margin-bottom:4px">${t.full_name}</div>
-        <div class="small muted">${t.department} · ${t.location_name}</div>
+        <div style="font-weight:600; margin-bottom:4px">${esc(t.full_name)}</div>
+        <div class="small muted">${esc(t.department)} · ${esc(t.location_name)}</div>
         <div style="margin-top:8px">${thresholdBadge(t)}</div>
       </div>`;
     document.getElementById('action-select').value = t.action_taken || 'sent-home';
