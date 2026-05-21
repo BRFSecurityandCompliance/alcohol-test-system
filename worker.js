@@ -13,6 +13,9 @@ export default {
     if (url.pathname === '/api/lookup-person' && request.method === 'GET') {
       return handlePersonLookup(url, env);
     }
+    if (url.pathname === '/api/alert' && request.method === 'POST') {
+      return handleSendAlert(request, env);
+    }
     if (url.pathname.startsWith(ADMIN_PREFIX + '/')) {
       return handleAdminProxy(request, url, env);
     }
@@ -89,6 +92,104 @@ async function handleAdminProxy(request, url, env) {
     headers: hdrs,
     body: ['GET','HEAD'].includes(request.method) ? null : request.body,
   });
+}
+
+// ── Alert Dispatch ────────────────────────────────────────────────────────────
+
+async function handleSendAlert(request, env) {
+  try {
+    const { test_id } = await request.json();
+    if (!test_id || !_isUUID(test_id)) {
+      return Response.json({ error: 'Invalid test_id' }, { status: 400 });
+    }
+
+    // Verify the test exists in Supabase and has alcohol detected
+    const testRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/tests?id=eq.${encodeURIComponent(test_id)}&select=id,full_name,department,company,location_name,location_code,alcohol_value,threshold_level,created_at,is_zero&limit=1`,
+      { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+    );
+    const tests = await testRes.json();
+    const test = Array.isArray(tests) ? tests[0] : null;
+    if (!test || test.is_zero) {
+      return Response.json({ sent: 0 });
+    }
+
+    // Fetch enabled email channels
+    const chRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/alert_channels?kind=eq.email&enabled=eq.true&select=target`,
+      { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+    );
+    const channels = await chRes.json();
+    if (!Array.isArray(channels) || !channels.length) {
+      return Response.json({ sent: 0 });
+    }
+
+    const email = buildAlertEmail(test);
+    const from = env.ALERT_FROM_EMAIL || 'alerts@example.com';
+
+    let sent = 0;
+    for (const ch of channels) {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ from, to: [ch.target], subject: email.subject, html: email.html }),
+      });
+      if (r.ok) sent++;
+      else console.warn('[sendAlert] Resend error', ch.target, await r.text());
+    }
+
+    return Response.json({ sent });
+  } catch (e) {
+    console.warn('[handleSendAlert]', e.message);
+    return Response.json({ error: 'Failed to send alert' }, { status: 500 });
+  }
+}
+
+function buildAlertEmail(test) {
+  const levelLabel = {
+    caution:    { th: 'เตือน',      en: 'Caution',       color: '#f59e0b' },
+    'no-drive': { th: 'ห้ามขับ',   en: 'No Drive',      color: '#ef4444' },
+    illegal:    { th: 'ผิดกฎหมาย', en: 'Illegal Level', color: '#7f1d1d' },
+  };
+  const lvl = levelLabel[test.threshold_level] || levelLabel['no-drive'];
+  const value = test.alcohol_value ?? 0;
+  const time = test.created_at
+    ? new Date(test.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false })
+    : '';
+
+  const subject = `🚨 แจ้งเตือน: ตรวจพบแอลกอฮอล์ — ${test.full_name} (${value} mg%)`;
+
+  const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1a1a2e;max-width:600px;margin:auto;padding:24px">
+<div style="background:${lvl.color};color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+  <h2 style="margin:0">🚨 ตรวจพบแอลกอฮอล์ / Alcohol Detected</h2>
+  <p style="margin:4px 0 0;opacity:.9">${lvl.th} / ${lvl.en}</p>
+</div>
+<div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="padding:8px 0;color:#6b7280;width:40%">ชื่อ / Name</td><td style="padding:8px 0;font-weight:600">${_safe(test.full_name)}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">แผนก / Dept</td><td style="padding:8px 0">${_safe(test.department)}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">บริษัท / Company</td><td style="padding:8px 0">${_safe(test.company)}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">สถานที่ / Location</td><td style="padding:8px 0">${_safe(test.location_name)} (${_safe(test.location_code)})</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">ค่าแอลกอฮอล์ / Value</td><td style="padding:8px 0;font-size:20px;font-weight:700;color:${lvl.color}">${value} mg%</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">เวลา / Time</td><td style="padding:8px 0">${time}</td></tr>
+  </table>
+  <p style="margin:16px 0 0;font-size:12px;color:#9ca3af">Alcohol Test System · กรุณาดำเนินการโดยเร็ว</p>
+</div>
+</body></html>`;
+
+  return { subject, html };
+}
+
+function _safe(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _isUUID(s) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }
 
 // ── JWT ───────────────────────────────────────────────────────────────────────

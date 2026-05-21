@@ -95,6 +95,49 @@ export function _buildIndices(db) {
   };
 }
 
+// ── buildAlertEmail ───────────────────────────────────────────────────────────
+// Returns { subject, html } for a failed alcohol test notification.
+// Threshold levels: 'caution' | 'no-drive' | 'illegal'
+export function buildAlertEmail(test) {
+  const levelLabel = {
+    caution:  { th: 'เตือน',        en: 'Caution',        color: '#f59e0b' },
+    'no-drive': { th: 'ห้ามขับ',   en: 'No Drive',       color: '#ef4444' },
+    illegal:  { th: 'ผิดกฎหมาย',   en: 'Illegal Level',  color: '#7f1d1d' },
+  };
+  const lvl = levelLabel[test.threshold_level] || levelLabel['no-drive'];
+  const value = test.alcohol_value ?? test.alcohol_value;
+  const time = test.created_at
+    ? new Date(test.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false })
+    : '';
+
+  const subject = `🚨 แจ้งเตือน: ตรวจพบแอลกอฮอล์ — ${test.full_name} (${value} mg%)`;
+
+  const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1a1a2e;max-width:600px;margin:auto;padding:24px">
+<div style="background:${lvl.color};color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+  <h2 style="margin:0">🚨 ตรวจพบแอลกอฮอล์ / Alcohol Detected</h2>
+  <p style="margin:4px 0 0;opacity:.9">${lvl.th} / ${lvl.en}</p>
+</div>
+<div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+  <table style="width:100%;border-collapse:collapse">
+    <tr><td style="padding:8px 0;color:#6b7280;width:40%">ชื่อ / Name</td><td style="padding:8px 0;font-weight:600">${_safeText(test.full_name)}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">แผนก / Dept</td><td style="padding:8px 0">${_safeText(test.department)}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">บริษัท / Company</td><td style="padding:8px 0">${_safeText(test.company)}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">สถานที่ / Location</td><td style="padding:8px 0">${_safeText(test.location_name)} (${_safeText(test.location_code)})</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">ค่าแอลกอฮอล์ / Value</td><td style="padding:8px 0;font-size:20px;font-weight:700;color:${lvl.color}">${value} mg%</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280">เวลา / Time</td><td style="padding:8px 0">${time}</td></tr>
+  </table>
+  <p style="margin:16px 0 0;font-size:12px;color:#9ca3af">Alcohol Test System · กรุณาดำเนินการโดยเร็ว</p>
+</div>
+</body></html>`;
+
+  return { subject, html };
+}
+
+function _safeText(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ── timeAgo (pure, clock-injected variant for testing) ────────────────────────
 export function timeAgo(iso, nowMs, lang = 'en') {
   const s = (nowMs - new Date(iso).getTime()) / 1000;

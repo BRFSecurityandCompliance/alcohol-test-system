@@ -602,6 +602,14 @@ function renderForm() {
       const newTest = DB.addTest(payload);
       // Wait for Supabase INSERT to complete (max 8s) before navigating away
       await Promise.race([newTest._sync, new Promise(r => setTimeout(r, 8000))]);
+      // Fire email alert for non-zero results (fire-and-forget — do not block navigation)
+      if (!isZero) {
+        fetch('/api/alert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ test_id: newTest.id }),
+        }).catch(() => {});
+      }
       // Mark original as completed if this was a retest
       if (retestOf) DB.updateTest(retestOf, { retest_status: 'completed' });
       // Trigger retest flow if not zero
