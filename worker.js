@@ -105,13 +105,24 @@ async function handleSendAlert(request, env) {
 
     // Verify the test exists in Supabase and has alcohol detected
     const testRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/tests?id=eq.${encodeURIComponent(test_id)}&select=id,full_name,department,company,location_name,location_code,alcohol_value,threshold_level,created_at,is_zero&limit=1`,
+      `${SUPABASE_URL}/rest/v1/tests?id=eq.${encodeURIComponent(test_id)}&select=id,full_name,department,company,location_name,location_code,alcohol_value,level,retest_of,created_at,is_zero&limit=1`,
       { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
     );
     const tests = await testRes.json();
     const test = Array.isArray(tests) ? tests[0] : null;
     if (!test || test.is_zero) {
       return Response.json({ sent: 0 });
+    }
+
+    // If this is a retest, fetch the original test for the email
+    let firstTest = null;
+    if (test.retest_of) {
+      const firstRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/tests?id=eq.${encodeURIComponent(test.retest_of)}&select=full_name,department,company,location_name,location_code,alcohol_value,level,created_at&limit=1`,
+        { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+      );
+      const firstRows = await firstRes.json();
+      firstTest = Array.isArray(firstRows) ? firstRows[0] || null : null;
     }
 
     // Fetch enabled email channels
@@ -124,7 +135,7 @@ async function handleSendAlert(request, env) {
       return Response.json({ sent: 0 });
     }
 
-    const email = buildAlertEmail(test);
+    const email = buildAlertEmail(test, firstTest);
     const from = env.ALERT_FROM_EMAIL || 'alerts@example.com';
 
     let sent = 0;
@@ -148,33 +159,39 @@ async function handleSendAlert(request, env) {
   }
 }
 
-function buildAlertEmail(test) {
+function buildAlertEmail(test, firstTest = null) {
   const levelLabel = {
     caution:    { th: 'เตือน',      en: 'Caution',       color: '#f59e0b' },
     'no-drive': { th: 'ห้ามขับ',   en: 'No Drive',      color: '#ef4444' },
     illegal:    { th: 'ผิดกฎหมาย', en: 'Illegal Level', color: '#7f1d1d' },
   };
-  const lvl = levelLabel[test.threshold_level] || levelLabel['no-drive'];
+  const lvl = levelLabel[test.level] || levelLabel['no-drive'];
   const value = test.alcohol_value ?? 0;
-  const time = test.created_at
-    ? new Date(test.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false })
-    : '';
+  const isRetest = firstTest !== null;
 
-  const subject = `🚨 แจ้งเตือน: ตรวจพบแอลกอฮอล์ — ${test.full_name} (${value} mg%)`;
+  const subject = isRetest
+    ? `🚨 แจ้งเตือน: ตรวจซ้ำ (Retest) พบแอลกอฮอล์ — ${test.full_name} (${value} mg%)`
+    : `🚨 แจ้งเตือน: ตรวจพบแอลกอฮอล์ — ${test.full_name} (${value} mg%)`;
+
+  const testRows = (t, label) => `
+    <tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;color:#374151;font-size:13px;text-transform:uppercase;letter-spacing:.05em">${label}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280;width:40%">ชื่อ / Name</td><td style="padding:6px 0;font-weight:600">${_safe(t.full_name)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">แผนก / Dept</td><td style="padding:6px 0">${_safe(t.department)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">บริษัท / Company</td><td style="padding:6px 0">${_safe(t.company)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">สถานที่ / Location</td><td style="padding:6px 0">${_safe(t.location_name)} (${_safe(t.location_code)})</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">ค่าแอลกอฮอล์ / Value</td><td style="padding:6px 0;font-size:18px;font-weight:700;color:${(levelLabel[t.level] || levelLabel['no-drive']).color}">${t.alcohol_value ?? 0} mg%</td></tr>
+    <tr><td style="padding:6px 0 14px;color:#6b7280">เวลา / Time</td><td style="padding:6px 0 14px">${t.created_at ? new Date(t.created_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false }) : ''}</td></tr>`;
 
   const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1a1a2e;max-width:600px;margin:auto;padding:24px">
 <div style="background:${lvl.color};color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
-  <h2 style="margin:0">🚨 ตรวจพบแอลกอฮอล์ / Alcohol Detected</h2>
+  <h2 style="margin:0">🚨 ตรวจพบแอลกอฮอล์ / Alcohol Detected${isRetest ? ' (ตรวจซ้ำ / Retest)' : ''}</h2>
   <p style="margin:4px 0 0;opacity:.9">${lvl.th} / ${lvl.en}</p>
 </div>
 <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:24px">
   <table style="width:100%;border-collapse:collapse">
-    <tr><td style="padding:8px 0;color:#6b7280;width:40%">ชื่อ / Name</td><td style="padding:8px 0;font-weight:600">${_safe(test.full_name)}</td></tr>
-    <tr><td style="padding:8px 0;color:#6b7280">แผนก / Dept</td><td style="padding:8px 0">${_safe(test.department)}</td></tr>
-    <tr><td style="padding:8px 0;color:#6b7280">บริษัท / Company</td><td style="padding:8px 0">${_safe(test.company)}</td></tr>
-    <tr><td style="padding:8px 0;color:#6b7280">สถานที่ / Location</td><td style="padding:8px 0">${_safe(test.location_name)} (${_safe(test.location_code)})</td></tr>
-    <tr><td style="padding:8px 0;color:#6b7280">ค่าแอลกอฮอล์ / Value</td><td style="padding:8px 0;font-size:20px;font-weight:700;color:${lvl.color}">${value} mg%</td></tr>
-    <tr><td style="padding:8px 0;color:#6b7280">เวลา / Time</td><td style="padding:8px 0">${time}</td></tr>
+    ${isRetest
+      ? testRows(firstTest, 'ครั้งที่ 1 / Test 1') + testRows(test, 'ครั้งที่ 2 / Test 2 (Retest)')
+      : testRows(test, '')}
   </table>
   <p style="margin:16px 0 0;font-size:12px;color:#9ca3af">Alcohol Test System · กรุณาดำเนินการโดยเร็ว</p>
 </div>
