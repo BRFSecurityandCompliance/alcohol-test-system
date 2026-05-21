@@ -95,6 +95,61 @@ export function _buildIndices(db) {
   };
 }
 
+// ── buildAlertEmail ───────────────────────────────────────────────────────────
+// Returns { subject, html } for a failed alcohol test notification.
+// `test.level` matches the DB column: 'caution' | 'no-drive' | 'illegal'
+// `firstTest` is optional — pass the original test when `test` is a retest.
+export function buildAlertEmail(test, firstTest = null) {
+  const levelLabel = {
+    caution:    { th: 'เตือน',      en: 'Caution',       color: '#f59e0b' },
+    'no-drive': { th: 'ห้ามขับ',   en: 'No Drive',      color: '#ef4444' },
+    illegal:    { th: 'ผิดกฎหมาย', en: 'Illegal Level', color: '#7f1d1d' },
+  };
+  const lvl = levelLabel[test.level] || levelLabel['no-drive'];
+  const value = test.alcohol_value ?? 0;
+  const isRetest = firstTest !== null;
+
+  const subject = isRetest
+    ? `🚨 แจ้งเตือน: ตรวจซ้ำ (Retest) พบแอลกอฮอล์ — ${test.full_name} (${value} mg%)`
+    : `🚨 แจ้งเตือน: ตรวจพบแอลกอฮอล์ — ${test.full_name} (${value} mg%)`;
+
+  const testRows = (t, label) => `
+    <tr><td colspan="2" style="padding:10px 0 4px;font-weight:700;color:#374151;font-size:13px;text-transform:uppercase;letter-spacing:.05em">${label}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280;width:40%">ชื่อ / Name</td><td style="padding:6px 0;font-weight:600">${_safeText(t.full_name)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">แผนก / Dept</td><td style="padding:6px 0">${_safeText(t.department)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">บริษัท / Company</td><td style="padding:6px 0">${_safeText(t.company)}</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">สถานที่ / Location</td><td style="padding:6px 0">${_safeText(t.location_name)} (${_safeText(t.location_code)})</td></tr>
+    <tr><td style="padding:6px 0;color:#6b7280">ค่าแอลกอฮอล์ / Value</td><td style="padding:6px 0;font-size:18px;font-weight:700;color:${(levelLabel[t.level] || levelLabel['no-drive']).color}">${t.alcohol_value ?? 0} mg%</td></tr>
+    <tr><td style="padding:6px 0 14px;color:#6b7280">เวลา / Time</td><td style="padding:6px 0 14px">${_formatTime(t.created_at)}</td></tr>`;
+
+  const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1a1a2e;max-width:600px;margin:auto;padding:24px">
+<div style="background:${lvl.color};color:#fff;padding:16px 24px;border-radius:8px 8px 0 0">
+  <h2 style="margin:0">🚨 ตรวจพบแอลกอฮอล์ / Alcohol Detected${isRetest ? ' (ตรวจซ้ำ / Retest)' : ''}</h2>
+  <p style="margin:4px 0 0;opacity:.9">${lvl.th} / ${lvl.en}</p>
+</div>
+<div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:24px">
+  <table style="width:100%;border-collapse:collapse">
+    ${isRetest
+      ? testRows(firstTest, 'ครั้งที่ 1 / Test 1') + testRows(test, 'ครั้งที่ 2 / Test 2 (Retest)')
+      : testRows(test, '')}
+  </table>
+  <p style="margin:16px 0 0;font-size:12px;color:#9ca3af">Alcohol Test System · กรุณาดำเนินการโดยเร็ว</p>
+</div>
+</body></html>`;
+
+  return { subject, html };
+}
+
+function _safeText(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _formatTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', hour12: false });
+}
+
 // ── timeAgo (pure, clock-injected variant for testing) ────────────────────────
 export function timeAgo(iso, nowMs, lang = 'en') {
   const s = (nowMs - new Date(iso).getTime()) / 1000;
