@@ -86,13 +86,30 @@ if (requireAdmin()) {
   function viewDetail(id) {
     const t = DB.tests().find(x => x.id === id);
     if (!t) return;
-    const shift = SHIFTS.find(s => s.id === t.shift_id);
+    const orig = t.retest_of ? DB.tests().find(x => x.id === t.retest_of) : null;
     const actionMap = {
       'sent-home': isEN ? 'Sent Home' : 'ส่งกลับบ้าน',
       'suspended': isEN ? 'Suspended' : 'พักงาน',
       'allowed': isEN ? 'Allowed' : 'อนุญาต',
       'pending': isEN ? 'Pending' : 'รอดำเนินการ'
     };
+
+    const testBlock = (tx, label) => {
+      const shift = SHIFTS.find(s => s.id === tx.shift_id);
+      return `
+        ${label ? `<div style="font-weight:700;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${label}</div>` : ''}
+        <div class="row between"><span class="muted small">${isEN ? 'Time' : 'เวลา'}</span><span>${formatDate(tx.created_at)}</span></div>
+        ${shift && DB.settings().shifts_enabled !== false ? `<div class="row between"><span class="muted small">${isEN ? 'Shift' : 'กะ'}</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
+        ${tx.device_serial ? `<div class="row between"><span class="muted small">${isEN ? 'Device' : 'เครื่องตรวจ'}</span><span style="font-family:var(--font-mono);font-size:13px">${esc(tx.device_serial)}</span></div>` : ''}
+        <div class="row between"><span class="muted small">${isEN ? 'Test Result' : 'ผลตรวจ'}</span>${thresholdBadge(tx)}</div>
+        ${!tx.is_zero && tx.action_taken ? `<div class="row between"><span class="muted small">${isEN ? 'Action Taken' : 'การดำเนินการ'}</span><span class="action-chip action-${tx.action_taken}">${actionMap[tx.action_taken] || tx.action_taken}</span></div>` : ''}
+        ${tx.action_note ? `<div class="row between"><span class="muted small">${isEN ? 'Notes' : 'หมายเหตุ'}</span><span class="small">${esc(tx.action_note)}</span></div>` : ''}
+        <div class="muted small" style="margin-top:8px">${isEN ? 'Device Photo' : 'ภาพถ่ายเครื่องตรวจ'}</div>
+        <div style="background:var(--surface-2);border-radius:var(--r-md);aspect-ratio:4/3;display:grid;place-items:center;overflow:hidden">
+          ${tx.photo_url ? `<img src="${tx.photo_url}" style="width:100%;height:100%;object-fit:cover">` : `<div class="muted small">${isEN ? '— No photo —' : '— ไม่มีรูปภาพ —'}</div>`}
+        </div>`;
+    };
+
     document.getElementById('detail').innerHTML = `
       <div class="col gap-md">
         <div class="row between"><span class="muted small">${isEN ? 'Name' : 'ชื่อ'}</span><span style="font-weight:600">${esc(t.full_name)}</span></div>
@@ -101,18 +118,12 @@ if (requireAdmin()) {
         <div class="row between"><span class="muted small">${isEN ? 'Company' : 'บริษัท'}</span><span>${esc(t.company)}</span></div>
         <div class="row between"><span class="muted small">${isEN ? 'License Plate' : 'ทะเบียนรถ'}</span><span>${esc(t.plate_number) || '—'}</span></div>
         <div class="row between"><span class="muted small">${isEN ? 'Location' : 'สถานที่'}</span><span>${esc(t.location_name)} (${esc(t.location_code)})</span></div>
-        <div class="row between"><span class="muted small">${isEN ? 'Time' : 'เวลา'}</span><span>${formatDate(t.created_at)}</span></div>
-        ${shift && DB.settings().shifts_enabled !== false ? `<div class="row between"><span class="muted small">${isEN ? 'Shift' : 'กะ'}</span><span>${shift.icon} ${shift.label}</span></div>` : ''}
-        ${t.device_serial ? `<div class="row between"><span class="muted small">${isEN ? 'Device' : 'เครื่องตรวจ'}</span><span style="font-family:var(--font-mono);font-size:13px">${esc(t.device_serial)}</span></div>` : ''}
-        <div class="row between"><span class="muted small">${isEN ? 'Test Result' : 'ผลตรวจ'}</span>${thresholdBadge(t)}</div>
-        ${!t.is_zero && t.action_taken ? `<div class="row between"><span class="muted small">${isEN ? 'Action Taken' : 'การดำเนินการ'}</span><span class="action-chip action-${t.action_taken}">${actionMap[t.action_taken] || t.action_taken}</span></div>` : ''}
-        ${t.action_note ? `<div class="row between"><span class="muted small">${isEN ? 'Notes' : 'หมายเหตุ'}</span><span class="small">${esc(t.action_note)}</span></div>` : ''}
-        ${t.retest_of ? `<div class="row between"><span class="muted small">${isEN ? 'Type' : 'ประเภท'}</span><span class="badge badge-warn">${isEN ? 'Re-test' : 'ตรวจซ้ำ'}</span></div>` : ''}
         <div class="divider"></div>
-        <div class="muted small">${isEN ? 'Device Photo' : 'ภาพถ่ายเครื่องตรวจ'}</div>
-        <div style="background:var(--surface-2); border-radius:var(--r-md); aspect-ratio:4/3; display:grid; place-items:center; overflow:hidden">
-          ${t.photo_url ? `<img src="${t.photo_url}" style="width:100%; height:100%; object-fit:cover">` : `<div class="muted small">${isEN ? '— No photo —' : '— ไม่มีรูปภาพ —'}</div>`}
-        </div>
+        ${orig ? `
+          ${testBlock(orig, isEN ? 'Test 1 / ครั้งที่ 1' : 'ครั้งที่ 1 / Test 1')}
+          <div class="divider"></div>
+          ${testBlock(t, isEN ? 'Test 2 — Retest / ครั้งที่ 2 (ตรวจซ้ำ)' : 'ครั้งที่ 2 — ตรวจซ้ำ / Retest')}
+        ` : testBlock(t, '')}
       </div>
     `;
     document.getElementById('modal').classList.add('show');

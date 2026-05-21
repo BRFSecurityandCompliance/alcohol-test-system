@@ -96,11 +96,21 @@ async function handleAdminProxy(request, url, env) {
 
 // ── Alert Dispatch ────────────────────────────────────────────────────────────
 
+// Per-isolate deduplication: prevents the same test_id from triggering
+// duplicate emails within an isolate's lifetime (hours to days on CF Workers).
+// Bounded at 2000 entries to cap memory use.
+const _alertedIds = new Set();
+
 async function handleSendAlert(request, env) {
   try {
     const { test_id } = await request.json();
     if (!test_id || !_isUUID(test_id)) {
       return Response.json({ error: 'Invalid test_id' }, { status: 400 });
+    }
+
+    // Reject duplicate sends for the same test within this isolate
+    if (_alertedIds.has(test_id)) {
+      return Response.json({ sent: 0, reason: 'already_sent' });
     }
 
     // Verify the test exists in Supabase and has alcohol detected
@@ -151,6 +161,10 @@ async function handleSendAlert(request, env) {
       if (r.ok) sent++;
       else console.warn('[sendAlert] Resend error', ch.target, await r.text());
     }
+
+    // Record as sent — evict oldest if cap reached
+    if (_alertedIds.size >= 2000) _alertedIds.delete(_alertedIds.values().next().value);
+    _alertedIds.add(test_id);
 
     return Response.json({ sent });
   } catch (e) {
