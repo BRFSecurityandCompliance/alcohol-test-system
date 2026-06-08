@@ -4,10 +4,6 @@ node_modules/
 *.log
 .DS_Store
 
-# dev tooling
-package.json
-package-lock.json
-
 # wrangler files
 .wrangler
 .dev.vars*

@@ -1,0 +1,17 @@
+{
+  "name": "alcohol-test-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QR-based alcohol test recording system for Thai workplaces",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node test-all.js"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.7"
+  }
+}

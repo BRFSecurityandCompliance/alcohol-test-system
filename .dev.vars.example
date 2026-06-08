@@ -1,0 +1,21 @@
+# Cloudflare Worker secrets for local development.
+# Copy to `.dev.vars` (gitignored) and fill in real values: `cp .dev.vars.example .dev.vars`
+# In production, set these via `wrangler secret put <NAME>` or the Cloudflare dashboard
+# (Workers → alcohol-test-system → Settings → Variables and Secrets).
+#
+# Note: SUPABASE_URL is a public var and lives in wrangler.jsonc, not here.
+
+# Admin login password (checked by POST /api/auth)
+ADMIN_PASSWORD="change-me"
+
+# HMAC secret used to sign/verify admin JWTs — use a long random string
+TOKEN_SECRET="change-me-to-a-long-random-string"
+
+# Supabase service_role key — full DB access, proxied through the Worker only
+SUPABASE_SERVICE_KEY="eyJ...your-service-role-key..."
+
+# Resend API key for failed-test email alerts (https://resend.com → API Keys)
+RESEND_API_KEY="re_...your-resend-key..."
+
+# Verified sender address for alert emails (must be a Resend-verified domain/sender)
+ALERT_FROM_EMAIL="alerts@yourdomain.com"
