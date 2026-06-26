@@ -192,7 +192,7 @@ const SEED_TESTS = (() => {
       shift_id: getShiftFromDate(created.toISOString()).id,
       device_serial: device.serial,
       operator_id: i % 3 === 0 ? 'u2' : 'u1',
-      signature_operator: '',
+      signature_employee: '',
       retest_of: null,
       retest_status: null, // null | 'required' | 'completed' | 'failed'
       action_taken: !isZero ? (i % 4 === 0 ? 'sent-home' : (i % 4 === 1 ? 'suspended' : 'pending')) : null,
