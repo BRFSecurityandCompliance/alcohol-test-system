@@ -771,17 +771,31 @@ DB.addTest = function(t) {
       created_at: enriched.created_at
     };
     enriched._sync = (async () => {
-      // One retry with backoff guards against a transient network/Supabase
-      // hiccup so a "success" screen does not silently hide a server write
-      // that never persisted. Escalate to console.error if it still fails.
+      // Employee submissions are routed through the Cloudflare Worker
+      // (POST /api/submit-test): it validates the row, performs the INSERT with
+      // the service role, and dispatches the alcohol-detected alert server-side.
+      // Anon clients can no longer INSERT into `tests` directly (RLS), and the
+      // alert can no longer be triggered as a standalone public request.
+      // One retry with backoff guards against a transient network hiccup so a
+      // "success" screen does not silently hide a write that never persisted.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const { error } = await _dbClient().from('tests').insert(row);
-        if (!error) return;
+        let ok = false;
+        try {
+          const res = await fetch('/api/submit-test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(row),
+          });
+          ok = res.ok;
+          if (!ok) console.warn('[DB.addTest] submit failed:', res.status);
+        } catch (e) {
+          console.warn('[DB.addTest] submit error:', e.message);
+        }
+        if (ok) return;
         if (attempt === 0) {
-          console.warn('[DB.addTest] insert failed, retrying:', error.message);
           await new Promise(r => setTimeout(r, 1500));
         } else {
-          console.error('[DB.addTest] insert failed after retry — record not persisted server-side:', error.message);
+          console.error('[DB.addTest] submit failed after retry — record not persisted server-side');
           enriched._syncFailed = true;
         }
       }

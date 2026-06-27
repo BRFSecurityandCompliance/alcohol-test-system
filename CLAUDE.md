@@ -156,7 +156,8 @@ render();
 ```
 
 ### RLS rules (tighten_rls migration)
-- Anon: INSERT tests, SELECT locations/companies/settings only
+- Anon: SELECT locations/companies/settings only (no direct table writes)
+- Test submission: Worker endpoint `POST /api/submit-test` — validates input, INSERTs with service role, and dispatches the alcohol-detected alert server-side (anon INSERT on `tests` was removed in `route_test_insert_via_worker`)
 - Admin (service role via Worker): full access to all tables
 - Employee lookup: Worker endpoint `/api/lookup-person?id=EMP001`
 

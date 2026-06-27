@@ -4,7 +4,7 @@ const ADMIN_PREFIX = '/api/admin';
 const VALID_PROXY_PREFIXES = ['/rest/v1/', '/storage/v1/'];
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (url.pathname === '/api/auth' && request.method === 'POST') {
@@ -13,8 +13,8 @@ export default {
     if (url.pathname === '/api/lookup-person' && request.method === 'GET') {
       return handlePersonLookup(url, env);
     }
-    if (url.pathname === '/api/alert' && request.method === 'POST') {
-      return handleSendAlert(request, env);
+    if (url.pathname === '/api/submit-test' && request.method === 'POST') {
+      return handleSubmitTest(request, env, ctx);
     }
     if (url.pathname.startsWith(ADMIN_PREFIX + '/')) {
       return handleAdminProxy(request, url, env);
@@ -94,82 +94,154 @@ async function handleAdminProxy(request, url, env) {
   });
 }
 
-// ── Alert Dispatch ────────────────────────────────────────────────────────────
+// ── Test Submission (employee form) ───────────────────────────────────────────
+// The employee form is unauthenticated, so the test INSERT is performed here
+// with the service role (anon INSERT on `tests` is no longer allowed by RLS).
+// Sending the alcohol-detected alert is a trusted side effect of a successful
+// insert — it can no longer be triggered as a standalone public action, which
+// closes the previously open /api/alert endpoint.
 
-// Per-isolate deduplication: prevents the same test_id from triggering
-// duplicate emails within an isolate's lifetime (hours to days on CF Workers).
-// Bounded at 2000 entries to cap memory use.
-const _alertedIds = new Set();
+// Threshold rules mirrored from data.js — `level` is recomputed server-side so
+// a crafted submission cannot understate its own severity.
+const _TH = {
+  default: [
+    { max: 0,        level: 'pass' },
+    { max: 20,       level: 'caution' },
+    { max: 50,       level: 'no-drive' },
+    { max: Infinity, level: 'illegal' },
+  ],
+  'พนักงานขนส่ง (Transport)': [
+    { max: 0,        level: 'pass' },
+    { max: 20,       level: 'no-drive' },
+    { max: Infinity, level: 'illegal' },
+  ],
+  'พนักงานรักษาความปลอดภัย (Security)': [
+    { max: 0,        level: 'pass' },
+    { max: 20,       level: 'caution' },
+    { max: Infinity, level: 'no-drive' },
+  ],
+};
+function _levelFor(value, department) {
+  const rules = _TH[department] || _TH.default;
+  const v = Number(value) || 0;
+  if (v === 0) return 'pass';
+  for (const r of rules) if (v <= r.max && r.max !== 0) return r.level;
+  return rules[rules.length - 1].level;
+}
 
-async function handleSendAlert(request, env) {
+// Trim + length-cap a user-supplied string before it reaches the DB.
+function _str(v, max = 300) {
+  return (v === null || v === undefined ? '' : String(v)).trim().slice(0, max);
+}
+
+async function handleSubmitTest(request, env, ctx) {
   try {
-    const { test_id } = await request.json();
-    if (!test_id || !_isUUID(test_id)) {
-      return Response.json({ error: 'Invalid test_id' }, { status: 400 });
+    const b = await request.json();
+
+    // The client generates the record UUID so it can link retests and redirect
+    // immediately; we only accept a well-formed UUID.
+    if (!_isUUID(b.id || '')) return Response.json({ error: 'Invalid id' }, { status: 400 });
+    const retest_of = b.retest_of && _isUUID(b.retest_of) ? b.retest_of : null;
+
+    const full_name     = _str(b.full_name);
+    const department    = _str(b.department);
+    const company       = _str(b.company);
+    const location_code = _str(b.location_code, 40);
+    if (!full_name || !department || !company || !location_code) {
+      return Response.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Reject duplicate sends for the same test within this isolate
-    if (_alertedIds.has(test_id)) {
-      return Response.json({ sent: 0, reason: 'already_sent' });
+    const is_zero = b.is_zero === true;
+    const alcohol_value = is_zero ? 0 : Math.max(0, Number(b.alcohol_value) || 0);
+    const level = _levelFor(alcohol_value, department);              // never trust client
+    const shift_id = ['morning', 'afternoon', 'night'].includes(b.shift_id) ? b.shift_id : 'morning';
+
+    const row = {
+      id: b.id,
+      employee_id:   _str(b.employee_id, 40),
+      full_name,
+      department,
+      plate_number:  _str(b.plate_number, 40),
+      company,
+      alcohol_value,
+      is_zero,
+      level,
+      location_code,
+      location_name: _str(b.location_name),
+      photo_url:     _str(b.photo_url, 1000),
+      shift_id,
+      device_serial: _str(b.device_serial, 60),
+      retest_of,
+      retest_status: ['required', 'completed', 'failed'].includes(b.retest_status) ? b.retest_status : null,
+      action_taken:  is_zero ? null : 'pending',
+      action_note:   '',
+      created_at:    typeof b.created_at === 'string' ? b.created_at : new Date().toISOString(),
+    };
+
+    // Insert with the service role. The location_code FK enforces a real
+    // location at the DB level, so forged codes are rejected.
+    const ins = await fetch(`${SUPABASE_URL}/rest/v1/tests`, {
+      method: 'POST',
+      headers: {
+        apikey: env.SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(row),
+    });
+    if (!ins.ok) {
+      console.warn('[handleSubmitTest] insert failed', ins.status, await ins.text());
+      return Response.json({ error: 'Insert failed' }, { status: 502 });
+    }
+    const inserted = (await ins.json())[0] || row;
+
+    // Alert on any non-zero result. This is the only path that can send an
+    // alert, and it runs in the background so the form is not blocked on Resend.
+    if (!is_zero) {
+      const work = dispatchAlert(inserted, env);
+      if (ctx && ctx.waitUntil) ctx.waitUntil(work); else await work;
     }
 
-    // Verify the test exists in Supabase and has alcohol detected
-    const testRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/tests?id=eq.${encodeURIComponent(test_id)}&select=id,full_name,department,company,location_name,location_code,alcohol_value,level,retest_of,created_at,is_zero&limit=1`,
-      { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
-    );
-    const tests = await testRes.json();
-    const test = Array.isArray(tests) ? tests[0] : null;
-    if (!test || test.is_zero) {
-      return Response.json({ sent: 0 });
-    }
+    return Response.json({ id: inserted.id, ok: true });
+  } catch (e) {
+    console.warn('[handleSubmitTest]', e.message);
+    return Response.json({ error: 'Bad request' }, { status: 400 });
+  }
+}
 
-    // If this is a retest, fetch the original test for the email
+// Send the alcohol-detected alert email for an already-persisted test row.
+async function dispatchAlert(test, env) {
+  try {
     let firstTest = null;
     if (test.retest_of) {
-      const firstRes = await fetch(
+      const r = await fetch(
         `${SUPABASE_URL}/rest/v1/tests?id=eq.${encodeURIComponent(test.retest_of)}&select=full_name,department,company,location_name,location_code,alcohol_value,level,created_at&limit=1`,
         { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
       );
-      const firstRows = await firstRes.json();
-      firstTest = Array.isArray(firstRows) ? firstRows[0] || null : null;
+      const rows = await r.json();
+      firstTest = Array.isArray(rows) ? rows[0] || null : null;
     }
 
-    // Fetch enabled email channels
     const chRes = await fetch(
       `${SUPABASE_URL}/rest/v1/alert_channels?kind=eq.email&enabled=eq.true&select=target`,
       { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
     );
     const channels = await chRes.json();
-    if (!Array.isArray(channels) || !channels.length) {
-      return Response.json({ sent: 0 });
-    }
+    if (!Array.isArray(channels) || !channels.length) return;
 
     const email = buildAlertEmail(test, firstTest);
     const from = env.ALERT_FROM_EMAIL || 'alerts@example.com';
-
-    let sent = 0;
     for (const ch of channels) {
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ from, to: [ch.target], subject: email.subject, html: email.html }),
       });
-      if (r.ok) sent++;
-      else console.warn('[sendAlert] Resend error', ch.target, await r.text());
+      if (!r.ok) console.warn('[dispatchAlert] Resend error', ch.target, await r.text());
     }
-
-    // Record as sent — evict oldest if cap reached
-    if (_alertedIds.size >= 2000) _alertedIds.delete(_alertedIds.values().next().value);
-    _alertedIds.add(test_id);
-
-    return Response.json({ sent });
   } catch (e) {
-    console.warn('[handleSendAlert]', e.message);
-    return Response.json({ error: 'Failed to send alert' }, { status: 500 });
+    console.warn('[dispatchAlert]', e.message);
   }
 }
 
