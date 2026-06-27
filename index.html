@@ -2,11 +2,14 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="refresh" content="0;url=project/index.html" />
+<meta http-equiv="refresh" content="0;url=https://alcohol-test-system.securitycompliance.workers.dev/" />
 <link rel="icon" type="image/svg+xml" href="project/favicon.svg" />
 <title>ระบบตรวจแอลกอฮอล์</title>
 </head>
 <body>
-<script>location.replace('project/index.html');</script>
+<!-- This repo is served two ways: GitHub Pages (static only, no /api/* backend)
+     and Cloudflare Workers (full app + login). GitHub Pages can't run the Worker,
+     so send all GitHub Pages traffic to the Workers domain. -->
+<script>location.replace('https://alcohol-test-system.securitycompliance.workers.dev/');</script>
 </body>
 </html>
