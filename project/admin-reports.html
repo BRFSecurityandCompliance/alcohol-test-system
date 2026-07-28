@@ -93,6 +93,12 @@
     </div>
   </div>
 
+  <!-- Per-site breakdown for the current filter/week -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h2 id="bysite-title"></h2><span class="muted small" id="bysite-sub"></span></div>
+    <div id="by-site" class="table-scroll"></div>
+  </div>
+
   <div class="table-wrap table-scroll">
     <table class="table">
       <thead>
@@ -153,6 +159,8 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
   document.getElementById('tl-pass').textContent = T('Pass','ผ่าน');
   document.getElementById('tl-pos').textContent = T('Detected','พบ');
   document.getElementById('sev-title').textContent = T('Severity','ระดับความรุนแรง');
+  document.getElementById('bysite-title').textContent = T('By Site','แยกตามสถานที่');
+  document.getElementById('bysite-sub').textContent = T('Tests per location in the selected period','จำนวนการตรวจแต่ละสถานที่ในช่วงที่เลือก');
   document.getElementById('table-head').innerHTML = `
     <th>${T('Date','วันที่')}</th><th>${T('Name','ชื่อ')}</th><th>${T('Department','แผนก')}</th><th>${T('Company','บริษัท')}</th><th>${T('Location','สถานที่')}</th><th>${T('Plate','ทะเบียน')}</th><th>${T('Week','สัปดาห์')}</th><th>${T('Shift','กะ')}</th><th>${T('Level','ระดับ')}</th><th>${T('Result','ผล')}</th>`;
 
@@ -265,6 +273,34 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
           <span class="sev-chip sev-${cls}"><span class="sev-dot dot-${cls}"></span>${label}</span>
           <span class="small" style="font-weight:600">${sum.severity[k]} <span class="muted" style="font-weight:400">· ${Math.round(sum.severity[k]/total1*100)}%</span></span>
         </div>`).join('')}</div>`;
+
+    // By-site breakdown — how much each location tested in the current filter/week
+    const bySite = {};
+    filtered.forEach(t => {
+      const k = t.location_code || '?';
+      const s = (bySite[k] ||= { code: k, name: t.location_name || k, total: 0, pass: 0, pos: 0, sumVal: 0, valN: 0 });
+      s.total++;
+      if (t.is_zero) s.pass++; else { s.pos++; s.sumVal += Number(t.alcohol_value) || 0; s.valN++; }
+    });
+    const siteRows = Object.values(bySite).sort((a, b) => b.total - a.total || b.pos - a.pos);
+    const maxTotal = siteRows[0]?.total || 1;
+    document.getElementById('by-site').innerHTML = siteRows.length ? `
+      <table class="table"><thead><tr>
+        <th>${T('Site','สถานที่')}</th><th>${T('Tests','จำนวนตรวจ')}</th><th>${T('Pass','ผ่าน')}</th><th>${T('Detected','พบ')}</th><th>${T('Detection %','% พบ')}</th><th>${T('Avg mg%','เฉลี่ย mg%')}</th><th style="width:22%">${T('Volume','ปริมาณ')}</th>
+      </tr></thead><tbody>${siteRows.map(s => {
+        const rate = Math.round(s.pos / s.total * 100);
+        const avg = s.valN ? (s.sumVal / s.valN).toFixed(1) : '—';
+        return `<tr>
+          <td><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${esc(s.code)}</span> ${esc(s.name)}</td>
+          <td style="font-weight:600">${s.total}</td>
+          <td class="small" style="color:var(--sev-pass)">${s.pass}</td>
+          <td class="small" style="color:var(--sev-nodrive)">${s.pos}</td>
+          <td>${s.pos ? `<span class="badge badge-danger">${rate}%</span>` : `<span class="badge badge-success">0%</span>`}</td>
+          <td class="small">${avg}</td>
+          <td><div class="mbar-track"><div class="mbar-fill" style="width:${s.total / maxTotal * 100}%"></div></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>`
+      : `<div class="muted small" style="padding:8px 0">${T('No data','ไม่มีข้อมูล')}</div>`;
 
     // Table
     document.getElementById('rows').innerHTML = filtered.length ? filtered.map(t => `
