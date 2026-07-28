@@ -93,6 +93,12 @@
     </div>
   </div>
 
+  <!-- Compliance coverage: which sites were (not) tested in the selected period -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h2 id="coverage-title"></h2><span class="muted small" id="coverage-sub"></span></div>
+    <div id="coverage"></div>
+  </div>
+
   <!-- Per-site breakdown for the current filter/week -->
   <div class="card" style="margin-bottom:20px">
     <div class="card-header"><h2 id="bysite-title"></h2><span class="muted small" id="bysite-sub"></span></div>
@@ -159,6 +165,8 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
   document.getElementById('tl-pass').textContent = T('Pass','ผ่าน');
   document.getElementById('tl-pos').textContent = T('Detected','พบ');
   document.getElementById('sev-title').textContent = T('Severity','ระดับความรุนแรง');
+  document.getElementById('coverage-title').textContent = T('Compliance Coverage','ความครอบคลุมการตรวจ');
+  document.getElementById('coverage-sub').textContent = T('Sites tested vs not tested in the selected date range','สถานที่ที่มี/ยังไม่มีการตรวจในช่วงวันที่เลือก');
   document.getElementById('bysite-title').textContent = T('By Site','แยกตามสถานที่');
   document.getElementById('bysite-sub').textContent = T('Tests per location in the selected period','จำนวนการตรวจแต่ละสถานที่ในช่วงที่เลือก');
   document.getElementById('table-head').innerHTML = `
@@ -273,6 +281,37 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
           <span class="sev-chip sev-${cls}"><span class="sev-dot dot-${cls}"></span>${label}</span>
           <span class="small" style="font-weight:600">${sum.severity[k]} <span class="muted" style="font-weight:400">· ${Math.round(sum.severity[k]/total1*100)}%</span></span>
         </div>`).join('')}</div>`;
+
+    // Compliance coverage — which viewable sites were (not) tested in the date
+    // range. Based on the date window only (ignores result/location/dept/company
+    // filters), so it stays a true coverage overview across all sites.
+    const covFrom = fFrom.value ? new Date(fFrom.value + 'T00:00:00') : null;
+    const covTo = fTo.value ? new Date(fTo.value + 'T23:59:59.999') : null;
+    const testedCodes = new Set(DB.tests().filter(t => canViewSite(t.location_code)).filter(t => {
+      const d = new Date(t.created_at);
+      if (covFrom && d < covFrom) return false;
+      if (covTo && d > covTo) return false;
+      return true;
+    }).map(t => t.location_code));
+    const allSites = DB.locations().filter(l => canViewSite(l.code));
+    const uncovered = allSites.filter(l => !testedCodes.has(l.code));
+    const coveredN = allSites.length - uncovered.length;
+    const covPct = allSites.length ? Math.round(coveredN / allSites.length * 100) : 0;
+    const covColor = covPct >= 100 ? 'var(--sev-pass)' : covPct >= 50 ? 'var(--warn)' : 'var(--sev-nodrive)';
+    document.getElementById('coverage').innerHTML = `
+      <div class="row between" style="margin-bottom:6px">
+        <span class="small">${coveredN}/${allSites.length} ${T('sites tested','สถานที่ที่มีการตรวจ')}</span>
+        <span class="small" style="font-weight:700; color:${covColor}">${covPct}%</span>
+      </div>
+      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden; margin-bottom:14px">
+        <div style="height:100%; width:${covPct}%; background:${covColor}; transition:width .4s ease"></div>
+      </div>
+      ${uncovered.length ? `
+        <div class="small" style="font-weight:600; margin-bottom:8px; color:var(--sev-nodrive)">${T('Not tested','ยังไม่ได้ตรวจ')} (${uncovered.length})</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px">
+          ${uncovered.map(l => `<span class="badge badge-warn"><span class="badge-dot"></span>${esc(l.name)} <span style="opacity:.7; font-family:var(--font-mono); font-size:11px">${esc(l.code)}</span></span>`).join('')}
+        </div>`
+        : `<span class="badge badge-success"><span class="badge-dot"></span>${T('All sites tested in this range','ทุกสถานที่มีการตรวจในช่วงนี้')}</span>`}`;
 
     // By-site breakdown — how much each location tested in the current filter/week
     const bySite = {};
