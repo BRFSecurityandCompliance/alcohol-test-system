@@ -17,6 +17,13 @@
   --warn-soft: #fef3c7;
   --danger: #b91c1c;
   --danger-soft: #fee2e2;
+  /* Severity status palette — validated for the light chart surface (dataviz
+     validate_palette). Ordinal states, always shown with a text label + dot
+     (secondary encoding), so amber's sub-3:1 surface contrast is acceptable. */
+  --sev-pass: #15803d;    --sev-pass-soft: #e6f4ec;
+  --sev-caution: #ca8a04; --sev-caution-soft: #fdf0cf;
+  --sev-nodrive: #ef4444; --sev-nodrive-soft: #fde4e4;
+  --sev-illegal: #991b1b; --sev-illegal-soft: #f7cfcf;
   --font: "Sarabun", "Noto Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
@@ -232,3 +239,62 @@ body.kiosk { background:#0b1426; color:#fff; }
 .net-pill { position:fixed; top:12px; right:12px; padding:6px 12px; border-radius:999px; font-size:12px; font-weight:600; box-shadow:var(--shadow-md); z-index:100; }
 .net-pill.online { background:var(--success); color:#fff; }
 .net-pill.offline { background:var(--warn); color:#fff; }
+
+/* ===== Analytics: period bar, KPIs, deltas, severity, trend (dashboard + reports) ===== */
+.period-bar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; margin-bottom:20px; }
+.period-bar .field { margin:0; }
+.period-bar label { display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.03em; }
+.seg { display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-md); padding:3px; gap:2px; }
+.seg-btn { border:none; background:transparent; color:var(--text-muted); font-family:inherit; font-size:13px; font-weight:600; padding:7px 12px; border-radius:7px; cursor:pointer; white-space:nowrap; transition:all .12s ease; }
+.seg-btn:hover { color:var(--text); }
+.seg-btn.active { background:var(--surface); color:var(--brand); box-shadow:var(--shadow-sm); }
+
+/* KPI tiles */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; }
+.kpi { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; box-shadow:var(--shadow-sm); }
+.kpi .k-label { font-size:12px; color:var(--text-muted); font-weight:600; display:flex; align-items:center; gap:6px; }
+.kpi .k-val { font-size:26px; font-weight:700; letter-spacing:-.02em; margin-top:6px; line-height:1.1; }
+.kpi .k-sub { font-size:12px; color:var(--text-soft); margin-top:4px; }
+
+/* Delta chip (period-over-period) — promoted from dashboard so reports can reuse */
+.delta-chip { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:99px; font-size:12px; font-weight:600; }
+.delta-up { background:#dcfce7; color:#166534; }
+.delta-down { background:var(--danger-soft); color:#7f1d1d; }
+.delta-same { background:var(--surface-2); color:var(--text-muted); }
+
+/* Severity chips + legend */
+.sev-legend { display:flex; flex-wrap:wrap; gap:10px 16px; }
+.sev-chip { display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:3px 10px; border-radius:99px; }
+.sev-dot { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+.sev-pass    { background:var(--sev-pass-soft);    color:var(--sev-pass); }
+.sev-caution { background:var(--sev-caution-soft); color:#8a5a00; }
+.sev-nodrive { background:var(--sev-nodrive-soft); color:#b91c1c; }
+.sev-illegal { background:var(--sev-illegal-soft); color:var(--sev-illegal); }
+.dot-pass    { background:var(--sev-pass); }
+.dot-caution { background:var(--sev-caution); }
+.dot-nodrive { background:var(--sev-nodrive); }
+.dot-illegal { background:var(--sev-illegal); }
+
+/* Stacked severity bar — 2px surface gaps between segments */
+.sev-bar { display:flex; height:14px; border-radius:99px; overflow:hidden; background:var(--surface-2); gap:2px; }
+.sev-bar > span { height:100%; min-width:0; transition:flex-basis .4s ease; }
+.sev-bar > span:first-child { border-radius:99px 0 0 99px; }
+.sev-bar > span:last-child { border-radius:0 99px 99px 0; }
+
+/* Adaptive trend chart (day/week buckets) */
+.trend { display:flex; align-items:flex-end; gap:6px; height:160px; padding-top:20px; }
+.trend-col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:0; min-width:0; height:100%; position:relative; cursor:default; }
+.trend-stack { width:70%; max-width:34px; display:flex; flex-direction:column; justify-content:flex-end; gap:2px; height:100%; }
+.trend-seg { width:100%; border-radius:3px; min-height:0; }
+.trend-seg.pass { background:var(--sev-pass); }
+.trend-seg.pos  { background:var(--sev-nodrive); }
+.trend-col .t-lbl { font-size:10px; color:var(--text-muted); margin-top:6px; white-space:nowrap; }
+.trend-col[data-tip]:hover::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 2px); left:50%; transform:translateX(-50%); background:var(--text); color:#fff; padding:5px 9px; border-radius:5px; font-size:11px; white-space:pre; z-index:20; pointer-events:none; box-shadow:var(--shadow-md); }
+
+/* Horizontal mini-bars (shift analysis, rankings reuse) */
+.mbar-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.mbar-name { width:120px; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
+.mbar-track { flex:1; height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden; }
+.mbar-fill { height:100%; border-radius:99px; background:var(--brand); transition:width .4s ease; }
+.mbar-fill.danger { background:var(--sev-nodrive); }
+.mbar-val { font-size:12px; font-weight:600; min-width:64px; text-align:right; color:var(--text-muted); }

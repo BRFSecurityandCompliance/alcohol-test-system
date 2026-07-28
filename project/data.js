@@ -410,6 +410,145 @@ function showToast(msg, kind = '') {
   setTimeout(() => t.classList.remove('show'), 2400);
 }
 
+// ===== Analytics helpers (shared by dashboard + reports) =====
+// Pure, side-effect-free date/aggregation utilities. Kept dependency-free so
+// they can be unit-tested via a mirror copy in tests/unit/helpers.js.
+// A duplicate of this block lives there — keep the two in sync when editing.
+
+// ISO-8601 week number of a local date. Week 1 is the week containing the
+// first Thursday of the year (equivalently, containing Jan 4). Returns the ISO
+// year too, which can differ from the calendar year for late-Dec / early-Jan.
+function isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7;            // Mon=0 … Sun=6
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);          // shift to Thursday of this week
+  const isoYear = d.getUTCFullYear();
+  const firstThu = new Date(Date.UTC(isoYear, 0, 4)); // Jan 4 is always in week 1
+  const firstThuDay = (firstThu.getUTCDay() + 6) % 7;
+  firstThu.setUTCDate(firstThu.getUTCDate() - firstThuDay + 3);
+  const week = 1 + Math.round((d.getTime() - firstThu.getTime()) / (7 * 86400000));
+  return { year: isoYear, week };
+}
+
+// Local-time Monday 00:00 → Sunday 23:59:59.999 for a given ISO year+week.
+function weekRange(year, week) {
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = (jan4.getDay() + 6) % 7;            // Mon=0
+  const start = new Date(year, 0, 4 - jan4Day + (week - 1) * 7);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+// Parse the value of a native <input type="week"> ("2026-W32").
+function parseWeekInput(str) {
+  const m = /^(\d{4})-W(\d{2})$/.exec((str || '').trim());
+  if (!m) return null;
+  const year = +m[1], week = +m[2];
+  if (week < 1 || week > 53) return null;
+  const { start, end } = weekRange(year, week);
+  return { year, week, start, end, label: `${year}-W${String(week).padStart(2, '0')}` };
+}
+
+// Resolve a preset ('today' | '7d' | 'week' | 'month') to the current window and
+// the immediately preceding equal-length window (for period-over-period deltas).
+function periodRange(preset, ref = new Date()) {
+  const r = new Date(ref);
+  let start, end, prevStart, prevEnd;
+  if (preset === 'today') {
+    start = new Date(r); start.setHours(0, 0, 0, 0);
+    end = new Date(r); end.setHours(23, 59, 59, 999);
+    prevStart = new Date(start); prevStart.setDate(start.getDate() - 1);
+    prevEnd = new Date(end); prevEnd.setDate(end.getDate() - 1);
+  } else if (preset === '7d') {
+    end = new Date(r); end.setHours(23, 59, 59, 999);
+    start = new Date(end); start.setDate(end.getDate() - 6); start.setHours(0, 0, 0, 0);
+    prevEnd = new Date(start); prevEnd.setDate(start.getDate() - 1); prevEnd.setHours(23, 59, 59, 999);
+    prevStart = new Date(prevEnd); prevStart.setDate(prevEnd.getDate() - 6); prevStart.setHours(0, 0, 0, 0);
+  } else if (preset === 'week') {
+    const iw = isoWeek(r);
+    ({ start, end } = weekRange(iw.year, iw.week));
+    prevStart = new Date(start); prevStart.setDate(start.getDate() - 7);
+    prevEnd = new Date(end); prevEnd.setDate(end.getDate() - 7);
+  } else { // 'month'
+    preset = 'month';
+    start = new Date(r.getFullYear(), r.getMonth(), 1, 0, 0, 0, 0);
+    end = new Date(r.getFullYear(), r.getMonth() + 1, 0, 23, 59, 59, 999);
+    prevStart = new Date(r.getFullYear(), r.getMonth() - 1, 1, 0, 0, 0, 0);
+    prevEnd = new Date(r.getFullYear(), r.getMonth(), 0, 23, 59, 59, 999);
+  }
+  return { preset, start, end, prevStart, prevEnd };
+}
+
+// Split tests into ordered day- or week-buckets across [start, end].
+// Daily buckets when the span is ≤ 31 days, weekly (Mon-aligned) beyond that.
+function bucketTests(tests, start, end) {
+  const span = (end - start) / 86400000;
+  const gran = span > 31 ? 'week' : 'day';
+  const buckets = [];
+  const cur = new Date(start); cur.setHours(0, 0, 0, 0);
+  if (gran === 'week') cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7)); // align to Monday
+  while (cur <= end) {
+    const bStart = new Date(cur);
+    const bEnd = new Date(cur);
+    if (gran === 'day') { bEnd.setHours(23, 59, 59, 999); cur.setDate(cur.getDate() + 1); }
+    else { bEnd.setDate(bEnd.getDate() + 6); bEnd.setHours(23, 59, 59, 999); cur.setDate(cur.getDate() + 7); }
+    buckets.push({ start: bStart, end: bEnd, tests: [] });
+  }
+  for (const t of tests) {
+    const d = new Date(t.created_at);
+    const b = buckets.find(x => d >= x.start && d <= x.end);
+    if (b) b.tests.push(t);
+  }
+  return { gran, buckets };
+}
+
+// One-pass rollup of a test set. Severity comes straight from t.level, so it
+// respects the department-specific thresholds already applied at record time.
+function summarize(tests) {
+  const severity = { pass: 0, caution: 0, 'no-drive': 0, illegal: 0 };
+  const retests = { required: 0, completed: 0, failed: 0 };
+  const byShift = { morning: 0, afternoon: 0, night: 0 };
+  let zero = 0, sumVal = 0, valCount = 0;
+  for (const t of tests) {
+    if (t.is_zero) zero++; else { sumVal += Number(t.alcohol_value) || 0; valCount++; }
+    const lvl = t.level || (t.is_zero ? 'pass' : 'no-drive');
+    if (severity[lvl] !== undefined) severity[lvl]++;
+    if (t.retest_status && retests[t.retest_status] !== undefined) retests[t.retest_status]++;
+    if (t.shift_id && byShift[t.shift_id] !== undefined) byShift[t.shift_id]++;
+  }
+  const total = tests.length;
+  const positive = total - zero;
+  return {
+    total, zero, positive,
+    passRate: total ? Math.round(zero / total * 100) : 0,
+    severity, retests, byShift,
+    avgValue: valCount ? +(sumVal / valCount).toFixed(1) : 0,
+  };
+}
+
+// People with ≥ minPositives non-zero results in the set, worst first.
+// Keyed by employee_id when present, else full_name.
+function repeatOffenders(tests, minPositives = 2) {
+  const map = new Map();
+  for (const t of tests) {
+    if (t.is_zero) continue;
+    const key = t.employee_id || t.full_name || 'unknown';
+    if (!map.has(key)) {
+      map.set(key, { key, name: t.full_name || t.employee_id || '—', employee_id: t.employee_id || '', department: t.department || '', company: t.company || '', count: 0, maxValue: 0, lastAt: t.created_at });
+    }
+    const o = map.get(key);
+    o.count++;
+    o.maxValue = Math.max(o.maxValue, Number(t.alcohol_value) || 0);
+    if (new Date(t.created_at) > new Date(o.lastAt)) o.lastAt = t.created_at;
+  }
+  return [...map.values()]
+    .filter(o => o.count >= minPositives)
+    .sort((a, b) => b.count - a.count || b.maxValue - a.maxValue);
+}
+
 // ===== FEATURE #12: i18n =====
 const I18N = {
   th: { lang_name: 'ไทย', full_name: 'ชื่อ-นามสกุล', department: 'แผนก / ตำแหน่ง', company: 'บริษัท', plate: 'ทะเบียนรถ', result: 'ผลการตรวจแอลกอฮอล์', no_alcohol: 'ไม่พบแอลกอฮอล์', has_alcohol: 'ตรวจพบแอลกอฮอล์', value_mg: 'ค่าที่วัดได้ (mg%)', take_photo: 'แตะเพื่อถ่ายรูป', submit: 'ส่งข้อมูล', record: 'บันทึกผลตรวจแอลกอฮอล์', fill_in: 'กรุณากรอกข้อมูลให้ครบถ้วนตามจริง', employee_id: 'รหัสพนักงาน', quick_lookup: 'ค้นหารวดเร็ว', quick_hint: 'เคยลงทะเบียน → ระบบเติมข้อมูลให้อัตโนมัติ', search: 'ค้นหา', photo_label: 'ภาพถ่ายเครื่องตรวจ', camera_only: 'ใช้กล้องเท่านั้น', sig_label: 'ลายเซ็นพนักงาน (ยืนยันผลตรวจ)', sig_hint: 'ใช้นิ้วเซ็นบนกล่อง', clear: 'ล้าง', company_placeholder: 'พิมพ์ชื่อบริษัท...', company_new: 'ไม่พบ — พิมพ์เพื่อเพิ่มใหม่', offline: '⚡ ออฟไลน์ — บันทึกในเครื่อง', online_pre: '✓ ออนไลน์ · sync ', online_suf: ' รายการ', invalid_title: 'ไม่สามารถเข้าใช้งานได้', invalid_msg: 'ไม่พบรหัสสถานที่ (location) ใน URL กรุณาสแกน QR Code ของจุดตรวจอีกครั้ง', back_home: 'กลับหน้าหลัก', qr_locked: '🔒 ระบุจาก QR', device_prefix: 'เครื่อง:', select_dept: '-- เลือก --', tp_pass: 'ผ่านเกณฑ์', tp_caution: 'ห้ามขับยานพาหนะ — แจ้งหัวหน้างาน', tp_nodrive: 'ห้ามขับ ห้ามเข้างาน — แจ้งทันที', tp_illegal: 'เกินกฎหมาย — รายงานทันที', tp_level: 'ระดับ:', stamp_at: 'บันทึกพร้อมตำแหน่ง', shift_at: 'กะ', pdpa: 'นโยบายคุ้มครองข้อมูลส่วนบุคคล (PDPA)', emp_not_found: 'ไม่พบรหัสพนักงาน', emp_loaded: 'โหลดข้อมูลแล้ว', company_use: 'ใช้', company_new_badge: 'ใหม่', retest_title: 'ตรวจซ้ำ (Re-test)', retest_for: 'ของ', retest_first: '· ครั้งแรกค่า', retest_time: 'เวลา', rt_notfound_title: 'ไม่พบข้อมูลการตรวจ', rt_notfound_msg: 'กรุณาสแกน QR Code ใหม่อีกครั้ง', rt_failed: 'ผลตรวจไม่ผ่าน', rt_must_pre: 'ต้องตรวจซ้ำหลังจากรอครบ ', rt_must_suf: ' นาที', rt_name: 'ชื่อ', rt_dept: 'แผนก', rt_location: 'สถานที่', rt_first: 'ผลครั้งแรก', rt_level: 'ระดับ', rt_time: 'เวลาตรวจ', rt_banner: 'ห้ามออกจากบริเวณตรวจ — รอจนนับเวลาครบก่อนตรวจซ้ำ หากตรวจซ้ำยังไม่ผ่านจะถูกบันทึกและแจ้งหัวหน้างาน', rt_waiting: 'เวลาที่ต้องรอ', rt_wait_sub: 'กรุณารอจนนับถอยหลังครบ', rt_ready: 'พร้อมตรวจซ้ำแล้ว!', rt_ready_pre: 'ครบ ', rt_ready_suf: ' นาทีแล้ว กดปุ่มด้านล่างเพื่อทำการตรวจซ้ำ', rt_btn: 'ตรวจซ้ำเลย',

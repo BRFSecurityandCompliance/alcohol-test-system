@@ -8,6 +8,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <link rel="stylesheet" href="shared.css" />
+<style>
+  @media (max-width: 860px) { .dash-row { grid-template-columns:1fr !important; } }
+  .table-scroll { overflow-x:auto; }
+</style>
 </head>
 <body>
 <div id="chrome"></div>
@@ -22,6 +26,17 @@
 
   <div class="card" style="margin-bottom:20px">
     <h3 id="filter-title" style="margin-bottom:14px"></h3>
+    <div class="period-bar">
+      <div class="field"><label id="label-quick"></label>
+        <div class="seg" id="quick-seg">
+          <button class="seg-btn" data-q="today"></button>
+          <button class="seg-btn" data-q="week"></button>
+          <button class="seg-btn" data-q="lastweek"></button>
+          <button class="seg-btn" data-q="month"></button>
+        </div>
+      </div>
+      <div class="field"><label id="label-week"></label><input class="input" type="week" id="f-week" /></div>
+    </div>
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px">
       <div class="field">
         <label id="label-location"></label>
@@ -59,7 +74,38 @@
     </div>
   </div>
 
-  <div class="table-wrap">
+  <!-- Summary + charts for the current filter -->
+  <div id="summary" class="stats" style="margin-bottom:16px"></div>
+  <div class="dash-row" style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:20px">
+    <div class="card">
+      <div class="card-header">
+        <h2 id="trend-title"></h2>
+        <div class="row gap-sm">
+          <span class="sev-dot dot-pass"></span><span class="tiny muted" id="tl-pass"></span>
+          <span class="sev-dot dot-nodrive"></span><span class="tiny muted" id="tl-pos"></span>
+        </div>
+      </div>
+      <div class="trend" id="trend"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2 id="sev-title"></h2></div>
+      <div id="sev"></div>
+    </div>
+  </div>
+
+  <!-- Compliance coverage: which sites were (not) tested in the selected period -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h2 id="coverage-title"></h2><span class="muted small" id="coverage-sub"></span></div>
+    <div id="coverage"></div>
+  </div>
+
+  <!-- Per-site breakdown for the current filter/week -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-header"><h2 id="bysite-title"></h2><span class="muted small" id="bysite-sub"></span></div>
+    <div id="by-site" class="table-scroll"></div>
+  </div>
+
+  <div class="table-wrap table-scroll">
     <table class="table">
       <thead>
         <tr id="table-head"></tr>
@@ -77,61 +123,225 @@ DB.init().then(() => {
 if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = 'admin-dashboard.html'; } else {
   document.getElementById('chrome').innerHTML = renderTopbar('reports');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const T = (en, th) => isEN ? en : th;
 
-  document.getElementById('page-title').textContent = isEN ? 'Reports' : 'รายงาน';
-  document.getElementById('page-sub').textContent = isEN ? 'Filter data and export reports' : 'กรองข้อมูลและส่งออกรายงาน';
-  document.getElementById('export-btn').textContent = isEN ? '📥 Export CSV' : '📥 ส่งออก CSV';
-  document.getElementById('filter-title').textContent = isEN ? 'Filters' : 'ตัวกรอง';
-  document.getElementById('label-location').textContent = isEN ? 'Location' : 'สถานที่';
-  document.getElementById('opt-all-loc').textContent = isEN ? 'All' : 'ทั้งหมด';
-  document.getElementById('label-dept').textContent = isEN ? 'Department' : 'แผนก';
-  document.getElementById('opt-all-dept').textContent = isEN ? 'All' : 'ทั้งหมด';
-  document.getElementById('label-co').textContent = isEN ? 'Company' : 'บริษัท';
-  document.getElementById('opt-all-co').textContent = isEN ? 'All' : 'ทั้งหมด';
-  document.getElementById('label-result').textContent = isEN ? 'Test Result' : 'ผลตรวจ';
-  document.getElementById('opt-all-result').textContent = isEN ? 'All' : 'ทั้งหมด';
-  document.getElementById('opt-zero').textContent = isEN ? '0% Only' : '0% เท่านั้น';
-  document.getElementById('opt-positive').textContent = isEN ? 'Alcohol Detected Only' : 'พบแอลกอฮอล์เท่านั้น';
-  document.getElementById('label-from').textContent = isEN ? 'Start Date' : 'วันที่เริ่ม';
-  document.getElementById('label-to').textContent = isEN ? 'End Date' : 'วันที่สิ้นสุด';
-  document.getElementById('filter-btn').textContent = isEN ? 'Filter' : 'กรอง';
-  document.getElementById('reset-btn').textContent = isEN ? 'Clear' : 'ล้าง';
+  const SEV = [
+    ['pass',     T('Pass','ผ่าน'),        'pass'],
+    ['caution',  T('Caution','เตือน'),    'caution'],
+    ['no-drive', T('No-drive','ห้ามขับ'), 'nodrive'],
+    ['illegal',  T('Illegal','ผิดกฎหมาย'),'illegal'],
+  ];
+  const SHIFT_LABEL = { morning: T('Morning','เช้า'), afternoon: T('Afternoon','บ่าย'), night: T('Night','ดึก') };
+  const sevOf = (t) => t.level || (t.is_zero ? 'pass' : 'no-drive');
+  const sevChip = (t) => { const lv = sevOf(t); const c = { pass:'pass', caution:'caution', 'no-drive':'nodrive', illegal:'illegal' }[lv] || 'nodrive'; const lbl = (SEV.find(s => s[0] === lv) || [,lv])[1]; return `<span class="sev-chip sev-${c}"><span class="sev-dot dot-${c}"></span>${lbl}</span>`; };
+  const pad = (n) => String(n).padStart(2, '0');
+  const toDateInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  document.getElementById('page-title').textContent = T('Reports','รายงาน');
+  document.getElementById('page-sub').textContent = T('Filter data and export reports','กรองข้อมูลและส่งออกรายงาน');
+  document.getElementById('export-btn').textContent = T('📥 Export CSV','📥 ส่งออก CSV');
+  document.getElementById('filter-title').textContent = T('Filters','ตัวกรอง');
+  document.getElementById('label-quick').textContent = T('Quick Range','ช่วงด่วน');
+  document.getElementById('label-week').textContent = T('Week (ISO)','สัปดาห์ (ISO)');
+  document.querySelector('#quick-seg [data-q="today"]').textContent = T('Today','วันนี้');
+  document.querySelector('#quick-seg [data-q="week"]').textContent = T('This Week','สัปดาห์นี้');
+  document.querySelector('#quick-seg [data-q="lastweek"]').textContent = T('Last Week','สัปดาห์ก่อน');
+  document.querySelector('#quick-seg [data-q="month"]').textContent = T('This Month','เดือนนี้');
+  document.getElementById('label-location').textContent = T('Location','สถานที่');
+  document.getElementById('opt-all-loc').textContent = T('All','ทั้งหมด');
+  document.getElementById('label-dept').textContent = T('Department','แผนก');
+  document.getElementById('opt-all-dept').textContent = T('All','ทั้งหมด');
+  document.getElementById('label-co').textContent = T('Company','บริษัท');
+  document.getElementById('opt-all-co').textContent = T('All','ทั้งหมด');
+  document.getElementById('label-result').textContent = T('Test Result','ผลตรวจ');
+  document.getElementById('opt-all-result').textContent = T('All','ทั้งหมด');
+  document.getElementById('opt-zero').textContent = T('0% Only','0% เท่านั้น');
+  document.getElementById('opt-positive').textContent = T('Alcohol Detected Only','พบแอลกอฮอล์เท่านั้น');
+  document.getElementById('label-from').textContent = T('Start Date','วันที่เริ่ม');
+  document.getElementById('label-to').textContent = T('End Date','วันที่สิ้นสุด');
+  document.getElementById('filter-btn').textContent = T('Filter','กรอง');
+  document.getElementById('reset-btn').textContent = T('Clear','ล้าง');
+  document.getElementById('trend-title').textContent = T('Trend','แนวโน้ม');
+  document.getElementById('tl-pass').textContent = T('Pass','ผ่าน');
+  document.getElementById('tl-pos').textContent = T('Detected','พบ');
+  document.getElementById('sev-title').textContent = T('Severity','ระดับความรุนแรง');
+  document.getElementById('coverage-title').textContent = T('Compliance Coverage','ความครอบคลุมการตรวจ');
+  document.getElementById('coverage-sub').textContent = T('Sites tested vs not tested in the selected date range','สถานที่ที่มี/ยังไม่มีการตรวจในช่วงวันที่เลือก');
+  document.getElementById('bysite-title').textContent = T('By Site','แยกตามสถานที่');
+  document.getElementById('bysite-sub').textContent = T('Tests per location in the selected period','จำนวนการตรวจแต่ละสถานที่ในช่วงที่เลือก');
   document.getElementById('table-head').innerHTML = `
-    <th>${isEN ? 'Date' : 'วันที่'}</th><th>${isEN ? 'Name' : 'ชื่อ'}</th><th>${isEN ? 'Department' : 'แผนก'}</th><th>${isEN ? 'Company' : 'บริษัท'}</th><th>${isEN ? 'Location' : 'สถานที่'}</th><th>${isEN ? 'License Plate' : 'ทะเบียน'}</th><th>${isEN ? 'Result' : 'ผล'}</th>
-  `;
+    <th>${T('Date','วันที่')}</th><th>${T('Name','ชื่อ')}</th><th>${T('Department','แผนก')}</th><th>${T('Company','บริษัท')}</th><th>${T('Location','สถานที่')}</th><th>${T('Plate','ทะเบียน')}</th><th>${T('Week','สัปดาห์')}</th><th>${T('Shift','กะ')}</th><th>${T('Level','ระดับ')}</th><th>${T('Result','ผล')}</th>`;
 
   const fLoc = document.getElementById('f-location');
   const fDept = document.getElementById('f-department');
   const fCo = document.getElementById('f-company');
+  const fWeek = document.getElementById('f-week');
+  const fFrom = document.getElementById('f-from');
+  const fTo = document.getElementById('f-to');
   DB.locations().forEach(l => fLoc.insertAdjacentHTML('beforeend', `<option value="${esc(l.code)}">${esc(l.name)} (${esc(l.code)})</option>`));
   DEPARTMENTS.forEach(d => fDept.insertAdjacentHTML('beforeend', `<option value="${esc(d)}">${esc(d)}</option>`));
   DB.companies().forEach(c => fCo.insertAdjacentHTML('beforeend', `<option value="${esc(c.name)}">${esc(c.name)}</option>`));
 
+  const syncQuick = (q) => document.querySelectorAll('#quick-seg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.q === q));
+
+  // Quick-range buttons set the from/to date inputs, then filter.
+  document.querySelectorAll('#quick-seg .seg-btn').forEach(b => b.onclick = () => {
+    const q = b.dataset.q;
+    const pr = periodRange(q === 'lastweek' ? 'week' : q);
+    const start = q === 'lastweek' ? pr.prevStart : pr.start;
+    const end = q === 'lastweek' ? pr.prevEnd : pr.end;
+    fFrom.value = toDateInput(start); fTo.value = toDateInput(end); fWeek.value = '';
+    syncQuick(q); apply();
+  });
+  fWeek.onchange = () => {
+    const w = parseWeekInput(fWeek.value);
+    if (!w) return;
+    fFrom.value = toDateInput(w.start); fTo.value = toDateInput(w.end);
+    syncQuick(null); apply();
+  };
+  // Manual date edits invalidate the quick-range highlight.
+  fFrom.onchange = fTo.onchange = () => syncQuick(null);
+
   let filtered = DB.tests().filter(t => canViewSite(t.location_code));
   function apply() {
-    const loc = fLoc.value, dept = fDept.value, co = fCo.value;
+    const locV = fLoc.value, dept = fDept.value, co = fCo.value;
     const result = document.getElementById('f-result').value;
-    const from = document.getElementById('f-from').value;
-    const to = document.getElementById('f-to').value;
+    const from = fFrom.value, to = fTo.value;
     filtered = DB.tests().filter(t => canViewSite(t.location_code)).filter(t => {
-      if (loc && t.location_code !== loc) return false;
+      if (locV && t.location_code !== locV) return false;
       if (dept && t.department !== dept) return false;
       if (co && t.company !== co) return false;
       if (result === 'zero' && !t.is_zero) return false;
       if (result === 'positive' && t.is_zero) return false;
       const d = new Date(t.created_at);
-      if (from && d < new Date(from)) return false;
-      if (to) { const tEnd = new Date(to); tEnd.setHours(23,59,59); if (d > tEnd) return false; }
+      if (from && d < new Date(from + 'T00:00:00')) return false;
+      if (to) { const tEnd = new Date(to + 'T23:59:59.999'); if (d > tEnd) return false; }
       return true;
     });
     render();
   }
   function reset() {
-    [fLoc, fDept, fCo, document.getElementById('f-result'), document.getElementById('f-from'), document.getElementById('f-to')].forEach(el => el.value = '');
+    [fLoc, fDept, fCo, document.getElementById('f-result'), fFrom, fTo, fWeek].forEach(el => el.value = '');
+    syncQuick(null);
     apply();
   }
+
+  // Bounds for the trend chart: the selected from/to, else the data's own span.
+  function trendBounds() {
+    const from = fFrom.value, to = fTo.value;
+    let start = from ? new Date(from + 'T00:00:00') : null;
+    let end = to ? new Date(to + 'T23:59:59.999') : null;
+    if (!start || !end) {
+      if (!filtered.length) { const now = new Date(); return { start: new Date(now.getTime() - 6 * 86400000), end: now }; }
+      const times = filtered.map(t => new Date(t.created_at).getTime());
+      if (!start) start = new Date(Math.min(...times));
+      if (!end) end = new Date(Math.max(...times));
+    }
+    return { start, end };
+  }
+
   function render() {
-    document.getElementById('count').textContent = isEN ? `${filtered.length} records found` : `พบ ${filtered.length} รายการ`;
+    document.getElementById('count').textContent = T(`${filtered.length} records found`, `พบ ${filtered.length} รายการ`);
+    const sum = summarize(filtered);
+    const serious = sum.severity['no-drive'] + sum.severity.illegal;
+
+    // Summary tiles
+    document.getElementById('summary').innerHTML = `
+      <div class="stat accent-blue"><div class="label">${T('Total','ทั้งหมด')}</div><div class="value">${sum.total}</div></div>
+      <div class="stat accent-green"><div class="label">${T('Pass Rate','อัตราผ่าน')}</div><div class="value">${sum.passRate}%</div><div class="delta">${sum.zero}/${sum.total}</div></div>
+      <div class="stat accent-red"><div class="label">${T('Detected','ตรวจพบ')}</div><div class="value">${sum.positive}</div></div>
+      <div class="stat accent-red"><div class="label">${T('No-drive + Illegal','ห้ามขับ+ผิดกม.')}</div><div class="value">${serious}</div></div>
+      <div class="stat"><div class="label">${T('Avg mg%','เฉลี่ย mg%')}</div><div class="value">${sum.avgValue}</div></div>
+      <div class="stat"><div class="label">${T('Retests R/C/F','ตรวจซ้ำ ต/ส/ล')}</div><div class="value" style="font-size:22px">${sum.retests.required}/${sum.retests.completed}/${sum.retests.failed}</div></div>`;
+
+    // Trend
+    const { start, end } = trendBounds();
+    const { gran, buckets } = bucketTests(filtered, start, end);
+    const maxB = Math.max(...buckets.map(b => b.tests.length), 1);
+    document.getElementById('trend').innerHTML = buckets.length ? buckets.map(b => {
+      const s = summarize(b.tests);
+      const passH = s.zero / maxB * 100, posH = s.positive / maxB * 100;
+      const lbl = gran === 'week' ? 'W' + isoWeek(b.start).week : String(b.start.getDate());
+      const dl = gran === 'week' ? `${formatDateShort(b.start)} – ${formatDateShort(b.end)}` : formatDateShort(b.start);
+      const tip = `${dl}\n${s.total} ${T('tests','ผล')} · ${s.zero} ${T('pass','ผ่าน')} · ${s.positive} ${T('detected','พบ')}`;
+      return `<div class="trend-col" data-tip="${esc(tip)}"><div class="trend-stack">
+        <div class="trend-seg pos" style="height:${posH}%; min-height:${s.positive ? 3 : 0}px"></div>
+        <div class="trend-seg pass" style="height:${passH}%; min-height:${s.zero ? 3 : 0}px"></div>
+      </div><div class="t-lbl">${lbl}</div></div>`;
+    }).join('') : `<div class="muted small" style="margin:auto">${T('No data','ไม่มีข้อมูล')}</div>`;
+
+    // Severity breakdown
+    const total1 = sum.total || 1;
+    document.getElementById('sev').innerHTML = `
+      <div class="sev-bar" style="margin-bottom:16px">
+        ${SEV.map(([k,, cls]) => sum.severity[k] ? `<span style="flex:${sum.severity[k]} 1 0; background:var(--sev-${cls})" title="${sum.severity[k]}"></span>` : '').join('')}
+      </div>
+      <div class="col gap-sm">${SEV.map(([k, label, cls]) => `
+        <div class="row between">
+          <span class="sev-chip sev-${cls}"><span class="sev-dot dot-${cls}"></span>${label}</span>
+          <span class="small" style="font-weight:600">${sum.severity[k]} <span class="muted" style="font-weight:400">· ${Math.round(sum.severity[k]/total1*100)}%</span></span>
+        </div>`).join('')}</div>`;
+
+    // Compliance coverage — which viewable sites were (not) tested in the date
+    // range. Based on the date window only (ignores result/location/dept/company
+    // filters), so it stays a true coverage overview across all sites.
+    const covFrom = fFrom.value ? new Date(fFrom.value + 'T00:00:00') : null;
+    const covTo = fTo.value ? new Date(fTo.value + 'T23:59:59.999') : null;
+    const testedCodes = new Set(DB.tests().filter(t => canViewSite(t.location_code)).filter(t => {
+      const d = new Date(t.created_at);
+      if (covFrom && d < covFrom) return false;
+      if (covTo && d > covTo) return false;
+      return true;
+    }).map(t => t.location_code));
+    const allSites = DB.locations().filter(l => canViewSite(l.code));
+    const uncovered = allSites.filter(l => !testedCodes.has(l.code));
+    const coveredN = allSites.length - uncovered.length;
+    const covPct = allSites.length ? Math.round(coveredN / allSites.length * 100) : 0;
+    const covColor = covPct >= 100 ? 'var(--sev-pass)' : covPct >= 50 ? 'var(--warn)' : 'var(--sev-nodrive)';
+    document.getElementById('coverage').innerHTML = `
+      <div class="row between" style="margin-bottom:6px">
+        <span class="small">${coveredN}/${allSites.length} ${T('sites tested','สถานที่ที่มีการตรวจ')}</span>
+        <span class="small" style="font-weight:700; color:${covColor}">${covPct}%</span>
+      </div>
+      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden; margin-bottom:14px">
+        <div style="height:100%; width:${covPct}%; background:${covColor}; transition:width .4s ease"></div>
+      </div>
+      ${uncovered.length ? `
+        <div class="small" style="font-weight:600; margin-bottom:8px; color:var(--sev-nodrive)">${T('Not tested','ยังไม่ได้ตรวจ')} (${uncovered.length})</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px">
+          ${uncovered.map(l => `<span class="badge badge-warn"><span class="badge-dot"></span>${esc(l.name)} <span style="opacity:.7; font-family:var(--font-mono); font-size:11px">${esc(l.code)}</span></span>`).join('')}
+        </div>`
+        : `<span class="badge badge-success"><span class="badge-dot"></span>${T('All sites tested in this range','ทุกสถานที่มีการตรวจในช่วงนี้')}</span>`}`;
+
+    // By-site breakdown — how much each location tested in the current filter/week
+    const bySite = {};
+    filtered.forEach(t => {
+      const k = t.location_code || '?';
+      const s = (bySite[k] ||= { code: k, name: t.location_name || k, total: 0, pass: 0, pos: 0, sumVal: 0, valN: 0 });
+      s.total++;
+      if (t.is_zero) s.pass++; else { s.pos++; s.sumVal += Number(t.alcohol_value) || 0; s.valN++; }
+    });
+    const siteRows = Object.values(bySite).sort((a, b) => b.total - a.total || b.pos - a.pos);
+    const maxTotal = siteRows[0]?.total || 1;
+    document.getElementById('by-site').innerHTML = siteRows.length ? `
+      <table class="table"><thead><tr>
+        <th>${T('Site','สถานที่')}</th><th>${T('Tests','จำนวนตรวจ')}</th><th>${T('Pass','ผ่าน')}</th><th>${T('Detected','พบ')}</th><th>${T('Detection %','% พบ')}</th><th>${T('Avg mg%','เฉลี่ย mg%')}</th><th style="width:22%">${T('Volume','ปริมาณ')}</th>
+      </tr></thead><tbody>${siteRows.map(s => {
+        const rate = Math.round(s.pos / s.total * 100);
+        const avg = s.valN ? (s.sumVal / s.valN).toFixed(1) : '—';
+        return `<tr>
+          <td><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${esc(s.code)}</span> ${esc(s.name)}</td>
+          <td style="font-weight:600">${s.total}</td>
+          <td class="small" style="color:var(--sev-pass)">${s.pass}</td>
+          <td class="small" style="color:var(--sev-nodrive)">${s.pos}</td>
+          <td>${s.pos ? `<span class="badge badge-danger">${rate}%</span>` : `<span class="badge badge-success">0%</span>`}</td>
+          <td class="small">${avg}</td>
+          <td><div class="mbar-track"><div class="mbar-fill" style="width:${s.total / maxTotal * 100}%"></div></div></td>
+        </tr>`;
+      }).join('')}</tbody></table>`
+      : `<div class="muted small" style="padding:8px 0">${T('No data','ไม่มีข้อมูล')}</div>`;
+
+    // Table
     document.getElementById('rows').innerHTML = filtered.length ? filtered.map(t => `
       <tr>
         <td class="small">${formatDateShort(t.created_at)}</td>
@@ -140,30 +350,37 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
         <td class="small">${esc(t.company)}</td>
         <td class="small"><span style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">${esc(t.location_code)}</span> ${esc(t.location_name)}</td>
         <td class="small">${esc(t.plate_number) || '—'}</td>
+        <td class="small">W${isoWeek(new Date(t.created_at)).week}</td>
+        <td class="small">${SHIFT_LABEL[t.shift_id] || '—'}</td>
+        <td>${sevChip(t)}</td>
         <td>${t.is_zero ? '<span class="badge badge-success">0%</span>' : `<span class="badge badge-danger">${t.alcohol_value} mg%</span>`}</td>
       </tr>
-    `).join('') : `<tr><td colspan="7"><div class="empty"><div class="icon">🔍</div>${isEN ? 'No data found' : 'ไม่พบข้อมูล'}</div></td></tr>`;
+    `).join('') : `<tr><td colspan="10"><div class="empty"><div class="icon">🔍</div>${T('No data found','ไม่พบข้อมูล')}</div></td></tr>`;
   }
+
   function exportCSV() {
     const headers = isEN
-      ? ['Date','Name','Department','Company','Location Code','Location','License Plate','Value (mg%)','Result']
-      : ['วันที่','ชื่อ','แผนก','บริษัท','รหัสสถานที่','สถานที่','ทะเบียน','ค่า (mg%)','ผล'];
+      ? ['Date','Name','Department','Company','Location Code','Location','License Plate','Week','Shift','Level','Value (mg%)','Result']
+      : ['วันที่','ชื่อ','แผนก','บริษัท','รหัสสถานที่','สถานที่','ทะเบียน','สัปดาห์','กะ','ระดับ','ค่า (mg%)','ผล'];
     const rows = filtered.map(t => [
       formatDate(t.created_at), t.full_name, t.department, t.company,
       t.location_code, t.location_name, t.plate_number || '',
+      'W' + isoWeek(new Date(t.created_at)).week, SHIFT_LABEL[t.shift_id] || '', (SEV.find(s => s[0] === sevOf(t)) || [,''])[1],
       t.alcohol_value, t.is_zero ? '0%' : (isEN ? 'Alcohol Detected' : 'พบแอลกอฮอล์')
     ]);
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8'});
+    const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `alcohol-tests-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
-    showToast(isEN ? 'CSV exported' : 'ส่งออก CSV เรียบร้อย');
+    showToast(T('CSV exported','ส่งออก CSV เรียบร้อย'));
   }
+
   window.apply = apply; window.reset = reset; window.exportCSV = exportCSV;
   render();
-  DB.startPolling(render, 5000);
+  // Poll re-applies the active filter (not just re-render) so new records flow in.
+  DB.startPolling(apply, 5000);
 }
 }); // DB.init
 </script>
