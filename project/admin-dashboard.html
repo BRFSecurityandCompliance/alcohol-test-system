@@ -44,6 +44,7 @@
   .delta-up { background:#dcfce7; color:#166534; }
   .delta-down { background:#fee2e2; color:#7f1d1d; }
   .delta-same { background:var(--surface-2); color:var(--text-muted); }
+  @media (max-width: 860px) { .dash-row { grid-template-columns:1fr !important; } }
 </style>
 </head>
 <body>
@@ -57,20 +58,23 @@
     <div class="muted small" id="now"></div>
   </div>
 
-  <div class="stats" style="margin-bottom:24px" id="stats"></div>
+  <!-- Period + dimension controls -->
+  <div id="period-bar" class="period-bar"></div>
+  <div class="muted small" id="range-label" style="margin:-6px 0 16px"></div>
 
-  <!-- Row 1: 7-day chart + ratio -->
-  <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px">
+  <div class="stats" style="margin-bottom:16px" id="stats"></div>
+
+  <!-- Row 1: adaptive trend + severity breakdown -->
+  <div class="dash-row" style="display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:16px">
     <div class="card">
       <div class="card-header">
         <h2 id="chart-title"></h2>
         <div class="row gap-sm">
-          <span class="legend-dot" style="background:var(--brand); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted" id="legend-pass"></span>
-          <span class="legend-dot" style="background:var(--danger); display:inline-block; width:10px;height:10px;border-radius:2px"></span><span class="tiny muted" id="legend-fail"></span>
+          <span class="sev-dot dot-pass"></span><span class="tiny muted" id="legend-pass"></span>
+          <span class="sev-dot dot-nodrive"></span><span class="tiny muted" id="legend-fail"></span>
         </div>
       </div>
-      <div class="chart" id="chart"></div>
-      <div style="margin-top:32px"></div>
+      <div class="trend" id="chart"></div>
     </div>
     <div class="card">
       <div class="card-header"><h2 id="ratio-title"></h2></div>
@@ -78,8 +82,20 @@
     </div>
   </div>
 
-  <!-- Row 2: Top sites + Top depts -->
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px">
+  <!-- Row 2: shift analysis + retest outcomes -->
+  <div class="dash-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px">
+    <div class="card">
+      <div class="card-header"><h2 id="shift-title"></h2></div>
+      <div id="shift-analysis"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2 id="retest-title"></h2></div>
+      <div id="retest-outcomes"></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Top sites + Top depts -->
+  <div class="dash-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px">
     <div class="card">
       <div class="card-header">
         <h2 id="top-sites-title"></h2>
@@ -88,14 +104,18 @@
       <div id="top-sites"></div>
     </div>
     <div class="card">
-      <div class="card-header">
-        <h2 id="top-depts-title"></h2>
-      </div>
+      <div class="card-header"><h2 id="top-depts-title"></h2></div>
       <div id="top-depts"></div>
     </div>
   </div>
 
-  <!-- Row 3: Heatmap -->
+  <!-- Row 4: Repeat offenders -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><h2 id="repeat-title"></h2><span class="muted small" id="repeat-sub"></span></div>
+    <div id="repeat-offenders"></div>
+  </div>
+
+  <!-- Row 5: Heatmap -->
   <div class="card" style="margin-bottom:16px">
     <div class="card-header">
       <h2 id="heatmap-title"></h2>
@@ -115,12 +135,8 @@
     </div>
   </div>
 
-  <!-- Row 4: Month comparison + Latest tests + Alerts -->
-  <div style="display:grid; grid-template-columns:1fr 2fr; gap:16px; margin-bottom:16px">
-    <div class="card">
-      <div class="card-header"><h2 id="month-compare-title"></h2></div>
-      <div id="month-compare"></div>
-    </div>
+  <!-- Row 6: Latest tests + Pending alerts -->
+  <div class="dash-row" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px">
     <div class="card">
       <div class="card-header">
         <h2 id="latest-title"></h2>
@@ -128,15 +144,13 @@
       </div>
       <div id="latest"></div>
     </div>
-  </div>
-
-  <!-- Row 5: Pending alerts -->
-  <div class="card" id="alert-card" style="margin-bottom:16px; display:none">
-    <div class="card-header">
-      <h2 style="color:var(--danger)" id="alert-card-title"></h2>
-      <a href="admin-alerts.html" class="btn btn-sm btn-danger" id="alert-view-all-btn"></a>
+    <div class="card" id="alert-card" style="display:none">
+      <div class="card-header">
+        <h2 style="color:var(--danger)" id="alert-card-title"></h2>
+        <a href="admin-alerts.html" class="btn btn-sm btn-danger" id="alert-view-all-btn"></a>
+      </div>
+      <div id="pending-alerts"></div>
     </div>
-    <div id="pending-alerts"></div>
   </div>
 </div>
 
@@ -148,221 +162,261 @@ DB.init().then(() => {
 if (requireAdmin()) {
   document.getElementById('chrome').innerHTML = renderTopbar('dashboard');
   const isEN = (localStorage.getItem('lang')||'th') === 'en';
+  const loc = isEN ? 'en-GB' : 'th-TH';
+  const T = (en, th) => isEN ? en : th;
 
-  document.getElementById('page-title').textContent = isEN ? 'Dashboard' : 'แดชบอร์ด';
-  document.getElementById('page-sub').textContent = isEN ? 'Alcohol test data overview' : 'ภาพรวมข้อมูลการตรวจแอลกอฮอล์';
-  document.getElementById('now').textContent = new Date().toLocaleDateString(isEN ? 'en-GB' : 'th-TH', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
-  document.getElementById('chart-title').textContent = isEN ? 'Test Results — Last 7 Days' : 'ผลตรวจ 7 วันล่าสุด';
-  document.getElementById('legend-pass').textContent = isEN ? 'Pass' : 'ผ่าน';
-  document.getElementById('legend-fail').textContent = isEN ? 'Fail' : 'ไม่ผ่าน';
-  document.getElementById('ratio-title').textContent = isEN ? 'Result Ratio' : 'สัดส่วนผล';
-  document.getElementById('top-sites-title').textContent = isEN ? 'Top 5 Locations (% Fail)' : 'Top 5 สถานที่ (% ไม่ผ่าน)';
-  document.getElementById('reports-link').textContent = isEN ? 'Reports →' : 'รายงาน →';
-  document.getElementById('top-depts-title').textContent = isEN ? 'Top 5 Departments (% Fail)' : 'Top 5 แผนก (% ไม่ผ่าน)';
-  document.getElementById('heatmap-title').textContent = isEN ? 'Heatmap — Alcohol Detection Times' : 'Heatmap — ช่วงเวลาที่พบแอลกอฮอล์';
-  document.getElementById('heatmap-sub').textContent = isEN ? 'Last 7 days × 24 hours' : '7 วันล่าสุด × 24 ชั่วโมง';
-  document.getElementById('hm-low').textContent = isEN ? 'Low' : 'น้อย';
-  document.getElementById('hm-high').textContent = isEN ? 'High' : 'มาก';
-  document.getElementById('month-compare-title').textContent = isEN ? 'This Month vs Last Month' : 'เดือนนี้ vs เดือนที่แล้ว';
-  document.getElementById('latest-title').textContent = isEN ? 'Latest Test Results' : 'ผลตรวจล่าสุด';
-  document.getElementById('view-all-btn').textContent = isEN ? 'View all →' : 'ดูทั้งหมด →';
-  document.getElementById('alert-card-title').textContent = isEN ? '⚠ Pending' : '⚠ รอดำเนินการ';
-  document.getElementById('alert-view-all-btn').textContent = isEN ? 'View all →' : 'ดูทั้งหมด →';
+  // ── Filter state (persisted) ────────────────────────────────────────────────
+  const LS_KEY = 'dash_filters';
+  const DEFAULTS = { preset: 'month', from: '', to: '', dept: '', company: '', location: '', shift: '', compare: true };
+  let filters;
+  try { filters = { ...DEFAULTS, ...(JSON.parse(localStorage.getItem(LS_KEY)) || {}) }; } catch { filters = { ...DEFAULTS }; }
+  const persist = () => localStorage.setItem(LS_KEY, JSON.stringify(filters));
 
+  const SHIFTS = [['morning', T('Morning','เช้า')], ['afternoon', T('Afternoon','บ่าย')], ['night', T('Night','ดึก')]];
+  const SEV = [
+    ['pass',     T('Pass','ผ่าน'),        'pass'],
+    ['caution',  T('Caution','เตือน'),    'caution'],
+    ['no-drive', T('No-drive','ห้ามขับ'), 'nodrive'],
+    ['illegal',  T('Illegal','ผิดกฎหมาย'),'illegal'],
+  ];
+  const fmtDay = (d) => d.toLocaleDateString(loc, { day: '2-digit', month: 'short', year: 'numeric' });
+
+  // Static labels
+  document.getElementById('page-title').textContent = T('Dashboard','แดชบอร์ด');
+  document.getElementById('page-sub').textContent = T('Alcohol test data overview','ภาพรวมข้อมูลการตรวจแอลกอฮอล์');
+  document.getElementById('now').textContent = new Date().toLocaleDateString(loc, {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  document.getElementById('legend-pass').textContent = T('Pass','ผ่าน');
+  document.getElementById('legend-fail').textContent = T('Detected','พบ');
+  document.getElementById('ratio-title').textContent = T('Severity Breakdown','แยกตามระดับ');
+  document.getElementById('shift-title').textContent = T('Detection Rate by Shift','อัตราพบตามกะ');
+  document.getElementById('retest-title').textContent = T('Retest Outcomes','ผลการตรวจซ้ำ');
+  document.getElementById('top-sites-title').textContent = T('Top 5 Locations (% Detected)','Top 5 สถานที่ (% พบ)');
+  document.getElementById('reports-link').textContent = T('Reports →','รายงาน →');
+  document.getElementById('top-depts-title').textContent = T('Top 5 Departments (% Detected)','Top 5 แผนก (% พบ)');
+  document.getElementById('repeat-title').textContent = T('Repeat Offenders','ผู้ตรวจพบซ้ำ');
+  document.getElementById('repeat-sub').textContent = T('≥ 2 detections in period','พบตั้งแต่ 2 ครั้งในช่วงนี้');
+  document.getElementById('heatmap-title').textContent = T('Heatmap — Detection by Weekday × Hour','Heatmap — ช่วงเวลาที่พบ ตามวัน × ชั่วโมง');
+  document.getElementById('hm-low').textContent = T('Low','น้อย');
+  document.getElementById('hm-high').textContent = T('High','มาก');
+  document.getElementById('latest-title').textContent = T('Latest Test Results','ผลตรวจล่าสุด');
+  document.getElementById('view-all-btn').textContent = T('View all →','ดูทั้งหมด →');
+  document.getElementById('alert-card-title').textContent = T('⚠ Pending','⚠ รอดำเนินการ');
+  document.getElementById('alert-view-all-btn').textContent = T('View all →','ดูทั้งหมด →');
+
+  // ── Period bar (built once; poll re-renders only the widgets below) ──────────
+  function buildPeriodBar() {
+    const presets = [['today',T('Today','วันนี้')],['7d',T('7 Days','7 วัน')],['week',T('This Week','สัปดาห์นี้')],['month',T('This Month','เดือนนี้')],['custom',T('Custom','กำหนดเอง')]];
+    const opt = (v, label, sel) => `<option value="${esc(v)}"${sel===v?' selected':''}>${esc(label)}</option>`;
+    document.getElementById('period-bar').innerHTML = `
+      <div class="field"><label>${T('Period','ช่วงเวลา')}</label>
+        <div class="seg" id="preset-seg">${presets.map(([k,l])=>`<button class="seg-btn" data-preset="${k}">${l}</button>`).join('')}</div></div>
+      <div class="field"><label>${T('From','จาก')}</label><input class="input" type="date" id="pb-from" value="${filters.from}"></div>
+      <div class="field"><label>${T('To','ถึง')}</label><input class="input" type="date" id="pb-to" value="${filters.to}"></div>
+      <div class="field"><label>${T('Department','แผนก')}</label><select class="select" id="pb-dept"><option value="">${T('All','ทั้งหมด')}</option>${DEPARTMENTS.map(d=>opt(d,d,filters.dept)).join('')}</select></div>
+      <div class="field"><label>${T('Company','บริษัท')}</label><select class="select" id="pb-co"><option value="">${T('All','ทั้งหมด')}</option>${DB.companies().map(c=>opt(c.name,c.name,filters.company)).join('')}</select></div>
+      <div class="field"><label>${T('Location','สถานที่')}</label><select class="select" id="pb-loc"><option value="">${T('All','ทั้งหมด')}</option>${DB.locations().map(l=>opt(l.code,`${l.name} (${l.code})`,filters.location)).join('')}</select></div>
+      <div class="field"><label>${T('Shift','กะ')}</label><select class="select" id="pb-shift"><option value="">${T('All','ทั้งหมด')}</option>${SHIFTS.map(([k,l])=>opt(k,l,filters.shift)).join('')}</select></div>
+      <div class="field"><label>&nbsp;</label><label class="row gap-sm" style="cursor:pointer;font-weight:500;white-space:nowrap"><input type="checkbox" id="pb-compare"${filters.compare?' checked':''}> ${T('Compare to previous','เทียบช่วงก่อน')}</label></div>
+      <div class="field"><label>&nbsp;</label><button class="btn btn-sm" id="pb-reset">${T('Reset','รีเซ็ต')}</button></div>`;
+
+    const seg = () => document.querySelectorAll('#preset-seg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.preset === filters.preset));
+    const set = (patch, rebuildSeg) => { Object.assign(filters, patch); persist(); if (rebuildSeg) seg(); renderDashboard(); };
+    document.querySelectorAll('#preset-seg .seg-btn').forEach(b => b.onclick = () => set(b.dataset.preset === 'custom' ? { preset: 'custom' } : { preset: b.dataset.preset, from: '', to: '' }, true));
+    document.getElementById('pb-from').onchange  = e => set({ from: e.target.value, preset: 'custom' }, true);
+    document.getElementById('pb-to').onchange    = e => set({ to: e.target.value, preset: 'custom' }, true);
+    document.getElementById('pb-dept').onchange  = e => set({ dept: e.target.value });
+    document.getElementById('pb-co').onchange    = e => set({ company: e.target.value });
+    document.getElementById('pb-loc').onchange   = e => set({ location: e.target.value });
+    document.getElementById('pb-shift').onchange = e => set({ shift: e.target.value });
+    document.getElementById('pb-compare').onchange = e => set({ compare: e.target.checked });
+    document.getElementById('pb-reset').onclick = () => { filters = { ...DEFAULTS }; persist(); buildPeriodBar(); renderDashboard(); };
+    seg();
+  }
+
+  // Resolve the active window (+ previous equal-length window for comparison).
+  function resolveRange() {
+    if (filters.preset === 'custom') {
+      const start = filters.from ? new Date(filters.from + 'T00:00:00') : new Date(0);
+      const end = filters.to ? new Date(filters.to + 'T23:59:59.999') : new Date();
+      const len = end - start;
+      const prevEnd = new Date(start.getTime() - 1);
+      const prevStart = new Date(prevEnd.getTime() - len);
+      return { start, end, prevStart, prevEnd };
+    }
+    return periodRange(filters.preset);
+  }
+
+  const inRange = (list, a, b) => list.filter(t => { const d = new Date(t.created_at); return d >= a && d <= b; });
+  const applyDims = (list) => list.filter(t =>
+    (!filters.dept || t.department === filters.dept) &&
+    (!filters.company || t.company === filters.company) &&
+    (!filters.location || t.location_code === filters.location) &&
+    (!filters.shift || t.shift_id === filters.shift));
+
+  // Delta chip: goodDown=true → a decrease is the good direction (e.g. positives).
+  function delta(cur, prev, { pct = false, goodDown = false, neutral = false } = {}) {
+    if (!filters.compare) return '';
+    const diff = cur - prev;
+    const arrow = diff > 0 ? '▲' : diff < 0 ? '▼' : '—';
+    const cls = neutral || diff === 0 ? 'delta-same' : ((goodDown ? diff < 0 : diff > 0) ? 'delta-up' : 'delta-down');
+    return `<span class="delta-chip ${cls}" style="font-size:11px">${arrow} ${Math.abs(diff)}${pct ? '%' : ''}</span>`;
+  }
+
+  // ── Main render (data widgets only) ─────────────────────────────────────────
   function renderDashboard() {
-  const tests = DB.tests().filter(t => canViewSite(t.location_code));
-  const today = new Date(); today.setHours(0,0,0,0);
-  const thisMonth = new Date(); thisMonth.setDate(1); thisMonth.setHours(0,0,0,0);
-  const lastMonth = new Date(thisMonth); lastMonth.setMonth(lastMonth.getMonth() - 1);
-  const endLastMonth = new Date(thisMonth);
+    const base = applyDims(DB.tests().filter(t => canViewSite(t.location_code)));
+    const { start, end, prevStart, prevEnd } = resolveRange();
+    const tests = inRange(base, start, end);
+    const prev = inRange(base, prevStart, prevEnd);
+    const sum = summarize(tests), psum = summarize(prev);
 
-  const todayTests = tests.filter(t => new Date(t.created_at) >= today);
-  const zero = tests.filter(t => t.is_zero).length;
-  const positive = tests.filter(t => !t.is_zero).length;
-  const pending = tests.filter(t => !t.is_zero && t.action_taken === 'pending').length;
+    document.getElementById('range-label').textContent =
+      `${fmtDay(start)} – ${fmtDay(end)}` + (filters.compare ? `  ·  ${T('vs','เทียบ')} ${fmtDay(prevStart)} – ${fmtDay(prevEnd)}` : '');
 
-  // Stats row
-  document.getElementById('stats').innerHTML = `
-    <div class="stat accent-blue"><div class="label">${isEN ? 'All' : 'ทั้งหมด'}</div><div class="value">${tests.length}</div><div class="delta">${isEN ? 'All locations' : 'รวมทุกสถานที่'}</div></div>
-    <div class="stat accent-green"><div class="label">${isEN ? 'Result 0%' : 'ผลเป็น 0%'}</div><div class="value">${zero}</div><div class="delta">${tests.length ? Math.round(zero/tests.length*100) : 0}% ${isEN ? 'of total' : 'ของทั้งหมด'}</div></div>
-    <div class="stat accent-red"><div class="label">${isEN ? 'Alcohol Detected' : 'ตรวจพบแอลกอฮอล์'}</div><div class="value">${positive}</div><div class="delta">${tests.length ? Math.round(positive/tests.length*100) : 0}% ${isEN ? 'of total' : 'ของทั้งหมด'}</div></div>
-    <div class="stat"><div class="label">${isEN ? 'Today' : 'วันนี้'}</div><div class="value">${todayTests.length}</div><div class="delta">${new Date().toLocaleDateString(isEN ? 'en-GB' : 'th-TH',{day:'2-digit',month:'short'})}</div></div>
-    ${pending ? `<div class="stat accent-red"><div class="label">${isEN ? 'Pending' : 'รอดำเนินการ'}</div><div class="value">${pending}</div><div class="delta"><a href="admin-alerts.html" style="color:var(--danger)">${isEN ? 'View Alerts →' : 'ดู Alert →'}</a></div></div>` : ''}
-  `;
+    const serious = sum.severity['no-drive'] + sum.severity.illegal;
+    const pSerious = psum.severity['no-drive'] + psum.severity.illegal;
+    const pendingAll = base.filter(t => !t.is_zero && t.action_taken === 'pending').length;
 
-  // 7-day chart
-  const days7 = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0,0,0,0);
-    const next = new Date(d); next.setDate(next.getDate() + 1);
-    const dayTests = tests.filter(t => { const td = new Date(t.created_at); return td >= d && td < next; });
-    days7.push({ label: d.toLocaleDateString(isEN ? 'en-GB' : 'th-TH', {weekday:'short'}), pass: dayTests.filter(t=>t.is_zero).length, fail: dayTests.filter(t=>!t.is_zero).length });
-  }
-  const maxBar = Math.max(...days7.map(d => d.pass + d.fail), 1);
-  document.getElementById('chart').innerHTML = days7.map(d => {
-    const total = d.pass + d.fail;
-    const h = total / maxBar * 100;
-    const failH = total ? (d.fail / total * h) : 0;
-    const passH = h - failH;
-    return `
-      <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:0; position:relative; height:100%; justify-content:flex-end">
-        <span style="position:absolute; top:-20px; font-size:11px; font-weight:600">${total || ''}</span>
-        <div style="width:100%; display:flex; flex-direction:column; justify-content:flex-end; height:100%">
-          <div style="height:${failH}%; background:linear-gradient(180deg,#f87171,var(--danger)); border-radius:${passH<0.5?'4px 4px':'0 0'} 0 0; min-height:${d.fail?4:0}px"></div>
-          <div style="height:${passH}%; background:linear-gradient(180deg,var(--brand-2),var(--brand)); border-radius:4px 4px 0 0; min-height:${d.pass?4:0}px"></div>
+    // KPI tiles
+    document.getElementById('stats').innerHTML = `
+      <div class="stat accent-blue"><div class="label">${T('Total Tests','จำนวนตรวจ')}</div><div class="value">${sum.total}</div><div class="delta">${delta(sum.total, psum.total, { neutral: true })}</div></div>
+      <div class="stat accent-green"><div class="label">${T('Pass Rate','อัตราผ่าน')}</div><div class="value">${sum.passRate}%</div><div class="delta">${delta(sum.passRate, psum.passRate, { pct: true })} <span class="muted">${sum.zero}/${sum.total}</span></div></div>
+      <div class="stat accent-red"><div class="label">${T('Alcohol Detected','ตรวจพบ')}</div><div class="value">${sum.positive}</div><div class="delta">${delta(sum.positive, psum.positive, { goodDown: true })}</div></div>
+      <div class="stat accent-red"><div class="label">${T('No-drive + Illegal','ห้ามขับ+ผิดกม.')}</div><div class="value">${serious}</div><div class="delta">${delta(serious, pSerious, { goodDown: true })}</div></div>
+      <div class="stat"><div class="label">${T('Avg mg%','ค่าเฉลี่ย mg%')}</div><div class="value">${sum.avgValue}</div><div class="delta muted">${T('detected only','เฉพาะที่พบ')}</div></div>
+      ${pendingAll ? `<div class="stat accent-red"><div class="label">${T('Pending','รอดำเนินการ')}</div><div class="value">${pendingAll}</div><div class="delta"><a href="admin-alerts.html" style="color:var(--danger)">${T('View →','ดู →')}</a></div></div>` : ''}`;
+
+    // Adaptive trend
+    const { gran, buckets } = bucketTests(tests, start, end);
+    const maxB = Math.max(...buckets.map(b => b.tests.length), 1);
+    document.getElementById('chart').innerHTML = buckets.length ? buckets.map(b => {
+      const s = summarize(b.tests);
+      const passH = s.zero / maxB * 100, posH = s.positive / maxB * 100;
+      const lbl = gran === 'week' ? 'W' + isoWeek(b.start).week : String(b.start.getDate());
+      const dlabel = gran === 'week' ? `${fmtDay(b.start)} – ${fmtDay(b.end)}` : fmtDay(b.start);
+      const tip = `${dlabel}\n${s.total} ${T('tests','ผล')} · ${s.zero} ${T('pass','ผ่าน')} · ${s.positive} ${T('detected','พบ')}`;
+      return `<div class="trend-col" data-tip="${esc(tip)}">
+        <div class="trend-stack">
+          <div class="trend-seg pos" style="height:${posH}%; min-height:${s.positive ? 3 : 0}px"></div>
+          <div class="trend-seg pass" style="height:${passH}%; min-height:${s.zero ? 3 : 0}px"></div>
         </div>
-        <span style="position:absolute; bottom:-22px; font-size:11px; color:var(--text-muted)">${d.label}</span>
+        <div class="t-lbl">${lbl}</div>
       </div>`;
-  }).join('');
+    }).join('') : `<div class="muted small" style="margin:auto">${T('No tests in this period','ไม่มีข้อมูลในช่วงนี้')}</div>`;
 
-  // Ratio
-  const total = tests.length || 1;
-  document.getElementById('ratio').innerHTML = `
-    <div style="margin-bottom:16px">
-      <div class="row between" style="margin-bottom:6px"><span class="small">${isEN ? 'No Alcohol' : 'ไม่พบแอลกอฮอล์'}</span><span class="small" style="font-weight:600;color:var(--success)">${zero}</span></div>
-      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${zero/total*100}%; background:var(--success); transition:width .4s ease"></div></div>
-    </div>
-    <div>
-      <div class="row between" style="margin-bottom:6px"><span class="small">${isEN ? 'Alcohol Detected' : 'ตรวจพบแอลกอฮอล์'}</span><span class="small" style="font-weight:600;color:var(--danger)">${positive}</span></div>
-      <div style="height:10px; background:var(--surface-2); border-radius:99px; overflow:hidden"><div style="height:100%; width:${positive/total*100}%; background:var(--danger); transition:width .4s ease"></div></div>
-    </div>
-    <div class="divider"></div>
-    <div style="font-size:13px; font-weight:700; text-align:center; color:var(--success)">${Math.round(zero/total*100)}%<span class="muted" style="font-weight:400; font-size:12px; margin-left:4px">${isEN ? 'pass rate' : 'อัตราผ่าน'}</span></div>
-  `;
-
-  // Top 5 sites by fail rate
-  function topBy(groupKey, label) {
-    const grouped = {};
-    tests.forEach(t => {
-      const k = t[groupKey] || '?';
-      if (!grouped[k]) grouped[k] = { total: 0, fail: 0, label: label ? t[label] || k : k };
-      grouped[k].total++;
-      if (!t.is_zero) grouped[k].fail++;
-    });
-    return Object.entries(grouped).filter(([,v]) => v.total >= 3).map(([k,v]) => ({ key: k, label: v.label, total: v.total, fail: v.fail, rate: Math.round(v.fail/v.total*100) })).sort((a,b) => b.rate - a.rate).slice(0, 5);
-  }
-  function renderRanking(containerId, items, maxRate) {
-    if (!items.length) { document.getElementById(containerId).innerHTML = `<div class="muted small" style="padding:12px 0">${isEN ? 'Insufficient data (at least 3 results per group required)' : 'ข้อมูลไม่เพียงพอ (ต้องมีอย่างน้อย 3 ผลต่อกลุ่ม)'}</div>`; return; }
-    document.getElementById(containerId).innerHTML = items.map((item, i) => `
-      <div class="rank-bar-row">
-        <div class="rank-name" title="${esc(item.label)}"><span class="muted small" style="margin-right:4px">${i+1}.</span>${esc(item.label)}</div>
-        <div class="rank-bar-bg">
-          <div class="rank-bar-fill" style="width:${maxRate ? item.rate/maxRate*100 : item.rate}%"></div>
-        </div>
-        <div class="rank-num" style="color:var(--danger)">${item.rate}%</div>
+    // Severity breakdown (stacked bar + legend)
+    const total1 = sum.total || 1;
+    document.getElementById('ratio').innerHTML = `
+      <div class="sev-bar" style="margin-bottom:16px">
+        ${SEV.map(([k,, cls]) => sum.severity[k] ? `<span class="dot-${cls}" style="flex:${sum.severity[k]} 1 0; background:var(--sev-${cls})" title="${sum.severity[k]}"></span>` : '').join('')}
       </div>
-    `).join('');
-  }
-  const topSites = topBy('location_code', 'location_name');
-  const topDepts = topBy('department');
-  const maxSite = topSites[0]?.rate || 1;
-  const maxDept = topDepts[0]?.rate || 1;
-  renderRanking('top-sites', topSites, maxSite);
-  renderRanking('top-depts', topDepts, maxDept);
+      <div class="col gap-sm">
+        ${SEV.map(([k, label, cls]) => `
+          <div class="row between">
+            <span class="sev-chip sev-${cls}"><span class="sev-dot dot-${cls}"></span>${label}</span>
+            <span class="small" style="font-weight:600">${sum.severity[k]} <span class="muted" style="font-weight:400">· ${Math.round(sum.severity[k]/total1*100)}%</span></span>
+          </div>`).join('')}
+      </div>
+      <div class="divider"></div>
+      <div style="text-align:center; font-size:13px"><span style="font-weight:700; color:var(--sev-pass)">${sum.passRate}%</span> <span class="muted">${T('pass rate','อัตราผ่าน')}</span></div>`;
 
-  // Heatmap: 7 days × 24 hours (fail tests only)
-  const days = isEN
-    ? ['Today','Yesterday','2 days ago','3 days ago','4 days ago','5 days ago','6 days ago']
-    : ['วันนี้','เมื่อวาน','2 วันก่อน','3 วันก่อน','4 วันก่อน','5 วันก่อน','6 วันก่อน'];
-  const hmData = Array.from({ length: 7 }, () => new Array(24).fill(0));
-  const hmToday = new Date(); hmToday.setHours(0, 0, 0, 0);
-  const hmTodayMs = hmToday.getTime();
-  for (const t of tests) {
-    if (t.is_zero) continue;
-    const td = new Date(t.created_at);
-    const tdDay = new Date(td); tdDay.setHours(0, 0, 0, 0);
-    const dayIdx = Math.round((hmTodayMs - tdDay.getTime()) / 86400000);
-    if (dayIdx >= 0 && dayIdx < 7) hmData[dayIdx][td.getHours()]++;
-  }
-  const maxHm = Math.max(...hmData.flat(), 1);
-  function hmLevel(v) { if (!v) return 0; const r = v/maxHm; return r < .25 ? 1 : r < .5 ? 2 : r < .75 ? 3 : 4; }
+    // Detection rate by shift
+    document.getElementById('shift-analysis').innerHTML = SHIFTS.map(([id, label]) => {
+      const st = tests.filter(t => t.shift_id === id);
+      const pos = st.filter(t => !t.is_zero).length;
+      const rate = st.length ? Math.round(pos / st.length * 100) : 0;
+      return `<div class="mbar-row">
+        <div class="mbar-name">${label}</div>
+        <div class="mbar-track"><div class="mbar-fill danger" style="width:${rate}%"></div></div>
+        <div class="mbar-val">${pos}/${st.length} · ${rate}%</div></div>`;
+    }).join('');
 
-  const hourLabels = Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
-  let hmHtml = `<div style="display:grid; grid-template-columns:70px repeat(24,22px); gap:3px; min-width:fit-content">`;
-  hmHtml += `<div></div>${hourLabels.map(h=>`<div style="font-size:10px;color:var(--text-muted);text-align:center;padding:2px 0">${h}</div>`).join('')}`;
-  for (let d = 0; d < 7; d++) {
-    hmHtml += `<div class="hm-day-label">${days[d]}</div>`;
-    for (let h = 0; h < 24; h++) {
-      const v = hmData[d][h];
-      const lv = hmLevel(v);
-      hmHtml += `<div class="hm-cell" data-v="${lv}"${v ? ` data-tip="${v} ${isEN ? 'fail' : 'ไม่ผ่าน'} ${h}:00"` : ''}></div>`;
+    // Retest outcomes
+    const rt = sum.retests;
+    const rtCells = [
+      [T('Required','ต้องตรวจซ้ำ'), rt.required, 'caution'],
+      [T('Completed','เสร็จสิ้น'), rt.completed, 'pass'],
+      [T('Failed','ล้มเหลว'), rt.failed, 'nodrive'],
+    ];
+    document.getElementById('retest-outcomes').innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; text-align:center">
+        ${rtCells.map(([label, n, cls]) => `<div>
+          <div style="font-size:30px; font-weight:700; color:var(--sev-${cls})">${n}</div>
+          <div class="tiny muted">${label}</div></div>`).join('')}
+      </div>
+      ${rt.required + rt.completed + rt.failed === 0 ? `<div class="muted small" style="text-align:center; margin-top:12px">${T('No retests in this period','ไม่มีการตรวจซ้ำในช่วงนี้')}</div>` : ''}`;
+
+    // Rankings by detection rate
+    function topBy(groupKey, labelKey) {
+      const g = {};
+      tests.forEach(t => { const k = t[groupKey] || '?'; (g[k] ||= { total: 0, pos: 0, label: labelKey ? t[labelKey] || k : k }); g[k].total++; if (!t.is_zero) g[k].pos++; });
+      return Object.values(g).filter(v => v.total >= 3).map(v => ({ label: v.label, rate: Math.round(v.pos / v.total * 100) })).sort((a, b) => b.rate - a.rate).slice(0, 5);
+    }
+    function renderRanking(id, items) {
+      const maxRate = items[0]?.rate || 1;
+      document.getElementById(id).innerHTML = items.length ? items.map((item, i) => `
+        <div class="mbar-row">
+          <div class="mbar-name" title="${esc(item.label)}"><span class="muted small" style="margin-right:4px">${i+1}.</span>${esc(item.label)}</div>
+          <div class="mbar-track"><div class="mbar-fill danger" style="width:${item.rate/maxRate*100}%"></div></div>
+          <div class="mbar-val" style="color:var(--sev-nodrive)">${item.rate}%</div></div>`).join('')
+        : `<div class="muted small" style="padding:12px 0">${T('Insufficient data (≥3 results per group)','ข้อมูลไม่พอ (ต้องมี ≥3 ผลต่อกลุ่ม)')}</div>`;
+    }
+    renderRanking('top-sites', topBy('location_code', 'location_name'));
+    renderRanking('top-depts', topBy('department'));
+
+    // Repeat offenders
+    const offenders = repeatOffenders(tests, 2);
+    document.getElementById('repeat-offenders').innerHTML = offenders.length ? `
+      <div class="table-wrap"><table class="table"><thead><tr>
+        <th>${T('Name','ชื่อ')}</th><th>${T('Department','แผนก')}</th><th>${T('Detections','จำนวนพบ')}</th><th>${T('Max mg%','สูงสุด mg%')}</th><th>${T('Last','ล่าสุด')}</th>
+      </tr></thead><tbody>${offenders.slice(0, 10).map(o => `<tr>
+        <td style="font-weight:600">${esc(o.name)}</td>
+        <td class="small">${esc(o.department)}</td>
+        <td><span class="badge badge-danger">${o.count}×</span></td>
+        <td class="small">${o.maxValue}</td>
+        <td class="small muted">${formatDateShort(o.lastAt)}</td>
+      </tr>`).join('')}</tbody></table></div>`
+      : `<div class="muted small" style="padding:8px 0">${T('No repeat detections in this period','ไม่มีผู้ตรวจพบซ้ำในช่วงนี้')}</div>`;
+
+    // Heatmap: weekday (Mon–Sun) × hour, positives in period
+    const wdays = isEN ? ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] : ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'];
+    const hm = Array.from({ length: 7 }, () => new Array(24).fill(0));
+    for (const t of tests) { if (t.is_zero) continue; const td = new Date(t.created_at); hm[(td.getDay() + 6) % 7][td.getHours()]++; }
+    const maxHm = Math.max(...hm.flat(), 1);
+    const hmLevel = v => !v ? 0 : (v / maxHm < .25 ? 1 : v / maxHm < .5 ? 2 : v / maxHm < .75 ? 3 : 4);
+    const hourLabels = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+    let hmHtml = `<div style="display:grid; grid-template-columns:70px repeat(24,22px); gap:3px; min-width:fit-content"><div></div>${hourLabels.map(h => `<div style="font-size:10px;color:var(--text-muted);text-align:center;padding:2px 0">${h}</div>`).join('')}`;
+    for (let d = 0; d < 7; d++) {
+      hmHtml += `<div class="hm-day-label">${wdays[d]}</div>`;
+      for (let h = 0; h < 24; h++) { const v = hm[d][h]; hmHtml += `<div class="hm-cell" data-v="${hmLevel(v)}"${v ? ` data-tip="${wdays[d]} ${h}:00 · ${v} ${T('detected','พบ')}"` : ''}></div>`; }
+    }
+    document.getElementById('heatmap').innerHTML = hmHtml + '</div>';
+
+    // Latest activity (dimension-filtered, not period-limited) + pending
+    const latest = base.slice(0, 6);
+    document.getElementById('latest').innerHTML = latest.length ? latest.map(t => `
+      <div class="latest-row">
+        <div class="avatar ${!t.is_zero ? 'red' : ''}">${esc(t.full_name.charAt(0))}</div>
+        <div style="flex:1"><div style="font-weight:600">${esc(t.full_name)}</div>
+          <div class="tiny muted">${esc(t.department)} · ${esc(t.location_name)} · ${formatDate(t.created_at)}</div></div>
+        ${thresholdBadge(t)}
+      </div>`).join('') : `<div class="empty"><div class="icon">📋</div>${T('No data found','ยังไม่มีข้อมูล')}</div>`;
+
+    const pendingTests = base.filter(t => !t.is_zero && t.action_taken === 'pending').slice(0, 5);
+    document.getElementById('alert-card').style.display = pendingTests.length ? 'block' : 'none';
+    if (pendingTests.length) {
+      document.getElementById('pending-alerts').innerHTML = pendingTests.map(t => `
+        <div class="latest-row">
+          <div class="avatar red">${esc(t.full_name.charAt(0))}</div>
+          <div style="flex:1"><div style="font-weight:600">${esc(t.full_name)}</div>
+            <div class="tiny muted">${esc(t.location_name)} · ${timeAgo(t.created_at)}</div></div>
+          ${thresholdBadge(t)}
+          <a href="admin-alerts.html" class="btn btn-sm btn-danger">${T('Action','ดำเนินการ')}</a>
+        </div>`).join('');
     }
   }
-  hmHtml += '</div>';
-  document.getElementById('heatmap').innerHTML = hmHtml;
 
-  // Month comparison
-  const thisMonthTests = tests.filter(t => new Date(t.created_at) >= thisMonth);
-  const lastMonthTests = tests.filter(t => { const d = new Date(t.created_at); return d >= lastMonth && d < endLastMonth; });
-  const tmPass = thisMonthTests.filter(t=>t.is_zero).length;
-  const lmPass = lastMonthTests.filter(t=>t.is_zero).length;
-  const tmTotal = thisMonthTests.length;
-  const lmTotal = lastMonthTests.length;
-  const tmRate = tmTotal ? Math.round(tmPass/tmTotal*100) : 0;
-  const lmRate = lmTotal ? Math.round(lmPass/lmTotal*100) : 0;
-  const rateDiff = tmRate - lmRate;
-  const countDiff = tmTotal - lmTotal;
-  document.getElementById('month-compare').innerHTML = `
-    <div style="text-align:center; margin-bottom:20px">
-      <div class="muted small" style="margin-bottom:4px">${isEN ? 'This Month' : 'เดือนนี้'}</div>
-      <div style="font-size:40px; font-weight:700; color:var(--brand)">${tmRate}%</div>
-      <div class="muted small">${isEN ? `Pass rate (${tmTotal} tests)` : `อัตราผ่าน (${tmTotal} ผลตรวจ)`}</div>
-      <div style="margin-top:10px">
-        <span class="delta-chip ${rateDiff > 0 ? 'delta-up' : rateDiff < 0 ? 'delta-down' : 'delta-same'}">
-          ${rateDiff > 0 ? '▲' : rateDiff < 0 ? '▼' : '—'} ${Math.abs(rateDiff)}%
-        </span>
-        <span class="muted small" style="margin-left:6px">${isEN ? 'vs last month' : 'vs เดือนที่แล้ว'}</span>
-      </div>
-    </div>
-    <div class="divider"></div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px">
-      <div style="text-align:center">
-        <div class="muted small">${isEN ? 'Last Month' : 'เดือนที่แล้ว'}</div>
-        <div style="font-size:24px; font-weight:700; color:var(--text-muted)">${lmRate}%</div>
-        <div class="tiny muted">${lmTotal} ${isEN ? 'tests' : 'ผลตรวจ'}</div>
-      </div>
-      <div style="text-align:center">
-        <div class="muted small">${isEN ? 'Total Tests' : 'ผลตรวจรวม'}</div>
-        <div style="font-size:24px; font-weight:700">
-          <span class="delta-chip ${countDiff > 0 ? 'delta-down' : 'delta-up'}" style="font-size:14px">
-            ${countDiff > 0 ? '+' : ''}${countDiff}
-          </span>
-        </div>
-        <div class="tiny muted">${isEN ? 'vs last month' : 'เทียบเดือนที่แล้ว'}</div>
-      </div>
-    </div>
-  `;
-
-  // Latest 6 tests
-  const latest = tests.slice(0, 6);
-  document.getElementById('latest').innerHTML = latest.length ? latest.map(t => `
-    <div class="latest-row">
-      <div class="avatar ${!t.is_zero ? 'red' : ''}">${esc(t.full_name.charAt(0))}</div>
-      <div style="flex:1">
-        <div style="font-weight:600">${esc(t.full_name)}</div>
-        <div class="tiny muted">${esc(t.department)} · ${esc(t.location_name)} · ${formatDate(t.created_at)}</div>
-      </div>
-      ${thresholdBadge(t)}
-    </div>
-  `).join('') : `<div class="empty"><div class="icon">📋</div>${isEN ? 'No data found' : 'ยังไม่มีข้อมูล'}</div>`;
-
-  // Pending alerts preview
-  const pendingTests = tests.filter(t => !t.is_zero && t.action_taken === 'pending').slice(0, 4);
-  if (pendingTests.length) {
-    document.getElementById('alert-card').style.display = 'block';
-    document.getElementById('pending-alerts').innerHTML = pendingTests.map(t => `
-      <div class="latest-row">
-        <div class="avatar red">${esc(t.full_name.charAt(0))}</div>
-        <div style="flex:1">
-          <div style="font-weight:600">${esc(t.full_name)}</div>
-          <div class="tiny muted">${esc(t.location_name)} · ${timeAgo(t.created_at)}</div>
-        </div>
-        ${thresholdBadge(t)}
-        <a href="admin-alerts.html" class="btn btn-sm btn-danger">${isEN ? 'Take Action' : 'ดำเนินการ'}</a>
-      </div>
-    `).join('');
-  }
-  } // end renderDashboard
+  buildPeriodBar();
   renderDashboard();
   DB.startPolling(renderDashboard, 5000);
 }
