@@ -134,6 +134,16 @@ function _str(v, max = 300) {
   return (v === null || v === undefined ? '' : String(v)).trim().slice(0, max);
 }
 
+// Photo URL is normally a short Supabase Storage URL (online path uploads the
+// photo first). Offline submissions instead carry a full base64 `data:` URL —
+// truncating those to a few hundred chars would corrupt the breathalyzer photo
+// (the compliance evidence), so allow data: URLs a large bound while keeping a
+// tight cap on ordinary URLs.
+function _photoUrl(v) {
+  const s = (v === null || v === undefined ? '' : String(v)).trim();
+  return s.startsWith('data:') ? s.slice(0, 3_000_000) : s.slice(0, 1000);
+}
+
 async function handleSubmitTest(request, env, ctx) {
   try {
     const b = await request.json();
@@ -168,7 +178,7 @@ async function handleSubmitTest(request, env, ctx) {
       level,
       location_code,
       location_name: _str(b.location_name),
-      photo_url:     _str(b.photo_url, 1000),
+      photo_url:     _photoUrl(b.photo_url),
       shift_id,
       device_serial: _str(b.device_serial, 60),
       retest_of,
