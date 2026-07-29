@@ -289,10 +289,14 @@ if (requireAdmin()) {
     // Adaptive trend
     const { gran, buckets } = bucketTests(tests, start, end);
     const maxB = Math.max(...buckets.map(b => b.tests.length), 1);
+    // Weekly labels get a 'YY year suffix only when the trend crosses ISO years,
+    // so "W1" vs "W52" of different years aren't confused (single-year stays clean).
+    const wkYears = gran === 'week' ? new Set(buckets.map(b => isoWeek(b.start).year)) : null;
     document.getElementById('chart').innerHTML = buckets.length ? buckets.map(b => {
       const s = summarize(b.tests);
       const passH = s.zero / maxB * 100, posH = s.positive / maxB * 100;
-      const lbl = gran === 'week' ? 'W' + isoWeek(b.start).week : String(b.start.getDate());
+      const iw = gran === 'week' ? isoWeek(b.start) : null;
+      const lbl = gran === 'week' ? 'W' + iw.week + (wkYears.size > 1 ? "'" + String(iw.year).slice(-2) : '') : String(b.start.getDate());
       const dlabel = gran === 'week' ? `${fmtDay(b.start)} – ${fmtDay(b.end)}` : fmtDay(b.start);
       const tip = `${dlabel}\n${s.total} ${T('tests','ผล')} · ${s.zero} ${T('pass','ผ่าน')} · ${s.positive} ${T('detected','พบ')}`;
       return `<div class="trend-col" data-tip="${esc(tip)}">
@@ -396,7 +400,7 @@ if (requireAdmin()) {
     const latest = base.slice(0, 6);
     document.getElementById('latest').innerHTML = latest.length ? latest.map(t => `
       <div class="latest-row">
-        <div class="avatar ${!t.is_zero ? 'red' : ''}">${esc(t.full_name.charAt(0))}</div>
+        <div class="avatar ${!t.is_zero ? 'red' : ''}">${esc((t.full_name || '?').charAt(0))}</div>
         <div style="flex:1"><div style="font-weight:600">${esc(t.full_name)}</div>
           <div class="tiny muted">${esc(t.department)} · ${esc(t.location_name)} · ${formatDate(t.created_at)}</div></div>
         ${thresholdBadge(t)}
@@ -407,7 +411,7 @@ if (requireAdmin()) {
     if (pendingTests.length) {
       document.getElementById('pending-alerts').innerHTML = pendingTests.map(t => `
         <div class="latest-row">
-          <div class="avatar red">${esc(t.full_name.charAt(0))}</div>
+          <div class="avatar red">${esc((t.full_name || '?').charAt(0))}</div>
           <div style="flex:1"><div style="font-weight:600">${esc(t.full_name)}</div>
             <div class="tiny muted">${esc(t.location_name)} · ${timeAgo(t.created_at)}</div></div>
           ${thresholdBadge(t)}

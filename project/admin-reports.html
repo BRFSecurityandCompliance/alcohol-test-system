@@ -251,17 +251,20 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
       <div class="stat accent-green"><div class="label">${T('Pass Rate','อัตราผ่าน')}</div><div class="value">${sum.passRate}%</div><div class="delta">${sum.zero}/${sum.total}</div></div>
       <div class="stat accent-red"><div class="label">${T('Detected','ตรวจพบ')}</div><div class="value">${sum.positive}</div></div>
       <div class="stat accent-red"><div class="label">${T('No-drive + Illegal','ห้ามขับ+ผิดกม.')}</div><div class="value">${serious}</div></div>
-      <div class="stat"><div class="label">${T('Avg mg%','เฉลี่ย mg%')}</div><div class="value">${sum.avgValue}</div></div>
+      <div class="stat"><div class="label">${T('Avg mg%','เฉลี่ย mg%')}</div><div class="value">${sum.avgValue}</div><div class="delta muted">${T('detected only','เฉพาะที่พบ')}</div></div>
       <div class="stat"><div class="label">${T('Retests R/C/F','ตรวจซ้ำ ต/ส/ล')}</div><div class="value" style="font-size:22px">${sum.retests.required}/${sum.retests.completed}/${sum.retests.failed}</div></div>`;
 
     // Trend
     const { start, end } = trendBounds();
     const { gran, buckets } = bucketTests(filtered, start, end);
     const maxB = Math.max(...buckets.map(b => b.tests.length), 1);
+    // Weekly labels get a 'YY year suffix only when the trend crosses ISO years.
+    const wkYears = gran === 'week' ? new Set(buckets.map(b => isoWeek(b.start).year)) : null;
     document.getElementById('trend').innerHTML = buckets.length ? buckets.map(b => {
       const s = summarize(b.tests);
       const passH = s.zero / maxB * 100, posH = s.positive / maxB * 100;
-      const lbl = gran === 'week' ? 'W' + isoWeek(b.start).week : String(b.start.getDate());
+      const iw = gran === 'week' ? isoWeek(b.start) : null;
+      const lbl = gran === 'week' ? 'W' + iw.week + (wkYears.size > 1 ? "'" + String(iw.year).slice(-2) : '') : String(b.start.getDate());
       const dl = gran === 'week' ? `${formatDateShort(b.start)} – ${formatDateShort(b.end)}` : formatDateShort(b.start);
       const tip = `${dl}\n${s.total} ${T('tests','ผล')} · ${s.zero} ${T('pass','ผ่าน')} · ${s.positive} ${T('detected','พบ')}`;
       return `<div class="trend-col" data-tip="${esc(tip)}"><div class="trend-stack">
@@ -296,8 +299,9 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
     const allSites = DB.locations().filter(l => canViewSite(l.code));
     const uncovered = allSites.filter(l => !testedCodes.has(l.code));
     const coveredN = allSites.length - uncovered.length;
-    const covPct = allSites.length ? Math.round(coveredN / allSites.length * 100) : 0;
-    const covColor = covPct >= 100 ? 'var(--sev-pass)' : covPct >= 50 ? 'var(--warn)' : 'var(--sev-nodrive)';
+    // Floor so a single untested site never rounds up to a misleading 100%.
+    const covPct = allSites.length ? Math.floor(coveredN / allSites.length * 100) : 0;
+    const covColor = uncovered.length === 0 ? 'var(--sev-pass)' : covPct >= 50 ? 'var(--warn)' : 'var(--sev-nodrive)';
     document.getElementById('coverage').innerHTML = `
       <div class="row between" style="margin-bottom:6px">
         <span class="small">${coveredN}/${allSites.length} ${T('sites tested','สถานที่ที่มีการตรวจ')}</span>
@@ -368,8 +372,15 @@ if (!requireAdmin() || !hasRole('super','manager','viewer')) { location.href = '
       'W' + isoWeek(new Date(t.created_at)).week, SHIFT_LABEL[t.shift_id] || '', (SEV.find(s => s[0] === sevOf(t)) || [,''])[1],
       t.alcohol_value, t.is_zero ? '0%' : (isEN ? 'Alcohol Detected' : 'พบแอลกอฮอล์')
     ]);
-    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-    const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
+    // Neutralise spreadsheet formula injection: fields come from the public QR
+    // form, so a leading = + - @ (or tab/CR) would execute when opened in Excel.
+    const csvCell = (c) => {
+      let s = String(c);
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const csv = [headers, ...rows].map(r => r.map(csvCell).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv;charset=utf-8'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `alcohol-tests-${new Date().toISOString().slice(0,10)}.csv`;
