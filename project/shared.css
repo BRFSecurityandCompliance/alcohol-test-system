@@ -132,7 +132,7 @@ h3 { font-size: 16px; font-weight: 600; }
 
 .divider { height: 1px; background: var(--border); margin: 16px 0; }
 .toggle-row { display: flex; gap: 8px; }
-.toggle-row .seg { flex: 1; padding: 14px; border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); cursor: pointer; text-align: center; font-weight: 600; font-size: 14px; color: var(--text); transition: all .15s ease; }
+.toggle-row .seg { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 14px; border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--surface); cursor: pointer; text-align: center; font-weight: 600; font-size: 14px; color: var(--text); line-height: 1.25; transition: all .15s ease; }
 .toggle-row .seg:hover { border-color: var(--brand-2); }
 .toggle-row .seg.active.zero { background: var(--success); color: #fff; border-color: var(--success); }
 .toggle-row .seg.active.positive { background: var(--danger); color: #fff; border-color: var(--danger); }
